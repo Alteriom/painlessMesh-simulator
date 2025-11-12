@@ -10,8 +10,8 @@
  * @license MIT License
  */
 
-#ifndef _UNISTD_H
-#define _UNISTD_H
+#ifndef _SIMULATOR_UNISTD_H
+#define _SIMULATOR_UNISTD_H
 
 #ifdef _WIN32
 // On Windows, we expect platform_compat.hpp to be included first
@@ -22,6 +22,13 @@
 #else
 // On Unix/Linux/macOS, just include the real header
 #include_next <unistd.h>
+// Ensure functions are in global namespace
+using ::read;
+using ::write;
+using ::close;
+using ::pipe;
+using ::usleep;
+using ::pause;
 #endif
 
-#endif // _UNISTD_H
+#endif // _SIMULATOR_UNISTD_H

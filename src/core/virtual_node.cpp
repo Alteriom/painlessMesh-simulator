@@ -6,22 +6,20 @@
  * @license MIT License
  */
 
-// Include platform compatibility layer FIRST (before any painlessMesh headers)
-#include "simulator/platform_compat.hpp"
+// Include Arduino compatibility header which sets up proper header ordering
+// This Arduino.h is in include/simulator/boost/Arduino.h and will be found
+// via the include path set in CMakeLists.txt
+#include "Arduino.h"
 
 #include "simulator/virtual_node.hpp"
 
 #include <stdexcept>
 #include <iostream>
 
-// Include painlessMesh headers - order matters!
-#define ARDUINO_ARCH_ESP8266
-#define PAINLESSMESH_BOOST
-
+// Include painlessMesh headers
 #include <TaskSchedulerDeclarations.h>
 #include "painlessmesh/mesh.hpp"
 #include "painlessmesh/connection.hpp"
-#include "boost/asynctcp.hpp"
 
 namespace painlessmesh {
 namespace logger {

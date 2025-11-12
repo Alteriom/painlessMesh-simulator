@@ -10,8 +10,8 @@
  * @license MIT License
  */
 
-#ifndef _SYS_TIME_H
-#define _SYS_TIME_H
+#ifndef _SIMULATOR_SYS_TIME_H
+#define _SIMULATOR_SYS_TIME_H
 
 #ifdef _WIN32
 // On Windows, we expect platform_compat.hpp to be included first
@@ -22,6 +22,9 @@
 #else
 // On Unix/Linux/macOS, just include the real header
 #include_next <sys/time.h>
+// Ensure functions and types are in global namespace
+using ::timeval;
+using ::gettimeofday;
 #endif
 
-#endif // _SYS_TIME_H
+#endif // _SIMULATOR_SYS_TIME_H
