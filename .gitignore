@@ -1,0 +1,132 @@
+# Build directories
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+lib/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+painlessmesh-simulator
+simulator
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Test and coverage
+*.gcda
+*.gcno
+*.gcov
+coverage/
+coverage.info
+*.profdata
+*.profraw
+
+# Results and logs
+results/
+logs/
+*.log
+*.csv
+*.json
+*.dot
+*.png
+*.svg
+
+# Package managers
+vcpkg_installed/
+conan/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# Documentation build
+docs/_build/
+docs/html/
+docs/latex/
+doxygen/
+
+# Python (for scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Node.js (if using web UI tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Generated files
+*.autosave
+
+# Clang tools
+.clangd/
+.clang-format
+.clang-tidy
+
+# Valgrind
+*.valgrind
+vgcore.*
+
+# GDB
+.gdb_history
+
+# Core dumps
+core
+core.*
+
+# Example output (keep structure, ignore generated content)
+examples/output/
+examples/results/
+
+# Keep example directories but ignore their outputs
+!examples/scenarios/.gitkeep
+!examples/firmware/.gitkeep
+!examples/visualizations/.gitkeep
