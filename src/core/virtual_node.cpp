@@ -6,6 +6,9 @@
  * @license MIT License
  */
 
+// Include platform compatibility layer FIRST (before any painlessMesh headers)
+#include "simulator/platform_compat.hpp"
+
 #include "simulator/virtual_node.hpp"
 
 #include <stdexcept>

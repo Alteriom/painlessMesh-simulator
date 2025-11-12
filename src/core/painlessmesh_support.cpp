@@ -9,6 +9,9 @@
  * @license MIT License
  */
 
+// Include platform compatibility layer FIRST (before any painlessMesh headers)
+#include "simulator/platform_compat.hpp"
+
 #define ARDUINO_ARCH_ESP8266
 #define PAINLESSMESH_BOOST
 
