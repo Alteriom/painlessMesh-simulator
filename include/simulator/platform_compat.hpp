@@ -4,6 +4,9 @@
  * 
  * Provides Windows implementations of Unix-specific functions used by painlessMesh
  * 
+ * IMPORTANT: This header MUST be included before any painlessMesh headers.
+ * It provides stub sys/time.h and unistd.h headers for Windows builds.
+ * 
  * @copyright Copyright (c) 2025 Alteriom
  * @license MIT License
  */
@@ -68,12 +71,6 @@ inline void usleep(unsigned int usec) {
         CloseHandle(timer);
     }
 }
-
-// Define sys/time.h and unistd.h as included to prevent Arduino.h from trying to include them
-#define _SYS_TIME_H_ 1
-#define _SYS_TIME_H 1
-#define _UNISTD_H 1
-#define _UNISTD_H_ 1
 
 #else
 // Unix/Linux/macOS - use standard headers
