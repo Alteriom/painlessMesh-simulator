@@ -105,6 +105,12 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
+# Platform-specific includes
+if(WIN32)
+  # Windows needs stub headers for sys/time.h and unistd.h
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/windows_compat)
+endif()
+
 # Submodules check
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
   message(WARNING "painlessMesh submodule not found. Run: git submodule update --init --recursive")
@@ -165,6 +171,15 @@ set(SIMULATOR_HEADERS
 
 # Create simulator library
 add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
+
+# Ensure POSIX features are available before including any headers
+if(UNIX)
+  target_compile_definitions(simulator_lib PRIVATE
+    _POSIX_C_SOURCE=200809L
+    _DEFAULT_SOURCE
+  )
+endif()
+
 target_include_directories(simulator_lib PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src

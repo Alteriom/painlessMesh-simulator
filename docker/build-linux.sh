@@ -48,14 +48,14 @@ docker run --rm \
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
         -DCMAKE_C_COMPILER="${CMAKE_C_COMPILER}" \
         -DCMAKE_CXX_COMPILER="${CMAKE_CXX_COMPILER}" \
-        -B "${BUILD_DIR}"
+        -B "build/docker-linux-${COMPILER}-${BUILD_TYPE}"
 
 echo -e "${BLUE}Building...${NC}"
 docker run --rm \
     -v "${PROJECT_ROOT}:/workspace" \
     -w /workspace \
     painlessmesh-simulator:linux-build \
-    cmake --build "${BUILD_DIR}" --config "${BUILD_TYPE}"
+    cmake --build "build/docker-linux-${COMPILER}-${BUILD_TYPE}" --config "${BUILD_TYPE}"
 
 echo -e "${GREEN}Build complete!${NC}"
 echo "  Binaries: ${BUILD_DIR}/bin/"

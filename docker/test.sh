@@ -26,13 +26,11 @@ if [ ! -d "${PROJECT_ROOT}/build/docker-linux-gcc-${BUILD_TYPE}" ]; then
     "${SCRIPT_DIR}/build-linux.sh" "${BUILD_TYPE}" gcc
 fi
 
-BUILD_DIR="${PROJECT_ROOT}/build/docker-linux-gcc-${BUILD_TYPE}"
-
 echo -e "${BLUE}Running tests...${NC}"
 docker run --rm \
     -v "${PROJECT_ROOT}:/workspace" \
     -w /workspace \
     painlessmesh-simulator:linux-build \
-    bash -c "cd ${BUILD_DIR} && ctest --output-on-failure --verbose"
+    bash -c "cd build/docker-linux-gcc-${BUILD_TYPE} && ctest --output-on-failure --verbose"
 
 echo -e "${GREEN}Tests complete!${NC}"
