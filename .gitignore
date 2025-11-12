@@ -59,7 +59,6 @@ results/
 logs/
 *.log
 *.csv
-*.json
 *.dot
 *.png
 *.svg

@@ -169,12 +169,22 @@ jobs:
 
 ## Documentation
 
+### User Documentation
+
 - **[Quick Start Guide](docs/SIMULATOR_QUICKSTART.md)**: Get started in 5 minutes
 - **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
 
+### AI Agent Documentation
+
+- **[MCP Configuration](.github/MCP_CONFIGURATION.md)**: GitHub MCP server setup and capabilities
+- **[MCP Quick Reference](.github/MCP_QUICK_REFERENCE.md)**: Essential commands for AI agents
+- **[Agent Session Template](.github/AGENT_SESSION_TEMPLATE.md)**: Workflow template for coding sessions
+- **[Copilot Instructions](.github/copilot-instructions.md)**: Coding standards and best practices
+
 ### Architecture Documentation (Coming Soon)
+
 - `docs/ARCHITECTURE.md`: System design and components
 - `docs/CONFIGURATION_GUIDE.md`: Scenario configuration reference
 - `docs/FIRMWARE_DEVELOPMENT.md`: Creating custom firmware

@@ -1,21 +1,203 @@
 # MCP (Model Context Protocol) Server Configuration
 
-## Issue: GitHub CLI Not Authenticated
+## ✅ Status: GitHub MCP Server Configured
 
-The GitHub MCP server requires authentication to create issues, manage repositories, and perform other GitHub operations.
+The GitHub MCP server is now properly configured and authenticated. The agent has full access to GitHub operations including issue management, pull requests, repository operations, and search capabilities.
 
-## Problem
+**Last Updated**: November 12, 2025
 
-When attempting to create GitHub issues via `gh issue create`, the following error occurs:
+## Available GitHub MCP Tools
+
+### ✅ Issue Management
+- `mcp_github_github_issue_write` - Create and update issues
+- `mcp_github_github_issue_read` - Read issue details, comments, sub-issues
+- `mcp_github_github_list_issues` - List repository issues with filters
+- `mcp_github_github_search_issues` - Search issues across repositories
+- `mcp_github_github_add_issue_comment` - Add comments to issues
+- `mcp_github_github_sub_issue_write` - Manage sub-issues
+- `mcp_github_github_list_issue_types` - Get valid issue types for organization
+- `mcp_github_github_assign_copilot_to_issue` - Assign Copilot coding agent to issues
+
+### ✅ Pull Request Management
+- `mcp_github_github_create_pull_request` - Create new PRs
+- `mcp_github_github_update_pull_request` - Update existing PRs
+- `mcp_github_github_list_pull_requests` - List PRs with filters
+- `mcp_github_github_search_pull_requests` - Search PRs across repositories
+- `mcp_github_github_pull_request_read` - Get PR details, diff, status, reviews
+- `mcp_github_github_merge_pull_request` - Merge PRs
+- `mcp_github_github_update_pull_request_branch` - Update PR branch
+- `mcp_github_github_pull_request_review_write` - Create/submit reviews
+- `mcp_github_github_add_comment_to_pending_review` - Add review comments
+- `mcp_github_github_request_copilot_review` - Request AI code review
+
+### ✅ Repository Management
+- `mcp_github_github_create_repository` - Create new repositories
+- `mcp_github_github_fork_repository` - Fork repositories
+- `mcp_github_github_create_branch` - Create branches
+- `mcp_github_github_list_branches` - List repository branches
+- `mcp_github_github_list_tags` - List git tags
+- `mcp_github_github_get_file_contents` - Read files from GitHub
+- `mcp_github_github_create_or_update_file` - Create/update single files
+- `mcp_github_github_delete_file` - Delete files
+- `mcp_github_github_push_files` - Push multiple files in one commit
+
+### ✅ Code Search
+- `mcp_github_github_search_code` - Search code across GitHub
+- `mcp_github_github_search_repositories` - Find repositories
+- `mcp_github_github_search_users` - Find GitHub users
+
+### ✅ Commit & Release Management
+- Available through `activate_github_commit_and_release_management`
+- Get commit details, list commits, manage releases
+
+### ✅ Team & Label Management
+- `mcp_github_github_get_teams` - Get user's teams
+- `mcp_github_github_get_team_members` - Get team members
+- `mcp_github_github_get_label` - Get repository labels
+- `mcp_github_github_get_me` - Get authenticated user details
+
+## Quick Start for Future Agents
+
+When starting a new coding session, agents should:
+
+### 1. Verify GitHub Access
+
+```bash
+# Check authentication
+mcp_github_github_get_me()  # Returns authenticated user info
 ```
-gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable. Example:
-  env:
-    GH_TOKEN: ${{ github.token }}
+
+### 2. Understand Repository Context
+
+```bash
+# List existing issues to understand work in progress
+mcp_github_github_list_issues(owner="Alteriom", repo="painlessMesh-simulator", state="OPEN")
+
+# Check recent pull requests
+mcp_github_github_list_pull_requests(owner="Alteriom", repo="painlessMesh-simulator", state="open")
+
+# Review repository structure
+mcp_github_github_get_file_contents(owner="Alteriom", repo="painlessMesh-simulator", path="/")
 ```
 
-## Solution
+### 3. Create Issues Programmatically
 
-The GitHub Copilot Coding Agent needs the `GITHUB_TOKEN` or `GH_TOKEN` environment variable to be set in the execution environment.
+```python
+# Example: Create a new issue
+mcp_github_github_issue_write(
+  method="create",
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  title="[Phase 2] Implement Feature X",
+  body="Detailed description...",
+  labels=["phase-2", "enhancement"]
+)
+```
+
+### 4. Work with Pull Requests
+
+```python
+# Create a branch and PR
+mcp_github_github_create_branch(owner="Alteriom", repo="painlessMesh-simulator", branch="feature/new-feature")
+mcp_github_github_push_files(owner="Alteriom", repo="painlessMesh-simulator", branch="feature/new-feature", files=[...])
+mcp_github_github_create_pull_request(owner="Alteriom", repo="painlessMesh-simulator", head="feature/new-feature", base="main", title="...")
+```
+
+### 5. Assign Work to Copilot Coding Agent
+
+```python
+# For complex implementation tasks
+mcp_github_github_assign_copilot_to_issue(owner="Alteriom", repo="painlessMesh-simulator", issueNumber=123)
+```
+
+## Best Practices for AI Agents
+
+### Issue Creation
+
+1. **Use Templates**: Reference issue templates in `.github/ISSUE_TEMPLATES_PHASE1/` as models
+2. **Include Details**: Add acceptance criteria, dependencies, references
+3. **Add Labels**: Use appropriate labels (`phase-1`, `core`, `c++`, etc.)
+4. **Link Issues**: Reference related issues using `#issue_number`
+5. **Estimate Time**: Include time estimates for planning
+
+### Code Changes
+
+1. **Work in Branches**: Never commit directly to `main`
+2. **Atomic Commits**: One logical change per commit
+3. **Clear Messages**: Follow commit message format in copilot-instructions.md
+4. **Review Before Push**: Use local tools to verify changes
+
+### Documentation
+
+1. **Update as You Go**: Keep docs in sync with code changes
+2. **Reference Specs**: Link to `docs/SIMULATOR_PLAN.md` and other relevant docs
+3. **Code Examples**: Include practical examples in API docs
+4. **Changelog**: Track significant changes
+
+### Testing
+
+1. **Write Tests First**: Follow TDD approach per copilot-instructions.md
+2. **Run Tests**: Verify tests pass before committing
+3. **Coverage**: Maintain 80%+ code coverage
+4. **Integration Tests**: Test multi-component interactions
+
+## Repository Access Checklist
+
+### ✅ Capabilities Now Available
+
+- [x] Create, update, and close issues
+- [x] Add comments to issues and PRs
+- [x] Create and manage pull requests
+- [x] Review code and request changes
+- [x] Create branches and push code
+- [x] Read repository files
+- [x] Search code, issues, and PRs
+- [x] Assign Copilot coding agent to issues
+- [x] Manage labels and milestones
+- [x] Fork and create repositories
+
+### 🔄 Recommended Improvements
+
+For even better agent performance, consider:
+
+1. **GitHub Actions Integration**
+   - Set up CI/CD workflows (see Phase 1 planning)
+   - Enable automatic testing on PR creation
+   - Add linting and formatting checks
+
+2. **Issue Templates**
+   - Create `.github/ISSUE_TEMPLATE/` forms
+   - Standardize bug reports and feature requests
+   - Guide contributors with structured input
+
+3. **Branch Protection Rules**
+   - Require PR reviews before merge
+   - Require CI checks to pass
+   - Prevent direct pushes to `main`
+
+4. **Project Boards**
+   - Set up GitHub Projects for task tracking
+   - Create automation rules (auto-move issues)
+   - Link to milestones for phases
+
+5. **Custom Labels**
+   - Ensure all needed labels exist: `phase-1`, `phase-2`, `core`, `infrastructure`, `testing`, etc.
+   - Use consistent label colors
+   - Document label meanings
+
+6. **MCP Server Extensions**
+   - Consider adding database MCP for metrics storage
+   - Add filesystem MCP for local dev workflow
+   - Integrate testing frameworks
+
+## Authentication Details
+
+### Current Setup
+
+- **Method**: GitHub App authentication via VS Code
+- **Scope**: Full repository access for Alteriom organization
+- **User**: `sparck75` (authenticated)
+- **Permissions**: Read/write on issues, PRs, code, etc.
 
 ### For GitHub Actions Workflows
 
@@ -176,91 +358,261 @@ jobs:
           echo "Issue operations available"
 ```
 
-## Verification Checklist
+## Verification Checklist for New Sessions
 
-- [ ] `GITHUB_TOKEN` or `GH_TOKEN` environment variable is set
-- [ ] Token has required permissions (contents, issues, pull-requests)
-- [ ] `gh auth status` shows authenticated
-- [ ] `gh issue create` command works
-- [ ] Repository settings allow Actions to create issues
-- [ ] MCP server can access GitHub API
+When starting a new agent session, verify:
 
-## Troubleshooting
+- [ ] GitHub authentication works: `mcp_github_github_get_me()` returns user info
+- [ ] Can list repository issues: `mcp_github_github_list_issues(...)` succeeds
+- [ ] Can read repository files: `mcp_github_github_get_file_contents(...)` works
+- [ ] Repository access confirmed: Alteriom/painlessMesh-simulator accessible
+- [ ] Documentation reviewed: Read `.github/copilot-instructions.md`
+- [ ] Project plan understood: Reviewed `docs/SIMULATOR_PLAN.md`
 
-### Error: "You are not logged into any GitHub hosts"
+## Agent Workflow Best Practices
 
-**Cause**: GitHub CLI not authenticated  
-**Solution**: Set `GH_TOKEN` environment variable or run `gh auth login`
+### Starting a Task
 
-### Error: "Resource not accessible by integration"
+1. **Understand Context**: Read relevant documentation and issue descriptions
+2. **Check Dependencies**: Verify prerequisite issues are completed
+3. **Review Existing Code**: Use search tools to understand current implementation
+4. **Plan Approach**: Break down complex tasks into steps
+5. **Create Branch**: Work in a feature branch, never directly on `main`
 
-**Cause**: Token lacks required permissions  
-**Solution**: Update workflow permissions or repository settings
+### During Implementation
 
-### Error: "Not Found"
+1. **Follow TDD**: Write tests first per `.github/copilot-instructions.md`
+2. **Commit Frequently**: Small, atomic commits with clear messages
+3. **Update Documentation**: Keep docs synchronized with code changes
+4. **Run Tests**: Verify tests pass before pushing
+5. **Code Review**: Self-review changes before creating PR
 
-**Cause**: Incorrect repository name or token lacks access  
-**Solution**: Verify repository name and token permissions
+### Completing a Task
 
-## Next Steps
+1. **Final Testing**: Run full test suite
+2. **Update Issues**: Add comments about progress and decisions
+3. **Create PR**: Write clear PR description linking to issues
+4. **Request Review**: Ask for Copilot review or human review
+5. **Address Feedback**: Respond to review comments promptly
 
-1. **Immediate**: Use issue templates (manual creation or script)
-2. **Short-term**: Configure agent environment with `GITHUB_TOKEN`
-3. **Long-term**: Integrate with workflow automation
+## Environment Variables Reference
 
-## Alternative: Issue Creation Script
+For workflows and automation, these environment variables are used:
 
-Until MCP server is properly configured, use this script:
-
-```bash
-#!/bin/bash
-# create-issues-from-templates.sh
-
-# Requires: gh CLI authenticated
-
-TEMPLATES_DIR=".github/ISSUE_TEMPLATES_PHASE1"
-
-for file in "$TEMPLATES_DIR"/*.md; do
-  if [ "$file" = "$TEMPLATES_DIR/README.md" ]; then
-    continue
-  fi
-  
-  # Extract title (first line, remove '# ')
-  title=$(head -n 1 "$file" | sed 's/^# //')
-  
-  # Extract labels (second line format: **Labels**: `label1`, `label2`)
-  labels=$(head -n 3 "$file" | grep "Labels" | sed 's/.*: `//;s/`.*//;s/, /,/g')
-  
-  echo "Creating issue: $title"
-  echo "Labels: $labels"
-  
-  gh issue create \
-    --repo Alteriom/painlessMesh-simulator \
-    --title "$title" \
-    --body-file "$file" \
-    --label "$labels"
-  
-  if [ $? -eq 0 ]; then
-    echo "✅ Created: $title"
-  else
-    echo "❌ Failed: $title"
-  fi
-  
-  # Rate limiting
-  sleep 2
-done
-
-echo "Done!"
+```yaml
+env:
+  GH_TOKEN: ${{ github.token }}           # For GitHub CLI
+  GITHUB_TOKEN: ${{ github.token }}       # For GitHub API
+  GITHUB_REPOSITORY: Alteriom/painlessMesh-simulator
+  GITHUB_REF: refs/heads/main
 ```
+
+## Common Issues & Solutions
+
+### Cannot Create Issues
+
+**Symptom**: `mcp_github_github_issue_write` fails  
+**Solution**: Check authentication with `mcp_github_github_get_me()`
+
+### Permission Denied
+
+**Symptom**: "Resource not accessible by integration"  
+**Solution**: Verify user has write access to repository
+
+### Tool Not Available
+
+**Symptom**: Tool not available in session  
+**Solution**: Activate tool category first (e.g., `activate_github_commit_and_release_management`)
 
 ## References
 
-- **GitHub CLI Documentation**: https://cli.github.com/manual/
-- **GitHub Actions Token**: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-- **MCP Specification**: https://github.com/anthropics/model-context-protocol
+- [GitHub CLI Documentation](https://cli.github.com/manual/)
+- [GitHub Actions Token](https://docs.github.com/en/actions/security-guides/automatic-token-authentication)
+- [MCP Specification](https://github.com/anthropics/model-context-protocol)
+- [VS Code GitHub Copilot Extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot)
+
+## Future Session Template
+
+Use this checklist when starting a new agent session:
+
+```markdown
+## Session Initialization Checklist
+
+- [ ] Verify GitHub authentication: `mcp_github_github_get_me()`
+- [ ] Review open issues: `mcp_github_github_list_issues(...)`
+- [ ] Check documentation: Read `.github/copilot-instructions.md`
+- [ ] Review project plan: Read `docs/SIMULATOR_PLAN.md`
+- [ ] Check current phase: Review issue labels and milestones
+- [ ] Identify blockers: Look for dependency issues
+- [ ] Plan work: Create or update issues as needed
+- [ ] Set up branch: Create feature branch for changes
+- [ ] Run tests: Verify build system works
+- [ ] Start implementation: Follow TDD approach
+```
+
+## Quick Commands Reference
+
+### Issue Management
+
+```python
+# List all Phase 1 issues
+mcp_github_github_list_issues(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  labels=["phase-1"],
+  state="OPEN"
+)
+
+# Create new issue
+mcp_github_github_issue_write(
+  method="create",
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  title="[Phase X] Task Name",
+  body="Description...",
+  labels=["phase-x", "type"]
+)
+
+# Close issue with reason
+mcp_github_github_issue_write(
+  method="update",
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  issue_number=123,
+  state="closed",
+  state_reason="completed"
+)
+
+# Add comment
+mcp_github_github_add_issue_comment(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  issue_number=123,
+  body="Status update..."
+)
+```
+
+### Pull Request Management
+
+```python
+# Create PR
+mcp_github_github_create_pull_request(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  title="Implement Feature X",
+  head="feature/feature-x",
+  base="main",
+  body="Closes #123\n\n## Changes\n- ..."
+)
+
+# Get PR details
+mcp_github_github_pull_request_read(
+  method="get",
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  pullNumber=456
+)
+
+# Request Copilot review
+mcp_github_github_request_copilot_review(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  pullNumber=456
+)
+```
+
+### Repository Operations
+
+```python
+# Create branch
+mcp_github_github_create_branch(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  branch="feature/new-feature",
+  from_branch="main"
+)
+
+# Read file
+mcp_github_github_get_file_contents(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  path="README.md"
+)
+
+# Push multiple files
+mcp_github_github_push_files(
+  owner="Alteriom",
+  repo="painlessMesh-simulator",
+  branch="feature/new-feature",
+  files=[
+    {"path": "src/file1.cpp", "content": "..."},
+    {"path": "include/file1.hpp", "content": "..."}
+  ],
+  message="Add new feature implementation"
+)
+```
+
+### Search Operations
+
+```python
+# Search code
+mcp_github_github_search_code(
+  query="VirtualNode language:cpp repo:Alteriom/painlessMesh-simulator"
+)
+
+# Search issues
+mcp_github_github_search_issues(
+  query="is:open label:phase-1",
+  owner="Alteriom",
+  repo="painlessMesh-simulator"
+)
+```
+
+## Summary
+
+The GitHub MCP server is fully operational and provides comprehensive repository management capabilities. Agents can:
+
+- ✅ Create and manage issues programmatically
+- ✅ Work with pull requests end-to-end
+- ✅ Push code changes and create branches
+- ✅ Search code, issues, and repositories
+- ✅ Assign work to Copilot coding agents
+- ✅ Request automated code reviews
+- ✅ Manage all aspects of the repository
+
+This configuration enables fully autonomous agent workflows while maintaining code quality through proper testing, review, and CI/CD integration.
+
+## Additional MCP Servers
+
+Consider adding these MCP servers for enhanced capabilities:
+
+### Database MCP
+- Store metrics and simulation results
+- Query historical performance data
+- Track test execution history
+
+### Filesystem MCP
+- Direct local file operations
+- Faster than GitHub API for bulk operations
+- Better for development workflows
+
+### Testing Framework MCP
+- Integrated test execution
+- Coverage reporting
+- Performance benchmarking
+
+### Container MCP (Already Available)
+- Manage Docker containers for testing
+- Run simulations in isolated environments
+- Test deployment scenarios
 
 ---
 
-**Status**: Configuration needed  
-**Priority**: Medium (workaround available with templates)  
-**Impact**: Cannot create issues via CLI until resolved
+**Status**: ✅ Fully Configured and Operational  
+**Priority**: N/A (Working)  
+**Last Verified**: November 12, 2025  
+**Authenticated User**: sparck75  
+**Access Level**: Full repository access (Alteriom organization)  
+**MCP Version**: GitHub MCP Server v1.x (via VS Code GitHub Copilot Extension)
+
+For quick reference, see: `.github/MCP_QUICK_REFERENCE.md`
