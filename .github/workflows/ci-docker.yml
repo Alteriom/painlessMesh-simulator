@@ -153,20 +153,50 @@ jobs:
       
       - name: Install dependencies
         run: |
+          set -e
+          echo "=== macOS system info ==="
+          sw_vers
+          echo ""
+          echo "=== Homebrew version ==="
+          brew --version || echo "Homebrew not found"
+          echo ""
           # Update brew first
-          brew update || true
+          echo "=== Updating Homebrew ==="
+          brew update || echo "Brew update failed, continuing..."
+          echo ""
           # Install dependencies one by one for better error handling
-          brew install cmake || true
-          brew install ninja || true
-          brew install boost || true
-          brew install yaml-cpp || true
+          echo "=== Installing cmake ==="
+          brew install cmake || brew link cmake || echo "cmake may already be installed"
+          echo ""
+          echo "=== Installing ninja ==="
+          brew install ninja || brew link ninja || echo "ninja may already be installed"
+          echo ""
+          echo "=== Installing boost ==="
+          brew install boost || brew link boost || echo "boost may already be installed"
+          echo ""
+          echo "=== Installing yaml-cpp ==="
+          brew install yaml-cpp || echo "yaml-cpp installation failed, will try to build without it"
+          echo ""
           # ncurses is usually pre-installed on macOS
+          echo "=== Checking ncurses ==="
           brew list ncurses 2>/dev/null || brew install ncurses || echo "ncurses not available via brew, using system version"
+          echo ""
+          echo "=== Installed package versions ==="
+          cmake --version || echo "cmake not found"
+          ninja --version || echo "ninja not found"
+          brew list --versions boost || echo "boost not found"
+          brew list --versions yaml-cpp || echo "yaml-cpp not found"
       
       - name: Configure CMake
         run: |
+          set -e
+          echo "=== Configuring CMake for macOS ==="
+          echo "Current directory: $(pwd)"
+          echo "CMake version: $(cmake --version | head -1)"
+          echo ""
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
             -B build
       
       - name: Build
@@ -216,19 +246,30 @@ jobs:
           docker run --rm -v $PWD:/workspace -w /workspace \
             painlessmesh-simulator:windows-cross \
             bash -c "
-              echo 'Checking Boost installation...'
-              ls -la /usr/include/boost | head -10
-              echo 'Environment variables:'
+              set -e
+              echo '=== Checking Boost installation ==='
+              ls -la /usr/include/boost 2>&1 | head -10 || echo 'Boost directory not found'
+              dpkg -l | grep boost || echo 'No boost packages found'
+              echo ''
+              echo '=== Environment variables ==='
               echo \"BOOST_ROOT=\$BOOST_ROOT\"
               echo \"Boost_INCLUDE_DIR=\$Boost_INCLUDE_DIR\"
-              echo 'Configuring CMake...'
+              echo ''
+              echo '=== Checking compilers ==='
+              which x86_64-w64-mingw32-gcc
+              which x86_64-w64-mingw32-g++
+              x86_64-w64-mingw32-gcc --version | head -1
+              echo ''
+              echo '=== Configuring CMake for Windows cross-compilation ==='
               cmake -G Ninja \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_SYSTEM_NAME=Windows \
                 -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
                 -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+                -DBoost_NO_SYSTEM_PATHS=ON \
                 -DBoost_INCLUDE_DIR=/usr/include \
                 -DBOOST_ROOT=/usr \
+                -DBoost_USE_STATIC_LIBS=ON \
                 -B $BUILD_DIR
             "
           

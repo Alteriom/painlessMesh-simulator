@@ -39,8 +39,10 @@ docker run --rm \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
         -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+        -DBoost_NO_SYSTEM_PATHS=ON \
         -DBoost_INCLUDE_DIR=/usr/include \
         -DBOOST_ROOT=/usr \
+        -DBoost_USE_STATIC_LIBS=ON \
         -B "build/docker-windows-${BUILD_TYPE}"
 
 echo -e "${BLUE}Building...${NC}"
