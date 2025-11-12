@@ -9,6 +9,11 @@ on:
     # Run nightly stress tests at 2 AM UTC
     - cron: '0 2 * * *'
 
+# Permissions needed for uploading artifacts and caching
+permissions:
+  contents: read
+  actions: write
+
 env:
   BUILD_TYPE: Release
 
@@ -148,7 +153,12 @@ jobs:
       
       - name: Install dependencies
         run: |
-          brew install cmake ninja boost yaml-cpp ncurses
+          # Update brew first
+          brew update
+          # Install dependencies (ncurses may already be present)
+          brew install cmake ninja boost yaml-cpp || brew install cmake ninja boost libyaml-cpp
+          # ncurses is usually pre-installed on macOS
+          brew list ncurses || brew install ncurses || echo "ncurses not available via brew, using system version"
       
       - name: Configure CMake
         run: |
