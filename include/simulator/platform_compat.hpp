@@ -14,18 +14,23 @@
 #ifdef _WIN32
 // Windows-specific includes and definitions
 
+// Define _WIN32_WINNT before including any Windows headers
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601  // Windows 7
+#endif
+
+// CRITICAL: Include winsock2.h BEFORE windows.h to prevent winsock.h inclusion
+// Boost.Asio requires winsock2.h, and windows.h would include winsock.h by default
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
 #include <windows.h>
+
 #include <cstdint>
 #include <ctime>
 
-// Provide sys/time.h functionality for Windows
-#ifndef _TIMEVAL_DEFINED
-#define _TIMEVAL_DEFINED
-struct timeval {
-    long tv_sec;
-    long tv_usec;
-};
-#endif
+// Note: timeval is already defined in winsock2.h, so we don't redefine it
 
 // Provide gettimeofday for Windows
 inline int gettimeofday(struct timeval* tp, void* tzp) {
@@ -64,10 +69,11 @@ inline void usleep(unsigned int usec) {
     }
 }
 
-// Define _WIN32_WINNT if not already defined (suppresses Boost.Asio warning)
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0601  // Windows 7
-#endif
+// Define sys/time.h and unistd.h as included to prevent Arduino.h from trying to include them
+#define _SYS_TIME_H_ 1
+#define _SYS_TIME_H 1
+#define _UNISTD_H 1
+#define _UNISTD_H_ 1
 
 #else
 // Unix/Linux/macOS - use standard headers
