@@ -38,6 +38,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /workspace
 
+# Configure git to trust workspace directory (for submodules)
+RUN git config --global --add safe.directory '*'
+
 # Default command shows build tools versions
 CMD ["sh", "-c", "echo 'painlessMesh Simulator Build Environment' && \
      echo '========================================' && \

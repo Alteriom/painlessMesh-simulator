@@ -12,6 +12,9 @@
 #ifndef SIMULATOR_VIRTUAL_NODE_HPP
 #define SIMULATOR_VIRTUAL_NODE_HPP
 
+// IMPORTANT: Include platform compatibility BEFORE boost/asio
+#include "simulator/platform_compat.hpp"
+
 #include <memory>
 #include <cstdint>
 #include <chrono>

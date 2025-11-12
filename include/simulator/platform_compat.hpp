@@ -73,7 +73,7 @@ inline void usleep(unsigned int usec) {
 }
 
 #else
-// Unix/Linux/macOS - use standard headers
+// Unix/Linux/macOS - use standard POSIX headers
 #include <sys/time.h>
 #include <unistd.h>
 #endif

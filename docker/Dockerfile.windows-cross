@@ -41,6 +41,9 @@ RUN cd /opt/vcpkg && \
 # Set working directory
 WORKDIR /workspace
 
+# Configure git to trust workspace directory (for submodules)
+RUN git config --global --add safe.directory '*'
+
 # Default CMake toolchain file location
 ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
 
