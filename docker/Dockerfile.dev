@@ -1,0 +1,73 @@
+# painlessMesh Simulator - Development Environment
+# Complete development environment with debugging tools and IDE support
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install development tools and dependencies
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    # Compilers
+    gcc \
+    g++ \
+    clang \
+    clang-format \
+    clang-tidy \
+    # Dependencies
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libyaml-cpp-dev \
+    libncurses-dev \
+    # Debugging tools
+    gdb \
+    valgrind \
+    # Static analysis
+    cppcheck \
+    # Coverage tools
+    lcov \
+    gcovr \
+    # Documentation
+    doxygen \
+    graphviz \
+    # Utilities
+    wget \
+    curl \
+    vim \
+    nano \
+    htop \
+    tree \
+    ca-certificates \
+    # Python for scripts
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional Python tools
+RUN pip3 install --no-cache-dir \
+    pyyaml \
+    matplotlib \
+    pandas
+
+# Set working directory
+WORKDIR /workspace
+
+# Configure git for container use
+RUN git config --global --add safe.directory /workspace
+
+# Default shell to bash
+SHELL ["/bin/bash", "-c"]
+
+# Default command opens interactive bash
+CMD ["/bin/bash"]
+
+# Labels for image metadata
+LABEL maintainer="Alteriom"
+LABEL description="Development environment for painlessMesh Simulator"
+LABEL version="1.0"

@@ -1,0 +1,85 @@
+# painlessMesh Simulator - Windows Cross-Compilation Environment
+# Cross-compile for Windows from Linux using MinGW-w64
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install MinGW-w64 cross-compilation toolchain, Boost, yaml-cpp, and vcpkg dependencies
+# Note: We use Ubuntu's libboost-dev package which provides Boost headers
+# These headers work for cross-compilation since Boost.Asio is header-only
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    cmake \
+    ninja-build \
+    git \
+    # MinGW cross-compiler
+    mingw-w64 \
+    g++-mingw-w64 \
+    gcc-mingw-w64 \
+    # Boost headers (header-only libraries work for cross-compilation)
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    # yaml-cpp for configuration
+    libyaml-cpp-dev \
+    # Utilities
+    wget \
+    curl \
+    unzip \
+    ca-certificates \
+    # vcpkg dependencies (for future use)
+    zip \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install vcpkg for Windows dependencies (optional, for future use)
+# Using wget to download a specific release to avoid git SSL issues during Docker build
+# Bootstrap uses curl internally - we create a wrapper script to add --insecure flag
+RUN wget --no-check-certificate -O /tmp/vcpkg.tar.gz \
+        https://github.com/microsoft/vcpkg/archive/refs/tags/2024.10.21.tar.gz \
+    && mkdir -p /opt/vcpkg \
+    && tar -xzf /tmp/vcpkg.tar.gz -C /opt/vcpkg --strip-components=1 \
+    && rm /tmp/vcpkg.tar.gz \
+    && mv /usr/bin/curl /usr/bin/curl.real \
+    && echo '#!/bin/bash\n/usr/bin/curl.real --insecure "$@"' > /usr/bin/curl \
+    && chmod +x /usr/bin/curl \
+    && cd /opt/vcpkg \
+    && ./bootstrap-vcpkg.sh --disableMetrics \
+    && mv /usr/bin/curl.real /usr/bin/curl
+
+# Set vcpkg environment (available but not required)
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+# Set Boost environment variables for CMake
+ENV BOOST_ROOT=/usr
+ENV Boost_INCLUDE_DIR=/usr/include
+
+# Set working directory
+WORKDIR /workspace
+
+# Configure git to trust workspace directory (for submodules)
+RUN git config --global --add safe.directory '*'
+
+# Default CMake toolchain file location (not used for Boost, but available)
+ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+# Default command shows build tools versions
+CMD ["sh", "-c", "echo 'painlessMesh Simulator Windows Cross-Build Environment' && \
+     echo '=======================================================' && \
+     echo 'MinGW-w64:' $(x86_64-w64-mingw32-gcc --version | head -1) && \
+     echo 'CMake:' $(cmake --version | head -1) && \
+     echo 'Ninja:' $(ninja --version) && \
+     echo 'vcpkg:' $(vcpkg version) && \
+     echo '=======================================================' && \
+     echo 'Ready to cross-compile for Windows!'"]
+
+# Labels for image metadata
+LABEL maintainer="Alteriom"
+LABEL description="Windows cross-compilation environment for painlessMesh Simulator"
+LABEL version="1.0"
