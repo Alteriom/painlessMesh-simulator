@@ -1,0 +1,69 @@
+# 100-Node Stress Test Scenario
+# This scenario tests the simulator's ability to handle large mesh networks
+
+simulation:
+  name: "100-Node Stress Test"
+  description: "Performance test with 100 nodes and realistic network conditions"
+  duration: 300  # Run for 5 minutes
+  time_scale: 5.0  # Run 5x faster than real-time
+  seed: 54321
+
+network:
+  latency:
+    min: 20  # 20ms minimum latency
+    max: 100  # 100ms maximum latency (realistic WiFi)
+    distribution: "normal"
+  packet_loss: 0.05  # 5% packet loss (challenging conditions)
+  bandwidth: 1000000  # 1 Mbps
+
+nodes:
+  # Generate 100 sensor nodes
+  - template: "sensor"
+    count: 100
+    id_prefix: "sensor-"
+    firmware: "examples/firmware/sensor_node"
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress_test_password"
+      mesh_port: 5555
+      sensor_interval: 60000  # Read sensor every 60 seconds
+
+topology:
+  type: "random"
+  density: 0.2  # Sparse network (20% connection probability)
+
+events:
+  # Test node failures at different points
+  - time: 60
+    action: "stop_node"
+    target: "sensor-25"
+    description: "Simulate node failure"
+  
+  - time: 120
+    action: "stop_node"
+    target: "sensor-50"
+    description: "Another node failure"
+  
+  - time: 180
+    action: "start_node"
+    target: "sensor-25"
+    description: "Recover first node"
+  
+  - time: 240
+    action: "start_node"
+    target: "sensor-50"
+    description: "Recover second node"
+
+metrics:
+  output: "results/stress_test.csv"
+  interval: 10  # Collect metrics every 10 seconds
+  collect:
+    - message_count
+    - delivery_rate
+    - latency_stats
+    - topology_changes
+    - node_uptime
+  export:
+    - csv
+    - json
+    - graphviz  # Generate topology visualization

@@ -1,0 +1,44 @@
+# Simple 10-Node Mesh Scenario
+# This scenario demonstrates basic mesh formation with 10 nodes
+
+simulation:
+  name: "Simple 10-Node Mesh"
+  description: "Basic mesh formation test with 10 sensor nodes"
+  duration: 60  # Run for 60 seconds
+  time_scale: 1.0  # Real-time simulation
+  seed: 12345  # For reproducible results
+
+network:
+  latency:
+    min: 10  # 10ms minimum latency
+    max: 30  # 30ms maximum latency
+    distribution: "normal"
+  packet_loss: 0.0  # No packet loss
+  bandwidth: 1000000  # 1 Mbps
+
+nodes:
+  # Generate 10 sensor nodes using template
+  - template: "sensor"
+    count: 10
+    id_prefix: "sensor-"
+    firmware: "examples/firmware/sensor_node"
+    config:
+      mesh_prefix: "SimpleMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      sensor_interval: 30000  # Read sensor every 30 seconds
+
+topology:
+  type: "random"
+  density: 0.3  # Sparse network (30% connection probability)
+
+metrics:
+  output: "results/simple_mesh.csv"
+  interval: 5  # Collect metrics every 5 seconds
+  collect:
+    - message_count
+    - delivery_rate
+    - topology_changes
+  export:
+    - csv
+    - json
