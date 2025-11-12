@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "painlessmesh-simulator",
+  "version-string": "0.1.0",
+  "description": "painlessMesh Device Simulator - Test mesh networks with 100+ virtual ESP32/ESP8266 nodes",
+  "homepage": "https://github.com/Alteriom/painlessMesh-simulator",
+  "license": "MIT",
+  "dependencies": [
+    "boost-asio",
+    "boost-system"
+  ]
+}

@@ -6,6 +6,12 @@ project(painlessMesh-simulator
   LANGUAGES CXX
 )
 
+# Set policy for FindBoost module (CMake 3.30+)
+# NEW means use BoostConfig.cmake, OLD means use FindBoost.cmake
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
