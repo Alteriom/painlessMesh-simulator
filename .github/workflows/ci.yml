@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -54,7 +54,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload analysis results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: static-analysis
           path: cppcheck-report.txt
@@ -71,7 +71,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -108,7 +108,7 @@ jobs:
         run: cmake --build build --config ${{ matrix.build_type }}
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: simulator-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
           path: |
@@ -123,7 +123,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -141,7 +141,7 @@ jobs:
         run: cmake --build build --config Release
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: simulator-macos
           path: |
@@ -156,7 +156,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -178,7 +178,7 @@ jobs:
         run: cmake --build build --config Release
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: simulator-windows
           path: |
@@ -194,7 +194,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -250,7 +250,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -276,7 +276,7 @@ jobs:
           # Future: ./build/bin/painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml --headless
       
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-results
           path: results/
@@ -291,7 +291,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -319,7 +319,7 @@ jobs:
           # Future: ./build/bin/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --headless
       
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: results/
@@ -332,7 +332,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install dependencies
         run: |
@@ -346,45 +346,47 @@ jobs:
           # Future: doxygen Doxyfile
       
       - name: Upload documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: docs/html/
         if: always()
 
-  # Security scanning
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-      
-      - name: Run CodeQL analysis
-        uses: github/codeql-action/init@v2
-        with:
-          languages: cpp
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            libboost-dev \
-            libboost-system-dev \
-            libyaml-cpp-dev
-      
-      - name: Build for analysis
-        run: |
-          cmake -G Ninja -B build
-          cmake --build build
-      
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+  # Security scanning - Disabled because GitHub default CodeQL is enabled
+  # If you need custom CodeQL configuration, disable the default CodeQL in repository settings
+  # and uncomment this job
+  # security:
+  #   name: Security Scan
+  #   runs-on: ubuntu-latest
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #     
+  #     - name: Run CodeQL analysis
+  #       uses: github/codeql-action/init@v3
+  #       with:
+  #         languages: cpp
+  #     
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y \
+  #           cmake \
+  #           ninja-build \
+  #           libboost-dev \
+  #           libboost-system-dev \
+  #           libyaml-cpp-dev
+  #     
+  #     - name: Build for analysis
+  #       run: |
+  #         cmake -G Ninja -B build
+  #         cmake --build build
+  #     
+  #     - name: Perform CodeQL Analysis
+  #       uses: github/codeql-action/analyze@v3
 
   # All checks passed
   ci-success:
