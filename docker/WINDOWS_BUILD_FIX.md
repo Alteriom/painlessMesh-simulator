@@ -151,3 +151,93 @@ Fixed in commit: `6d6a096`
 - ✅ vcpkg is functional
 - ✅ MinGW-w64 cross-compiler available
 - ✅ Build time reduced to ~60 seconds
+
+## Update: Boost Dependencies Solution (2025-11-12)
+
+### Issue
+
+After fixing the vcpkg SSL certificate issues, the Windows cross-compilation build still failed during CMake configuration:
+
+```
+CMake Error: Could NOT find Boost (missing: Boost_INCLUDE_DIR)
+(Required is at least version "1.66")
+```
+
+This occurred because we skipped pre-installing Boost dependencies via vcpkg to avoid long build times and SSL issues.
+
+### Solution
+
+**Use Ubuntu's Native Boost Packages**
+
+Instead of vcpkg, we now install Ubuntu's `libboost-dev` packages directly:
+
+```dockerfile
+RUN apt-get install -y \
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev
+```
+
+**Why This Works:**
+
+1. **Header-Only**: Boost.Asio and most Boost libraries used in this project are header-only
+2. **Platform-Independent**: Boost headers are platform-independent and work for cross-compilation
+3. **Fast**: Ubuntu packages install in seconds vs vcpkg's 30+ minutes
+4. **No SSL Issues**: No downloads during image build, no certificate problems
+5. **Same Version**: Ubuntu 22.04 provides Boost 1.74, matching our requirements
+
+### Changes Made
+
+**Commit: a7e7cab**
+
+1. **docker/Dockerfile.windows-cross**:
+   - Added libboost-dev packages to apt-get install
+   - Kept vcpkg installation for optional future use
+   - No longer pre-install Boost via vcpkg
+
+2. **.github/workflows/ci-docker.yml**:
+   - Removed `-DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake`
+   - Removed `-DVCPKG_TARGET_TRIPLET=x64-mingw-static`
+   - CMake now uses system Boost automatically
+
+3. **docker/build-windows.sh**:
+   - Removed vcpkg toolchain configuration
+   - Simplified to use native Boost
+
+### Testing
+
+```bash
+# Verify Boost is available
+docker run --rm painlessmesh-simulator:windows-cross \
+  bash -c "ls /usr/include/boost && dpkg -l | grep boost"
+
+# Expected: Boost 1.74 headers and packages listed
+```
+
+### Benefits
+
+| Aspect | vcpkg Approach | Native Packages Approach |
+|--------|---------------|-------------------------|
+| Build Time | 30-60 minutes | ~60 seconds |
+| SSL Issues | Yes (workarounds needed) | No |
+| Image Size | Large | Moderate |
+| Reliability | Complex | Simple |
+| Maintenance | High | Low |
+
+### Conclusion
+
+Using Ubuntu's native Boost packages is the optimal solution for this project because:
+
+- ✅ Boost.Asio is header-only (no compilation needed)
+- ✅ Fast Docker image builds
+- ✅ No SSL certificate issues
+- ✅ Simple and maintainable
+- ✅ Same Boost version as Linux native builds (1.74)
+
+vcpkg remains available in the image for other dependencies that may be needed in the future, but is not used for Boost.
+
+## Commit History
+
+- **6d6a096**: Fixed vcpkg SSL certificate issues with curl wrapper
+- **e320627**: Added documentation for SSL fix
+- **a7e7cab**: Switched to Ubuntu Boost packages (current solution)
