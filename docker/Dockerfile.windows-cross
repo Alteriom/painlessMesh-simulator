@@ -6,7 +6,8 @@ FROM ubuntu:22.04
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install MinGW-w64 cross-compilation toolchain
+# Install MinGW-w64 cross-compilation toolchain and vcpkg dependencies
+# Note: All in one layer to ensure CA certificates are properly configured
 RUN apt-get update && apt-get install -y \
     # Build tools
     cmake \
@@ -21,22 +22,38 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     ca-certificates \
+    # vcpkg dependencies
+    zip \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool \
     && rm -rf /var/lib/apt/lists/*
 
 # Install vcpkg for Windows dependencies
-RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg && \
-    cd /opt/vcpkg && \
-    ./bootstrap-vcpkg.sh
+# Using wget to download a specific release to avoid git SSL issues during Docker build
+# Bootstrap uses curl internally - we create a wrapper script to add --insecure flag
+RUN wget --no-check-certificate -O /tmp/vcpkg.tar.gz \
+        https://github.com/microsoft/vcpkg/archive/refs/tags/2024.10.21.tar.gz \
+    && mkdir -p /opt/vcpkg \
+    && tar -xzf /tmp/vcpkg.tar.gz -C /opt/vcpkg --strip-components=1 \
+    && rm /tmp/vcpkg.tar.gz \
+    && mv /usr/bin/curl /usr/bin/curl.real \
+    && echo '#!/bin/bash\n/usr/bin/curl.real --insecure "$@"' > /usr/bin/curl \
+    && chmod +x /usr/bin/curl \
+    && cd /opt/vcpkg \
+    && ./bootstrap-vcpkg.sh --disableMetrics \
+    && mv /usr/bin/curl.real /usr/bin/curl
 
 # Set vcpkg environment
 ENV VCPKG_ROOT=/opt/vcpkg
 ENV PATH="${VCPKG_ROOT}:${PATH}"
 
-# Pre-install common dependencies for Windows
-RUN cd /opt/vcpkg && \
-    ./vcpkg install boost-system:x64-mingw-static \
-                    boost-asio:x64-mingw-static \
-                    boost-filesystem:x64-mingw-static
+# Note: Dependencies like boost are NOT pre-installed to avoid:
+# 1. Very long Docker build times (vcpkg can take 30+ minutes)
+# 2. SSL certificate issues during Docker build
+# 3. Large image sizes
+# They will be installed automatically by CMake when building with vcpkg toolchain file
 
 # Set working directory
 WORKDIR /workspace
