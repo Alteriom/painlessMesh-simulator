@@ -6,8 +6,9 @@ FROM ubuntu:22.04
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install MinGW-w64 cross-compilation toolchain and vcpkg dependencies
-# Note: All in one layer to ensure CA certificates are properly configured
+# Install MinGW-w64 cross-compilation toolchain, Boost, and vcpkg dependencies
+# Note: We use Ubuntu's libboost-dev package which provides Boost headers
+# These headers work for cross-compilation since Boost.Asio is header-only
 RUN apt-get update && apt-get install -y \
     # Build tools
     cmake \
@@ -17,12 +18,16 @@ RUN apt-get update && apt-get install -y \
     mingw-w64 \
     g++-mingw-w64 \
     gcc-mingw-w64 \
+    # Boost headers (header-only libraries work for cross-compilation)
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
     # Utilities
     wget \
     curl \
     unzip \
     ca-certificates \
-    # vcpkg dependencies
+    # vcpkg dependencies (for future use)
     zip \
     pkg-config \
     autoconf \
@@ -30,7 +35,7 @@ RUN apt-get update && apt-get install -y \
     libtool \
     && rm -rf /var/lib/apt/lists/*
 
-# Install vcpkg for Windows dependencies
+# Install vcpkg for Windows dependencies (optional, for future use)
 # Using wget to download a specific release to avoid git SSL issues during Docker build
 # Bootstrap uses curl internally - we create a wrapper script to add --insecure flag
 RUN wget --no-check-certificate -O /tmp/vcpkg.tar.gz \
@@ -45,15 +50,9 @@ RUN wget --no-check-certificate -O /tmp/vcpkg.tar.gz \
     && ./bootstrap-vcpkg.sh --disableMetrics \
     && mv /usr/bin/curl.real /usr/bin/curl
 
-# Set vcpkg environment
+# Set vcpkg environment (available but not required)
 ENV VCPKG_ROOT=/opt/vcpkg
 ENV PATH="${VCPKG_ROOT}:${PATH}"
-
-# Note: Dependencies like boost are NOT pre-installed to avoid:
-# 1. Very long Docker build times (vcpkg can take 30+ minutes)
-# 2. SSL certificate issues during Docker build
-# 3. Large image sizes
-# They will be installed automatically by CMake when building with vcpkg toolchain file
 
 # Set working directory
 WORKDIR /workspace

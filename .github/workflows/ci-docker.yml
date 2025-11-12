@@ -198,12 +198,12 @@ jobs:
           BUILD_DIR="build/docker-windows-Release"
           
           # Configure
+          # Note: Using Boost headers from /opt/boost, not vcpkg
+          # BOOST_ROOT and Boost_INCLUDE_DIR are set in the Docker image
           docker run --rm -v $PWD:/workspace -w /workspace \
             painlessmesh-simulator:windows-cross \
             cmake -G Ninja \
               -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
-              -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
               -DCMAKE_SYSTEM_NAME=Windows \
               -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
               -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \

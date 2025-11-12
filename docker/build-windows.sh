@@ -36,12 +36,10 @@ docker run --rm \
     painlessmesh-simulator:windows-cross \
     cmake -G Ninja \
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-        -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
-        -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
         -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
-        -B "${BUILD_DIR}"
+        -B "build/docker-windows-${BUILD_TYPE}"
 
 echo -e "${BLUE}Building...${NC}"
 docker run --rm \
