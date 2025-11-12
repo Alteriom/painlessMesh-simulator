@@ -69,7 +69,18 @@ else()
 endif()
 
 # Find required packages
-find_package(Boost 1.66 REQUIRED COMPONENTS system)
+# Try to find Boost (Asio is header-only, so we don't actually need system lib)
+find_package(Boost 1.66 REQUIRED)
+
+# For compatibility, create Boost::system target if it doesn't exist
+# Modern Boost (1.70+) with CMake config files may not provide it
+if(NOT TARGET Boost::system)
+  add_library(Boost::system INTERFACE IMPORTED)
+  set_target_properties(Boost::system PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+  )
+endif()
+
 find_package(Threads REQUIRED)
 
 # Find optional packages
