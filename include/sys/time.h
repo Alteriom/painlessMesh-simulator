@@ -6,27 +6,25 @@
  * on Windows. The actual implementation is in simulator/platform_compat.hpp which must
  * be included first.
  * 
- * For Unix/Linux/macOS builds, this file should NOT be in the include path at all.
- * It will cause conflicts with the system sys/time.h.
- * 
  * @copyright Copyright (c) 2025 Alteriom
  * @license MIT License
  */
 
-#ifdef _WIN32
-// This header is ONLY for Windows builds
-#ifndef SIMULATOR_SYS_TIME_H_COMPAT
-#define SIMULATOR_SYS_TIME_H_COMPAT
+#ifndef _SIMULATOR_SYS_TIME_H
+#define _SIMULATOR_SYS_TIME_H
 
+#ifdef _WIN32
 // On Windows, we expect platform_compat.hpp to be included first
 // which provides gettimeofday() and timeval
 #ifndef SIMULATOR_PLATFORM_COMPAT_HPP
 #error "platform_compat.hpp must be included before sys/time.h on Windows"
 #endif
-
-#endif // SIMULATOR_SYS_TIME_H_COMPAT
 #else
-// On Unix/Linux/macOS, this stub header should NOT be used!
-// Include the system header directly
-#include <sys/time.h>
+// On Unix/Linux/macOS, just include the real header
+#include_next <sys/time.h>
+// Ensure functions and types are in global namespace
+using ::timeval;
+using ::gettimeofday;
 #endif
+
+#endif // _SIMULATOR_SYS_TIME_H

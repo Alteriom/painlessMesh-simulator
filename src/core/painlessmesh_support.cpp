@@ -9,19 +9,14 @@
  * @license MIT License
  */
 
-// Include platform compatibility layer FIRST (before any painlessMesh headers)
-#include "simulator/platform_compat.hpp"
+// Include Arduino compatibility header which sets up proper header ordering
+// This Arduino.h is in include/simulator/boost/Arduino.h and will be found
+// via the include path set in CMakeLists.txt
+#include "Arduino.h"
 
-#define ARDUINO_ARCH_ESP8266
-#define PAINLESSMESH_BOOST
-
-// Define these before including TaskScheduler to compile the implementation
-#define _TASK_PRIORITY
-#define _TASK_STD_FUNCTION
-
+// Now include TaskScheduler implementation
 #include <TaskScheduler.h>
 
-#include "boost/asynctcp.hpp"
 #include "painlessmesh/logger.hpp"
 
 // Provide WiFi and ESP instances

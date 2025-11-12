@@ -105,12 +105,6 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-# Platform-specific includes
-if(WIN32)
-  # Windows needs stub headers for sys/time.h and unistd.h
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/windows_compat)
-endif()
-
 # Submodules check
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
   message(WARNING "painlessMesh submodule not found. Run: git submodule update --init --recursive")
@@ -150,7 +144,7 @@ set(SIMULATOR_SOURCES
   external/painlessMesh/test/catch/fake_serial.cpp
   src/core/painlessmesh_support.cpp
   src/core/virtual_node.cpp
-  # src/core/node_manager.cpp
+  src/core/node_manager.cpp
   # src/config/config_loader.cpp
   # src/scenario/scenario_engine.cpp
   # src/network/network_simulator.cpp
@@ -161,7 +155,7 @@ set(SIMULATOR_SOURCES
 set(SIMULATOR_HEADERS
   # Header files
   include/simulator/virtual_node.hpp
-  # include/simulator/node_manager.hpp
+  include/simulator/node_manager.hpp
   # include/simulator/config_loader.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
@@ -171,24 +165,20 @@ set(SIMULATOR_HEADERS
 
 # Create simulator library
 add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
-
-# Ensure POSIX features are available before including any headers
-if(UNIX)
-  target_compile_definitions(simulator_lib PRIVATE
-    _POSIX_C_SOURCE=200809L
-    _DEFAULT_SOURCE
-  )
-endif()
-
 target_include_directories(simulator_lib PUBLIC
+  # Our boost compatibility headers first to override others
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/simulator/boost
+  # Then our main include directory
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  # painlessMesh test includes (for fake_serial.hpp etc)
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/boost
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/TaskScheduler/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/ArduinoJson/src
+  # painlessMesh library headers
   ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
   ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
   ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/TaskScheduler/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/boost
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/ArduinoJson/src
 )
 target_link_libraries(simulator_lib
   PUBLIC
@@ -223,7 +213,7 @@ if(ENABLE_TESTING)
   # Test sources
   add_executable(simulator_tests
     test/test_virtual_node.cpp
-    # test/test_node_manager.cpp
+    test/test_node_manager.cpp
     # test/test_config_loader.cpp
     # test/test_scenario_engine.cpp
   )
