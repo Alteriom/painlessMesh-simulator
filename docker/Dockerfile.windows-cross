@@ -1,0 +1,60 @@
+# painlessMesh Simulator - Windows Cross-Compilation Environment
+# Cross-compile for Windows from Linux using MinGW-w64
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install MinGW-w64 cross-compilation toolchain
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    cmake \
+    ninja-build \
+    git \
+    # MinGW cross-compiler
+    mingw-w64 \
+    g++-mingw-w64 \
+    gcc-mingw-w64 \
+    # Utilities
+    wget \
+    curl \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install vcpkg for Windows dependencies
+RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg && \
+    cd /opt/vcpkg && \
+    ./bootstrap-vcpkg.sh
+
+# Set vcpkg environment
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+# Pre-install common dependencies for Windows
+RUN cd /opt/vcpkg && \
+    ./vcpkg install boost-system:x64-mingw-static \
+                    boost-asio:x64-mingw-static \
+                    boost-filesystem:x64-mingw-static
+
+# Set working directory
+WORKDIR /workspace
+
+# Default CMake toolchain file location
+ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+# Default command shows build tools versions
+CMD ["sh", "-c", "echo 'painlessMesh Simulator Windows Cross-Build Environment' && \
+     echo '=======================================================' && \
+     echo 'MinGW-w64:' $(x86_64-w64-mingw32-gcc --version | head -1) && \
+     echo 'CMake:' $(cmake --version | head -1) && \
+     echo 'Ninja:' $(ninja --version) && \
+     echo 'vcpkg:' $(vcpkg version) && \
+     echo '=======================================================' && \
+     echo 'Ready to cross-compile for Windows!'"]
+
+# Labels for image metadata
+LABEL maintainer="Alteriom"
+LABEL description="Windows cross-compilation environment for painlessMesh Simulator"
+LABEL version="1.0"

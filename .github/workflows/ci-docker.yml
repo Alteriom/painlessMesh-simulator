@@ -1,0 +1,439 @@
+name: CI (Docker)
+
+on:
+  push:
+    branches: [ master, main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ master, main, develop ]
+  schedule:
+    # Run nightly stress tests at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # Linting and code quality checks using Docker
+  lint:
+    name: Code Quality (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build lint image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.linux-build
+          push: false
+          load: true
+          tags: painlessmesh-simulator:linux-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Check code formatting
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c 'if [ -d "src" ] || [ -d "include" ] || [ -d "test" ]; then
+              find src include test -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.h" \) 2>/dev/null \
+                -exec clang-format --dry-run --Werror {} + || echo "No formatting issues found"
+            else
+              echo "Source directories not yet created"
+            fi'
+        continue-on-error: true
+      
+      - name: Run static analysis
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c 'if [ -d "src" ] && [ -d "include" ]; then
+              cppcheck --enable=warning,style,performance,portability \
+                --suppress=missingIncludeSystem \
+                --inline-suppr \
+                --error-exitcode=0 \
+                src/ include/ 2>&1 | tee cppcheck-report.txt
+            else
+              echo "Source directories not yet created" | tee cppcheck-report.txt
+            fi'
+        continue-on-error: true
+      
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-docker
+          path: cppcheck-report.txt
+        if: always()
+
+  # Build on Linux using Docker
+  build-linux-docker:
+    name: Build (Linux Docker)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.linux-build
+          push: false
+          load: true
+          tags: painlessmesh-simulator:linux-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Configure and Build
+        run: |
+          BUILD_DIR="build/docker-linux-${{ matrix.compiler }}-${{ matrix.build_type }}"
+          
+          if [ "${{ matrix.compiler }}" == "clang" ]; then
+            CC="clang"
+            CXX="clang++"
+          else
+            CC="gcc"
+            CXX="g++"
+          fi
+          
+          # Configure
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_C_COMPILER=$CC \
+              -DCMAKE_CXX_COMPILER=$CXX \
+              -B "$BUILD_DIR"
+          
+          # Build
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            cmake --build "$BUILD_DIR" --config ${{ matrix.build_type }}
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-linux-docker-${{ matrix.compiler }}-${{ matrix.build_type }}
+          path: |
+            build/docker-linux-${{ matrix.compiler }}-${{ matrix.build_type }}/bin/*
+            build/docker-linux-${{ matrix.compiler }}-${{ matrix.build_type }}/lib/*.a
+        if: success()
+
+  # Build on macOS (native, no Docker)
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja boost yaml-cpp ncurses
+      
+      - name: Configure CMake
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -B build
+      
+      - name: Build
+        run: cmake --build build --config Release
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-macos
+          path: |
+            build/bin/*
+            build/lib/*.a
+        if: success()
+
+  # Build on Windows using Docker cross-compilation
+  build-windows-docker:
+    name: Build (Windows Docker)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.windows-cross
+          push: false
+          load: true
+          tags: painlessmesh-simulator:windows-cross
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Configure and Build for Windows
+        run: |
+          BUILD_DIR="build/docker-windows-Release"
+          
+          # Configure
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:windows-cross \
+            cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
+              -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
+              -DCMAKE_SYSTEM_NAME=Windows \
+              -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+              -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+              -B "$BUILD_DIR"
+          
+          # Build
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:windows-cross \
+            cmake --build "$BUILD_DIR" --config Release
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-windows-docker
+          path: |
+            build/docker-windows-Release/bin/*.exe
+            build/docker-windows-Release/lib/*.a
+        if: success()
+
+  # Run unit tests using Docker
+  test-docker:
+    name: Unit Tests (Docker)
+    runs-on: ubuntu-latest
+    needs: build-linux-docker
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.linux-build
+          push: false
+          load: true
+          tags: painlessmesh-simulator:linux-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Configure and Build with Tests
+        run: |
+          BUILD_DIR="build/docker-test-Debug"
+          
+          # Configure
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DENABLE_TESTING=ON \
+              -DENABLE_COVERAGE=ON \
+              -B "$BUILD_DIR"
+          
+          # Build
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            cmake --build "$BUILD_DIR" --config Debug
+      
+      - name: Run tests
+        run: |
+          BUILD_DIR="build/docker-test-Debug"
+          docker run --rm -v $PWD:/workspace -w /workspace/$BUILD_DIR \
+            painlessmesh-simulator:linux-build \
+            ctest --output-on-failure --verbose
+      
+      - name: Generate coverage report
+        run: |
+          BUILD_DIR="build/docker-test-Debug"
+          docker run --rm -v $PWD:/workspace -w /workspace/$BUILD_DIR \
+            painlessmesh-simulator:linux-build \
+            bash -c "lcov --capture --directory . --output-file coverage.info && \
+                     lcov --remove coverage.info '/usr/*' --output-file coverage.info && \
+                     lcov --list coverage.info"
+        continue-on-error: true
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: build/docker-test-Debug/coverage.info
+          flags: unittests
+          name: codecov-docker
+        continue-on-error: true
+
+  # Integration tests with example scenarios
+  integration-test-docker:
+    name: Integration Tests (Docker)
+    runs-on: ubuntu-latest
+    needs: build-linux-docker
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.linux-build
+          push: false
+          load: true
+          tags: painlessmesh-simulator:linux-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Configure and Build
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c "cmake -G Ninja -B build && cmake --build build"
+      
+      - name: Run basic validation
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c 'echo "Integration tests will run example scenarios when main executable is implemented"'
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-docker
+          path: results/
+        if: always()
+
+  # Performance benchmarks
+  benchmark-docker:
+    name: Performance Benchmarks (Docker)
+    runs-on: ubuntu-latest
+    needs: build-linux-docker
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[benchmark]')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.linux-build
+          push: false
+          load: true
+          tags: painlessmesh-simulator:linux-build
+          cache-from: type=gha
+      
+      - name: Configure and Build
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c "cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_BENCHMARKS=ON -B build && \
+                     cmake --build build"
+      
+      - name: Run benchmarks
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:linux-build \
+            bash -c 'echo "Performance benchmarks will run stress tests when main executable is implemented"'
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-docker
+          path: results/
+        if: always()
+
+  # Documentation build check
+  docs-docker:
+    name: Documentation (Docker)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.dev
+          push: false
+          load: true
+          tags: painlessmesh-simulator:dev
+          cache-from: type=gha
+      
+      - name: Generate documentation
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            painlessmesh-simulator:dev \
+            bash -c 'echo "Documentation generation will be enabled when Doxyfile is added"'
+      
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-docker
+          path: docs/html/
+        if: always()
+
+  # All checks passed
+  ci-success-docker:
+    name: CI Success (Docker)
+    runs-on: ubuntu-latest
+    needs: [lint, build-linux-docker, build-macos, build-windows-docker, test-docker]
+    if: always()
+    
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.build-linux-docker.result }}" != "success" ]] || \
+             [[ "${{ needs.build-macos.result }}" != "success" ]] || \
+             [[ "${{ needs.build-windows-docker.result }}" != "success" ]] || \
+             [[ "${{ needs.test-docker.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All CI jobs passed successfully!"

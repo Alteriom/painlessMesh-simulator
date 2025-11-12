@@ -1,0 +1,55 @@
+# painlessMesh Simulator - Linux Build Environment
+# Provides a reproducible build environment for Linux builds with all dependencies
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build essentials and dependencies
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    # Compilers
+    gcc \
+    g++ \
+    clang \
+    clang-format \
+    # Dependencies
+    libboost-dev \
+    libboost-system-dev \
+    libboost-filesystem-dev \
+    libyaml-cpp-dev \
+    libncurses-dev \
+    # Static analysis and linting
+    cppcheck \
+    # Coverage tools
+    lcov \
+    gcovr \
+    # Utilities
+    wget \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command shows build tools versions
+CMD ["sh", "-c", "echo 'painlessMesh Simulator Build Environment' && \
+     echo '========================================' && \
+     echo 'GCC:' $(gcc --version | head -1) && \
+     echo 'Clang:' $(clang --version | head -1) && \
+     echo 'CMake:' $(cmake --version | head -1) && \
+     echo 'Ninja:' $(ninja --version) && \
+     echo 'Boost:' $(dpkg -s libboost-dev | grep Version) && \
+     echo '========================================' && \
+     echo 'Ready to build!'"]
+
+# Labels for image metadata
+LABEL maintainer="Alteriom"
+LABEL description="Linux build environment for painlessMesh Simulator"
+LABEL version="1.0"

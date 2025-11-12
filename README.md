@@ -18,7 +18,28 @@ The painlessMesh Device Simulator enables:
 
 ## Quick Start
 
-### Installation
+### Option 1: Using Docker (Recommended)
+
+No dependencies needed! Works on Linux, macOS, and Windows:
+
+```bash
+# Clone repository with submodules
+git clone --recursive https://github.com/Alteriom/painlessMesh-simulator.git
+cd painlessMesh-simulator
+
+# Build for Linux
+./docker/build-linux.sh
+
+# Cross-compile for Windows
+./docker/build-windows.sh
+
+# Run tests
+./docker/test.sh
+```
+
+See [Docker Guide](docs/DOCKER_GUIDE.md) for details.
+
+### Option 2: Native Build
 
 ```bash
 # Clone repository with submodules
@@ -182,6 +203,11 @@ jobs:
 - **[MCP Quick Reference](.github/MCP_QUICK_REFERENCE.md)**: Essential commands for AI agents
 - **[Agent Session Template](.github/AGENT_SESSION_TEMPLATE.md)**: Workflow template for coding sessions
 - **[Copilot Instructions](.github/copilot-instructions.md)**: Coding standards and best practices
+
+### Build and Development
+
+- **[Docker Guide](docs/DOCKER_GUIDE.md)**: Using Docker for reproducible builds
+- `docker/README.md`: Docker environment technical details
 
 ### Architecture Documentation (Coming Soon)
 

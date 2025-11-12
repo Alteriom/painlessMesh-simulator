@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Linux build environment
+  linux-build:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.linux-build
+    image: painlessmesh-simulator:linux-build
+    volumes:
+      - .:/workspace
+      - build-cache-linux:/workspace/build
+    working_dir: /workspace
+    command: /bin/bash
+
+  # Windows cross-compilation environment
+  windows-cross:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.windows-cross
+    image: painlessmesh-simulator:windows-cross
+    volumes:
+      - .:/workspace
+      - build-cache-windows:/workspace/build-windows
+    working_dir: /workspace
+    command: /bin/bash
+
+  # Development environment
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    image: painlessmesh-simulator:dev
+    volumes:
+      - .:/workspace
+      - build-cache-dev:/workspace/build
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+volumes:
+  build-cache-linux:
+  build-cache-windows:
+  build-cache-dev:
