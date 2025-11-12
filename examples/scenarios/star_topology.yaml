@@ -1,0 +1,80 @@
+# Star Topology with MQTT Bridge
+# This scenario demonstrates a star topology with a central MQTT bridge node
+
+simulation:
+  name: "Star Topology with MQTT Bridge"
+  description: "20 sensor nodes connected through a central MQTT bridge"
+  duration: 180  # Run for 3 minutes
+  time_scale: 1.0  # Real-time simulation
+  seed: 99999
+
+network:
+  latency:
+    min: 10
+    max: 50
+    distribution: "normal"
+  packet_loss: 0.01  # 1% packet loss
+  bandwidth: 1000000  # 1 Mbps
+
+nodes:
+  # Central MQTT bridge node (hub)
+  - id: "bridge-1"
+    type: "mqtt_bridge"
+    firmware: "examples/firmware/mqtt_bridge"
+    position: [0, 0]  # Center position
+    config:
+      mesh_prefix: "StarMesh"
+      mesh_password: "bridge_pass_123"
+      mesh_port: 5555
+      mqtt_broker: "localhost"
+      mqtt_port: 1883
+      mqtt_topic_prefix: "mesh/"
+  
+  # Generate 20 sensor nodes
+  - template: "sensor"
+    count: 20
+    id_prefix: "sensor-"
+    firmware: "examples/firmware/sensor_node"
+    config:
+      mesh_prefix: "StarMesh"
+      mesh_password: "bridge_pass_123"
+      mesh_port: 5555
+      sensor_interval: 30000  # 30 second intervals
+
+topology:
+  type: "star"
+  hub: "bridge-1"  # Central hub node
+
+events:
+  # Test hub failure and recovery
+  - time: 60
+    action: "stop_node"
+    target: "bridge-1"
+    description: "Simulate hub failure - mesh should fragment"
+  
+  - time: 120
+    action: "start_node"
+    target: "bridge-1"
+    description: "Restore hub - mesh should reconnect"
+  
+  # Test message injection after recovery
+  - time: 150
+    action: "inject_message"
+    from: "bridge-1"
+    to: "broadcast"
+    payload: '{"type": 200, "command": "status_check"}'
+    description: "Request status from all nodes"
+
+metrics:
+  output: "results/star_topology.csv"
+  interval: 5  # Collect metrics every 5 seconds
+  collect:
+    - message_count
+    - delivery_rate
+    - latency_stats
+    - topology_changes
+    - connectivity_graph
+  export:
+    - csv
+    - json
+    - graphviz

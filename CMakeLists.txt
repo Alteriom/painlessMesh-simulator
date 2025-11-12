@@ -88,7 +88,15 @@ find_package(yaml-cpp QUIET)
 if(yaml-cpp_FOUND)
   message(STATUS "Found yaml-cpp: ${yaml-cpp_VERSION}")
 else()
-  message(STATUS "yaml-cpp not found, will be built from source if needed")
+  message(STATUS "yaml-cpp not found, building from source...")
+  include(FetchContent)
+  FetchContent_Declare(
+    yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    GIT_TAG yaml-cpp-0.7.0
+  )
+  FetchContent_MakeAvailable(yaml-cpp)
+  set(yaml-cpp_FOUND TRUE)
 endif()
 
 find_package(Curses QUIET)
@@ -145,7 +153,7 @@ set(SIMULATOR_SOURCES
   src/core/painlessmesh_support.cpp
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
-  # src/config/config_loader.cpp
+  src/config/config_loader.cpp
   # src/scenario/scenario_engine.cpp
   # src/network/network_simulator.cpp
   # src/firmware/firmware_base.cpp
@@ -156,7 +164,7 @@ set(SIMULATOR_HEADERS
   # Header files
   include/simulator/virtual_node.hpp
   include/simulator/node_manager.hpp
-  # include/simulator/config_loader.hpp
+  include/simulator/config_loader.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/firmware_base.hpp
@@ -184,6 +192,7 @@ target_link_libraries(simulator_lib
   PUBLIC
     Boost::system
     Threads::Threads
+    yaml-cpp
   PRIVATE
     painlessmesh
 )
@@ -214,7 +223,7 @@ if(ENABLE_TESTING)
   add_executable(simulator_tests
     test/test_virtual_node.cpp
     test/test_node_manager.cpp
-    # test/test_config_loader.cpp
+    test/test_config_loader.cpp
     # test/test_scenario_engine.cpp
   )
   target_link_libraries(simulator_tests
