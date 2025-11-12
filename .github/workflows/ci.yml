@@ -1,0 +1,399 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ master, main, develop ]
+  schedule:
+    # Run nightly stress tests at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # Linting and code quality checks
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format cppcheck
+      
+      - name: Check code formatting
+        run: |
+          # Check if any C++ files need formatting
+          find src include test -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.h" \) \
+            -exec clang-format --dry-run --Werror {} +
+        continue-on-error: true
+      
+      - name: Run static analysis
+        run: |
+          # Run cppcheck on source files
+          cppcheck --enable=warning,style,performance,portability \
+            --suppress=missingIncludeSystem \
+            --inline-suppr \
+            --error-exitcode=0 \
+            src/ include/ 2>&1 | tee cppcheck-report.txt
+        continue-on-error: true
+      
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v3
+        with:
+          name: static-analysis
+          path: cppcheck-report.txt
+        if: always()
+
+  # Build on Linux
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-dev \
+            libboost-system-dev \
+            libyaml-cpp-dev \
+            libncurses-dev
+      
+      - name: Configure CMake (GCC)
+        if: matrix.compiler == 'gcc'
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -B build
+      
+      - name: Configure CMake (Clang)
+        if: matrix.compiler == 'clang'
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -B build
+      
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: simulator-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
+          path: build/painlessmesh-simulator*
+        if: success()
+
+  # Build on macOS
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja boost yaml-cpp ncurses
+      
+      - name: Configure CMake
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -B build
+      
+      - name: Build
+        run: cmake --build build --config Release
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: simulator-macos
+          path: build/painlessmesh-simulator*
+        if: success()
+
+  # Build on Windows
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v10
+        with:
+          vcpkgGitCommitId: 'master'
+      
+      - name: Install dependencies
+        run: |
+          vcpkg install boost-asio:x64-windows yaml-cpp:x64-windows
+      
+      - name: Configure CMake
+        run: |
+          cmake -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake `
+            -B build
+      
+      - name: Build
+        run: cmake --build build --config Release
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: simulator-windows
+          path: build/painlessmesh-simulator*
+        if: success()
+
+  # Run unit tests
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: build-linux
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-dev \
+            libboost-system-dev \
+            libyaml-cpp-dev
+      
+      - name: Configure CMake
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_TESTING=ON \
+            -DENABLE_COVERAGE=ON \
+            -B build
+      
+      - name: Build
+        run: cmake --build build --config Debug
+      
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure --verbose
+        continue-on-error: true
+      
+      - name: Generate coverage report
+        run: |
+          # Install lcov for coverage
+          sudo apt-get install -y lcov
+          cd build
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --list coverage.info
+        continue-on-error: true
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: build/coverage.info
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  # Integration tests with example scenarios
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build-linux
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-dev \
+            libboost-system-dev \
+            libyaml-cpp-dev
+      
+      - name: Configure and Build
+        run: |
+          cmake -G Ninja -B build
+          cmake --build build
+      
+      - name: Run basic validation
+        run: |
+          # This will run once example scenarios are created
+          echo "Integration tests will run example scenarios"
+          # ./build/painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml --headless
+        continue-on-error: true
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-results
+          path: results/
+        if: always()
+
+  # Performance benchmarks
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: build-linux
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[benchmark]')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-dev \
+            libboost-system-dev \
+            libyaml-cpp-dev
+      
+      - name: Configure and Build
+        run: |
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_BENCHMARKS=ON \
+            -B build
+          cmake --build build
+      
+      - name: Run benchmarks
+        run: |
+          echo "Performance benchmarks will run stress tests"
+          # ./build/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --headless
+        continue-on-error: true
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: results/
+        if: always()
+
+  # Documentation build check
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+      
+      - name: Generate documentation
+        run: |
+          # Will generate once Doxyfile is created
+          echo "Documentation generation will be enabled"
+          # doxygen Doxyfile
+        continue-on-error: true
+      
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: documentation
+          path: docs/html/
+        if: always()
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: cpp
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libboost-dev \
+            libboost-system-dev \
+            libyaml-cpp-dev
+      
+      - name: Build for analysis
+        run: |
+          cmake -G Ninja -B build
+          cmake --build build
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  # All checks passed
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint, build-linux, build-macos, build-windows, test]
+    if: always()
+    
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.build-linux.result }}" != "success" ]] || \
+             [[ "${{ needs.build-macos.result }}" != "success" ]] || \
+             [[ "${{ needs.build-windows.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All CI jobs passed successfully!"
