@@ -279,6 +279,9 @@ vcpkg install boost-asio yaml-cpp
 git clone --recursive https://github.com/Alteriom/painlessMesh-simulator.git
 cd painlessMesh-simulator
 
+# If you already cloned without --recursive, initialize submodules:
+git submodule update --init --recursive
+
 # Build
 mkdir build && cd build
 cmake -G Ninja ..

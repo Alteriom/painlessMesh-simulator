@@ -95,6 +95,99 @@ Before you begin, ensure you have:
 5. **Push to your fork**
 6. **Create a Pull Request**
 
+### Submodule Management
+
+This project uses git submodules for dependencies like painlessMesh. Here's how to work with them:
+
+#### Cloning with Submodules
+
+```bash
+# Clone with submodules from the start
+git clone --recursive https://github.com/YOUR_USERNAME/painlessMesh-simulator.git
+
+# Or if already cloned, initialize submodules
+git submodule update --init --recursive
+```
+
+#### Updating Submodules
+
+```bash
+# Update all submodules to latest commit on tracked branch
+git submodule update --remote
+
+# Update specific submodule
+git submodule update --remote external/painlessMesh
+
+# After updating, commit the changes
+git add external/painlessMesh
+git commit -m "chore(deps): Update painlessMesh submodule"
+```
+
+#### Working with Submodule Changes
+
+If you need to work on both the simulator and painlessMesh:
+
+```bash
+# Go into the submodule
+cd external/painlessMesh
+
+# Create a branch (submodules start in detached HEAD)
+git checkout -b my-painlessmesh-feature
+
+# Make changes, commit them
+git add .
+git commit -m "feat: Add new feature"
+
+# Push to your fork of painlessMesh
+git push origin my-painlessmesh-feature
+
+# Return to main project
+cd ../..
+
+# The submodule now points to your commit
+git add external/painlessMesh
+git commit -m "chore: Update painlessMesh with new feature"
+```
+
+#### Common Submodule Issues
+
+**Issue**: Submodule directory is empty
+```bash
+# Solution: Initialize and update submodules
+git submodule update --init --recursive
+```
+
+**Issue**: Submodule has uncommitted changes
+```bash
+# Check submodule status
+git submodule status
+
+# Go into submodule and resolve
+cd external/painlessMesh
+git status
+# Either commit, stash, or reset changes
+cd ../..
+```
+
+**Issue**: Submodule is in detached HEAD state
+```bash
+# This is normal for submodules
+# If you need to make changes, create a branch first
+cd external/painlessMesh
+git checkout -b my-branch
+# Or checkout an existing branch
+git checkout main
+cd ../..
+```
+
+**Issue**: Submodule update fails
+```bash
+# Clean and reinitialize
+git submodule deinit -f external/painlessMesh
+rm -rf .git/modules/external/painlessMesh
+git submodule update --init --recursive
+```
+
 ## How to Contribute
 
 ### Reporting Bugs
