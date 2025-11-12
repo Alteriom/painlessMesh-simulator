@@ -305,6 +305,8 @@ sudo ninja install
 
 ### Creating Phase 1 Issues
 
+**⚡ Quick Start**: See [QUICK_ISSUE_CREATION.md](QUICK_ISSUE_CREATION.md) for one-command setup!
+
 Detailed issue templates are ready in `.github/ISSUE_TEMPLATES_PHASE1/`. Create them using:
 
 ```bash
@@ -314,7 +316,7 @@ Detailed issue templates are ready in `.github/ISSUE_TEMPLATES_PHASE1/`. Create 
 # Create all Phase 1 issues
 ./scripts/create-phase1-issues.sh
 
-# Or manually: see .github/ISSUE_TEMPLATES_PHASE1/README.md
+# Or manually: see ISSUES_TO_CREATE.md for detailed instructions
 ```
 
 **Note**: Requires GitHub CLI authentication. See [MCP Configuration](.github/MCP_CONFIGURATION.md) for setup.
