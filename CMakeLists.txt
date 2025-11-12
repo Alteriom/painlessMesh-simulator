@@ -102,9 +102,24 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
   endif()
 endif()
 
-# Add painlessMesh as subdirectory (once it's added)
-# Note: This will be enabled once the submodule is properly added
-# add_subdirectory(external/painlessMesh)
+# Add painlessMesh library
+# Since painlessMesh doesn't create a library target, we create an interface library
+# that provides the include paths and dependencies needed for the simulator
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
+  add_library(painlessmesh INTERFACE)
+  target_include_directories(painlessmesh INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+  )
+  target_link_libraries(painlessmesh INTERFACE
+    Boost::system
+    Threads::Threads
+  )
+  message(STATUS "painlessMesh library configured as interface target")
+else()
+  message(WARNING "painlessMesh submodule sources not found, library target not created")
+endif()
 
 # Simulator library (core components)
 set(SIMULATOR_SOURCES

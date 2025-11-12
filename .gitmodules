@@ -2,4 +2,4 @@
 [submodule "external/painlessMesh"]
 	path = external/painlessMesh
 	url = https://github.com/Alteriom/painlessMesh.git
-	branch = master
+	branch = main
