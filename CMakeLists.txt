@@ -6,6 +6,12 @@ project(painlessMesh-simulator
   LANGUAGES CXX
 )
 
+# Set policy for FindBoost module (CMake 3.30+)
+# NEW means use BoostConfig.cmake, OLD means use FindBoost.cmake
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -63,7 +69,18 @@ else()
 endif()
 
 # Find required packages
-find_package(Boost 1.66 REQUIRED COMPONENTS system)
+# Try to find Boost (Asio is header-only, so we don't actually need system lib)
+find_package(Boost 1.66 REQUIRED)
+
+# For compatibility, create Boost::system target if it doesn't exist
+# Modern Boost (1.70+) with CMake config files may not provide it
+if(NOT TARGET Boost::system)
+  add_library(Boost::system INTERFACE IMPORTED)
+  set_target_properties(Boost::system PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+  )
+endif()
+
 find_package(Threads REQUIRED)
 
 # Find optional packages
@@ -123,8 +140,10 @@ endif()
 
 # Simulator library (core components)
 set(SIMULATOR_SOURCES
-  # Core components (to be implemented)
-  # src/core/virtual_node.cpp
+  # Core components
+  external/painlessMesh/test/catch/fake_serial.cpp
+  src/core/painlessmesh_support.cpp
+  src/core/virtual_node.cpp
   # src/core/node_manager.cpp
   # src/config/config_loader.cpp
   # src/scenario/scenario_engine.cpp
@@ -134,8 +153,8 @@ set(SIMULATOR_SOURCES
 )
 
 set(SIMULATOR_HEADERS
-  # Header files (to be implemented)
-  # include/simulator/virtual_node.hpp
+  # Header files
+  include/simulator/virtual_node.hpp
   # include/simulator/node_manager.hpp
   # include/simulator/config_loader.hpp
   # include/simulator/scenario_engine.hpp
@@ -144,19 +163,25 @@ set(SIMULATOR_HEADERS
   # include/simulator/metrics_collector.hpp
 )
 
-# Create simulator library (when source files exist)
-# add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
-# target_include_directories(simulator_lib PUBLIC
-#   ${CMAKE_CURRENT_SOURCE_DIR}/include
-# )
-# target_link_libraries(simulator_lib
-#   PUBLIC
-#     Boost::system
-#     Threads::Threads
-#   PRIVATE
-#     # painlessmesh
-#     # yaml-cpp (if found)
-# )
+# Create simulator library
+add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
+target_include_directories(simulator_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/TaskScheduler/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/boost
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/ArduinoJson/src
+)
+target_link_libraries(simulator_lib
+  PUBLIC
+    Boost::system
+    Threads::Threads
+  PRIVATE
+    painlessmesh
+)
 
 # Main simulator executable (to be implemented)
 # add_executable(painlessmesh-simulator
@@ -171,31 +196,31 @@ set(SIMULATOR_HEADERS
 if(ENABLE_TESTING)
   enable_testing()
   
-  # Add Catch2 (will be added as submodule or fetched)
-  # include(FetchContent)
-  # FetchContent_Declare(
-  #   Catch2
-  #   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  #   GIT_TAG v3.4.0
-  # )
-  # FetchContent_MakeAvailable(Catch2)
+  # Add Catch2
+  include(FetchContent)
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.4.0
+  )
+  FetchContent_MakeAvailable(Catch2)
   
-  # Test sources (to be implemented)
-  # add_executable(simulator_tests
-  #   test/test_virtual_node.cpp
-  #   test/test_node_manager.cpp
-  #   test/test_config_loader.cpp
-  #   test/test_scenario_engine.cpp
-  # )
-  # target_link_libraries(simulator_tests
-  #   PRIVATE
-  #     simulator_lib
-  #     Catch2::Catch2WithMain
-  # )
-  # 
-  # add_test(NAME simulator_tests COMMAND simulator_tests)
+  # Test sources
+  add_executable(simulator_tests
+    test/test_virtual_node.cpp
+    # test/test_node_manager.cpp
+    # test/test_config_loader.cpp
+    # test/test_scenario_engine.cpp
+  )
+  target_link_libraries(simulator_tests
+    PRIVATE
+      simulator_lib
+      Catch2::Catch2WithMain
+  )
   
-  message(STATUS "Testing enabled (no tests defined yet)")
+  add_test(NAME simulator_tests COMMAND simulator_tests)
+  
+  message(STATUS "Testing enabled with Catch2")
 endif()
 
 # Benchmarks
