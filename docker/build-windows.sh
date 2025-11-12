@@ -39,6 +39,8 @@ docker run --rm \
         -DCMAKE_SYSTEM_NAME=Windows \
         -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
         -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+        -DBoost_INCLUDE_DIR=/usr/include \
+        -DBOOST_ROOT=/usr \
         -B "build/docker-windows-${BUILD_TYPE}"
 
 echo -e "${BLUE}Building...${NC}"
@@ -46,7 +48,7 @@ docker run --rm \
     -v "${PROJECT_ROOT}:/workspace" \
     -w /workspace \
     painlessmesh-simulator:windows-cross \
-    cmake --build "${BUILD_DIR}" --config "${BUILD_TYPE}"
+    cmake --build "build/docker-windows-${BUILD_TYPE}" --config "${BUILD_TYPE}"
 
 echo -e "${GREEN}Build complete!${NC}"
 echo "  Binaries: ${BUILD_DIR}/bin/"

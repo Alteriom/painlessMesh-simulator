@@ -6,7 +6,7 @@ FROM ubuntu:22.04
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install MinGW-w64 cross-compilation toolchain, Boost, and vcpkg dependencies
+# Install MinGW-w64 cross-compilation toolchain, Boost, yaml-cpp, and vcpkg dependencies
 # Note: We use Ubuntu's libboost-dev package which provides Boost headers
 # These headers work for cross-compilation since Boost.Asio is header-only
 RUN apt-get update && apt-get install -y \
@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y \
     libboost-dev \
     libboost-system-dev \
     libboost-filesystem-dev \
+    # yaml-cpp for configuration
+    libyaml-cpp-dev \
     # Utilities
     wget \
     curl \
@@ -54,13 +56,17 @@ RUN wget --no-check-certificate -O /tmp/vcpkg.tar.gz \
 ENV VCPKG_ROOT=/opt/vcpkg
 ENV PATH="${VCPKG_ROOT}:${PATH}"
 
+# Set Boost environment variables for CMake
+ENV BOOST_ROOT=/usr
+ENV Boost_INCLUDE_DIR=/usr/include
+
 # Set working directory
 WORKDIR /workspace
 
 # Configure git to trust workspace directory (for submodules)
 RUN git config --global --add safe.directory '*'
 
-# Default CMake toolchain file location
+# Default CMake toolchain file location (not used for Boost, but available)
 ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 # Default command shows build tools versions

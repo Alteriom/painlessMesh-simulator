@@ -154,11 +154,14 @@ jobs:
       - name: Install dependencies
         run: |
           # Update brew first
-          brew update
-          # Install dependencies (ncurses may already be present)
-          brew install cmake ninja boost yaml-cpp || brew install cmake ninja boost libyaml-cpp
+          brew update || true
+          # Install dependencies one by one for better error handling
+          brew install cmake || true
+          brew install ninja || true
+          brew install boost || true
+          brew install yaml-cpp || true
           # ncurses is usually pre-installed on macOS
-          brew list ncurses || brew install ncurses || echo "ncurses not available via brew, using system version"
+          brew list ncurses 2>/dev/null || brew install ncurses || echo "ncurses not available via brew, using system version"
       
       - name: Configure CMake
         run: |
@@ -208,16 +211,26 @@ jobs:
           BUILD_DIR="build/docker-windows-Release"
           
           # Configure
-          # Note: Using Boost headers from /opt/boost, not vcpkg
+          # Note: Using Boost headers from Ubuntu packages
           # BOOST_ROOT and Boost_INCLUDE_DIR are set in the Docker image
           docker run --rm -v $PWD:/workspace -w /workspace \
             painlessmesh-simulator:windows-cross \
-            cmake -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_SYSTEM_NAME=Windows \
-              -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
-              -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
-              -B "$BUILD_DIR"
+            bash -c "
+              echo 'Checking Boost installation...'
+              ls -la /usr/include/boost | head -10
+              echo 'Environment variables:'
+              echo \"BOOST_ROOT=\$BOOST_ROOT\"
+              echo \"Boost_INCLUDE_DIR=\$Boost_INCLUDE_DIR\"
+              echo 'Configuring CMake...'
+              cmake -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_SYSTEM_NAME=Windows \
+                -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+                -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+                -DBoost_INCLUDE_DIR=/usr/include \
+                -DBOOST_ROOT=/usr \
+                -B $BUILD_DIR
+            "
           
           # Build
           docker run --rm -v $PWD:/workspace -w /workspace \
