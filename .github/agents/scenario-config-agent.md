@@ -629,7 +629,7 @@ simulation:
 
 ## Reference
 
-- Full specification: `SIMULATOR_PLAN.md` Section "Configuration File Format"
+- Full specification: `docs/SIMULATOR_PLAN.md` Section "Configuration File Format"
 - Examples: `examples/scenarios/` directory
 - Schema validation: Run with `--validate-only` flag
 

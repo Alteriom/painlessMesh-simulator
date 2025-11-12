@@ -169,10 +169,10 @@ jobs:
 
 ## Documentation
 
-- **[Quick Start Guide](SIMULATOR_QUICKSTART.md)**: Get started in 5 minutes
-- **[Complete Plan](SIMULATOR_PLAN.md)**: Full technical specification
-- **[Executive Summary](SIMULATOR_SUMMARY.md)**: Overview and benefits
-- **[Documentation Index](SIMULATOR_INDEX.md)**: Navigate all docs
+- **[Quick Start Guide](docs/SIMULATOR_QUICKSTART.md)**: Get started in 5 minutes
+- **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
+- **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
+- **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
 
 ### Architecture Documentation (Coming Soon)
 - `docs/ARCHITECTURE.md`: System design and components
@@ -414,7 +414,7 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- **Documentation**: [Full documentation index](SIMULATOR_INDEX.md)
+- **Documentation**: [Full documentation index](docs/SIMULATOR_INDEX.md)
 - **Issues**: [GitHub Issues](https://github.com/Alteriom/painlessMesh-simulator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Alteriom/painlessMesh-simulator/discussions)
 
@@ -433,4 +433,4 @@ Built on top of the excellent [painlessMesh](https://github.com/gmag11/painlessM
 **Version**: 0.1.0-alpha  
 **Last Updated**: 2025-11-12
 
-For detailed implementation plans, see [SIMULATOR_PLAN.md](SIMULATOR_PLAN.md)
+For detailed implementation plans, see [SIMULATOR_PLAN.md](docs/SIMULATOR_PLAN.md)

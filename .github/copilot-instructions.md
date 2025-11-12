@@ -325,8 +325,8 @@ target_link_libraries(simulator PRIVATE painlessmesh)
 ## Getting Help
 
 ### Resources
-- **SIMULATOR_PLAN.md**: Complete technical specification
-- **SIMULATOR_QUICKSTART.md**: Usage examples
+- **docs/SIMULATOR_PLAN.md**: Complete technical specification
+- **docs/SIMULATOR_QUICKSTART.md**: Usage examples
 - **docs/ARCHITECTURE.md**: System architecture
 - **docs/TROUBLESHOOTING.md**: Common problems
 

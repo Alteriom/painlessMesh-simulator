@@ -399,10 +399,10 @@ void NodeManager::updateAll() {
 ## Resources
 
 ### Quick Links
-- [README](README.md): Project overview
+- [README](../README.md): Project overview
 - [Planning Docs](SIMULATOR_INDEX.md): Complete specifications
-- [Contributing](CONTRIBUTING.md): Development guidelines
-- [CI/CD](.github/workflows/ci.yml): Pipeline configuration
+- [Contributing](../CONTRIBUTING.md): Development guidelines
+- [CI/CD](../.github/workflows/ci.yml): Pipeline configuration
 
 ### External Resources
 - [painlessMesh](https://github.com/Alteriom/painlessMesh): Core mesh library

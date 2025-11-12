@@ -216,9 +216,9 @@ Use the quick reference below to jump directly to what you need.
 ## 🔗 Related Resources
 
 ### In This Repository
-- [README.md](README.md) - Main project documentation
-- [test/boost/](test/boost/) - Existing simulation infrastructure
-- [examples/alteriom/](examples/alteriom/) - Alteriom package examples
+- [README.md](../README.md) - Main project documentation
+- [test/boost/](../test/boost/) - Existing simulation infrastructure (to be added)
+- [examples/alteriom/](../examples/alteriom/) - Alteriom package examples (to be added)
 
 ### To Be Created
 - `Alteriom/painlessMesh-simulator` - New repository
@@ -241,7 +241,7 @@ Use the quick reference below to jump directly to what you need.
 
 ### Need Consultation?
 - Contact repository maintainers
-- See [CONTRIBUTING.md](CONTRIBUTING.md)
+- See [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ## 📝 Document History
 

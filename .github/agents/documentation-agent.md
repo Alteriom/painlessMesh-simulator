@@ -640,7 +640,7 @@ For code examples:
 - Style guide: `.github/copilot-instructions.md`
 - Examples: `examples/` directory
 - Existing docs: `docs/` directory
-- Planning docs: `SIMULATOR_*.md` files
+- Planning docs: `docs/SIMULATOR_*.md` files
 
 ---
 

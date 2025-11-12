@@ -440,7 +440,7 @@ if (message.size() > MAX_MESSAGE_SIZE) {
 
 Always check these files for context:
 - `.github/copilot-instructions.md`: General coding guidelines
-- `SIMULATOR_PLAN.md`: Complete technical specification
+- `docs/SIMULATOR_PLAN.md`: Complete technical specification
 - `include/simulator/*.hpp`: Interface definitions
 - `test/`: Test examples and patterns
 

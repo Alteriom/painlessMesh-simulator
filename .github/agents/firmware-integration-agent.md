@@ -811,6 +811,7 @@ public:
 - Examples: `examples/firmware/` directory
 - Alteriom Packages: `external/painlessMesh/examples/alteriom/`
 - Arduino Reference: https://www.arduino.cc/reference/en/
+- Technical spec: `docs/SIMULATOR_PLAN.md`
 
 ---
 
