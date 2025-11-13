@@ -6,6 +6,9 @@
  * @license MIT License
  */
 
+// IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include "simulator/platform_compat.hpp"
+
 #include "simulator/node_manager.hpp"
 #include "simulator/virtual_node.hpp"
 #include <stdexcept>

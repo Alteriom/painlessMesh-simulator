@@ -176,6 +176,12 @@ jobs:
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
 
+### Windows Build Documentation
+
+- **[Windows Build Quick Start](docs/WINDOWS_BUILD_QUICKSTART.md)**: Build on Windows (5 minutes)
+- **[Windows Build Guide](docs/WINDOWS_BUILD_GUIDE.md)**: Comprehensive Windows guide
+- **[Setup Summary](docs/SETUP_SUMMARY.md)**: Overview of CI-matching build tools
+
 ### AI Agent Documentation
 
 - **[MCP Configuration](.github/MCP_CONFIGURATION.md)**: GitHub MCP server setup and capabilities
@@ -281,6 +287,13 @@ Use vcpkg:
 ```powershell
 vcpkg install boost-asio yaml-cpp
 ```
+
+**Or use the automated CI-matching build script:**
+```powershell
+.\scripts\build-windows-ci.ps1
+```
+
+See **[Windows Build Guide](docs/WINDOWS_BUILD_GUIDE.md)** for detailed instructions and troubleshooting.
 
 ### Build
 

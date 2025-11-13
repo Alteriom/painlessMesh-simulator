@@ -6,6 +6,9 @@
  * @license MIT License
  */
 
+// IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include "simulator/platform_compat.hpp"
+
 #include "simulator/config_loader.hpp"
 #include <yaml-cpp/yaml.h>
 #include <fstream>

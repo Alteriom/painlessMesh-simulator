@@ -1,0 +1,40 @@
+# Docker Compose for painlessMesh Simulator Windows Build
+# Provides containerized build environment matching CI/CD pipeline
+
+version: '3.8'
+
+services:
+  # Windows build environment (requires Windows containers)
+  windows-builder:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.windows
+    image: painlessmesh-simulator-windows:latest
+    volumes:
+      - ..:/workspace:rw
+    working_dir: C:\workspace
+    command: >
+      powershell -Command "
+        Write-Host 'painlessMesh Simulator - Windows Build Container' -ForegroundColor Cyan;
+        Write-Host 'Project directory mounted at C:\workspace' -ForegroundColor Green;
+        Write-Host '';
+        Write-Host 'To build the project:' -ForegroundColor Yellow;
+        Write-Host '  cmake -G \"Visual Studio 17 2022\" -A x64 -DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE -B build';
+        Write-Host '  cmake --build build --config Release';
+        Write-Host '';
+        powershell
+      "
+
+# Usage:
+# 
+# 1. Build the image:
+#    docker-compose -f docker/docker-compose.windows.yml build
+#
+# 2. Start interactive container:
+#    docker-compose -f docker/docker-compose.windows.yml run --rm windows-builder
+#
+# 3. Inside container, build the project:
+#    cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE -B build
+#    cmake --build build --config Release
+#
+# Note: Requires Docker Desktop with Windows containers enabled
