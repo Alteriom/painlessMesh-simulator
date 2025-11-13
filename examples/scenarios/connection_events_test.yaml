@@ -1,0 +1,116 @@
+---
+# Connection Events Test Scenario
+# Demonstrates connection control events: drop, restore, degrade
+# Tests mesh routing and failover behavior
+
+simulation:
+  name: "Connection Events Test"
+  description: "Test connection drop, restore, and degradation"
+  duration: 90  # 1.5 minutes
+  time_scale: 1.0
+
+nodes:
+  - id: "node-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "connection123"
+    mesh_port: 5555
+  
+  - id: "node-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "connection123"
+    mesh_port: 5555
+  
+  - id: "node-3"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "connection123"
+    mesh_port: 5555
+  
+  - id: "node-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "connection123"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"  # All nodes connected
+
+# Event timeline demonstrating connection control
+events:
+  # Initial phase: All nodes start
+  - time: 0
+    action: start_node
+    target: node-1
+  
+  - time: 0
+    action: start_node
+    target: node-2
+  
+  - time: 0
+    action: start_node
+    target: node-3
+  
+  - time: 0
+    action: start_node
+    target: node-4
+  
+  # Drop connection between node-1 and node-2 at 20s
+  # Mesh should route messages via node-3
+  - time: 20
+    action: connection_drop
+    from: node-1
+    to: node-2
+    description: "Drop direct connection between node-1 and node-2"
+  
+  # Degrade connection between node-2 and node-3 at 35s
+  # High latency and packet loss on this link
+  - time: 35
+    action: connection_degrade
+    from: node-2
+    to: node-3
+    latency: 800  # 800ms latency
+    packet_loss: 0.40  # 40% packet loss
+    description: "Degrade node-2 to node-3 connection quality"
+  
+  # Restore connection between node-1 and node-2 at 50s
+  # Traffic should shift back to direct route
+  - time: 50
+    action: connection_restore
+    from: node-1
+    to: node-2
+    description: "Restore connection between node-1 and node-2"
+  
+  # Drop bridge connection at 65s
+  # Tests alternate routing through remaining nodes
+  - time: 65
+    action: connection_drop
+    from: node-3
+    to: node-4
+    description: "Drop connection to bridge node"
+  
+  # Restore bridge connection at 80s
+  - time: 80
+    action: connection_restore
+    from: node-3
+    to: node-4
+    description: "Restore bridge connection"
+
+metrics:
+  output: "results/connection_events_metrics.csv"
+  interval: 5
+  collect:
+    - "connection_state"
+    - "message_count"
+    - "packet_loss"
+    - "latency"
+    - "route_changes"
+
+# Expected behavior:
+# - All nodes start and form mesh
+# - Connection drop forces routing through alternate paths
+# - Connection degrade increases latency/loss on that link
+# - Connection restore resumes normal routing
+# - Mesh adapts to all connection state changes
+# - No messages lost (all routed around failures)

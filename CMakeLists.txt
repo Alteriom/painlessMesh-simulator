@@ -168,6 +168,9 @@ set(SIMULATOR_SOURCES
   src/scenario/events/node_start_event.cpp
   src/scenario/events/node_stop_event.cpp
   src/scenario/events/node_restart_event.cpp
+  src/scenario/events/connection_drop_event.cpp
+  src/scenario/events/connection_restore_event.cpp
+  src/scenario/events/connection_degrade_event.cpp
   # src/scenario/scenario_engine.cpp
   # src/firmware/firmware_base.cpp
   # src/metrics/metrics_collector.cpp
@@ -184,6 +187,9 @@ set(SIMULATOR_HEADERS
   include/simulator/events/node_start_event.hpp
   include/simulator/events/node_stop_event.hpp
   include/simulator/events/node_restart_event.hpp
+  include/simulator/events/connection_drop_event.hpp
+  include/simulator/events/connection_restore_event.hpp
+  include/simulator/events/connection_degrade_event.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/firmware_base.hpp
@@ -253,6 +259,7 @@ if(ENABLE_TESTING)
     test/test_network_integration.cpp
     test/test_event_scheduler.cpp
     test/test_node_lifecycle.cpp
+    test/test_connection_events.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )

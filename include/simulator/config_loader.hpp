@@ -147,7 +147,10 @@ enum class EventAction {
   BREAK_LINK,          ///< Break link between nodes
   RESTORE_LINK,        ///< Restore link between nodes
   INJECT_MESSAGE,      ///< Inject a message
-  SET_NETWORK_QUALITY  ///< Change network quality
+  SET_NETWORK_QUALITY, ///< Change network quality
+  CONNECTION_DROP,     ///< Drop connection between nodes
+  CONNECTION_RESTORE,  ///< Restore dropped connection
+  CONNECTION_DEGRADE   ///< Degrade connection quality
 };
 
 /**
@@ -171,6 +174,8 @@ struct EventConfig {
   std::string id_prefix;                 ///< ID prefix (for add_nodes)
   bool graceful = true;                  ///< Graceful shutdown (for stop_node)
   uint32_t delay = 0;                    ///< Delay in seconds (for restart_node)
+  uint32_t latency = 500;                ///< Latency in ms (for connection_degrade)
+  float packet_loss = 0.30f;             ///< Packet loss 0.0-1.0 (for connection_degrade)
 };
 
 /**

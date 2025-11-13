@@ -58,6 +58,13 @@ LatencyConfig NetworkSimulator::getLatency(uint32_t fromNode, uint32_t toNode) c
 void NetworkSimulator::enqueueMessage(uint32_t from, uint32_t to, 
                                        const std::string& message, 
                                        uint64_t currentTime) {
+  // Check if connection is dropped
+  if (!isConnectionActive(from, to)) {
+    // Record dropped packet (connection dropped)
+    recordPacketStats(from, to, true);
+    return;  // Drop the packet due to dropped connection
+  }
+  
   // Check if packet should be dropped
   if (shouldDropPacket(from, to)) {
     // Record dropped packet
@@ -514,6 +521,21 @@ void NetworkSimulator::refillTokenBucket(uint32_t from, uint32_t to, uint64_t cu
   }
   
   bucket.last_refill_time = currentTime;
+}
+
+void NetworkSimulator::dropConnection(uint32_t from, uint32_t to) {
+  ConnectionKey key = std::make_pair(from, to);
+  dropped_connections_.insert(key);
+}
+
+void NetworkSimulator::restoreConnection(uint32_t from, uint32_t to) {
+  ConnectionKey key = std::make_pair(from, to);
+  dropped_connections_.erase(key);
+}
+
+bool NetworkSimulator::isConnectionActive(uint32_t from, uint32_t to) const {
+  ConnectionKey key = std::make_pair(from, to);
+  return dropped_connections_.find(key) == dropped_connections_.end();
 }
 
 } // namespace simulator
