@@ -113,6 +113,9 @@ void VirtualNode::start() {
     throw std::runtime_error("Mesh instance not initialized");
   }
   
+  // Record start time
+  metrics_.start_time = std::chrono::steady_clock::now();
+  
   // Set up mesh callbacks
   mesh_->onReceive([this](uint32_t from, std::string& msg) {
     this->onReceive(from, msg);
@@ -134,11 +137,44 @@ void VirtualNode::stop() {
     return;
   }
   
+  // Update uptime before stopping
+  auto now = std::chrono::steady_clock::now();
+  auto uptime = std::chrono::duration_cast<std::chrono::milliseconds>(
+    now - metrics_.start_time).count();
+  metrics_.total_uptime_ms += uptime;
+  
   if (mesh_) {
     mesh_->stop();
   }
   
   running_ = false;
+}
+
+void VirtualNode::crash() {
+  if (!running_) {
+    return;
+  }
+  
+  // Update uptime and crash count
+  auto now = std::chrono::steady_clock::now();
+  auto uptime = std::chrono::duration_cast<std::chrono::milliseconds>(
+    now - metrics_.start_time).count();
+  metrics_.total_uptime_ms += uptime;
+  metrics_.crash_count++;
+  
+  // Abrupt stop - no cleanup, simulating power failure
+  // We still call mesh_->stop() but this represents an ungraceful shutdown
+  if (mesh_) {
+    mesh_->stop();
+  }
+  
+  running_ = false;
+}
+
+void VirtualNode::restart() {
+  // Graceful stop followed by start
+  stop();
+  start();
 }
 
 void VirtualNode::update() {
@@ -206,6 +242,17 @@ void VirtualNode::onNewConnection(uint32_t nodeId) {
 void VirtualNode::onChangedConnections() {
   // Optional: Log topology change
   // std::cout << "Node " << node_id_ << " topology changed" << std::endl;
+}
+
+uint64_t VirtualNode::getUptime() const {
+  if (!running_) {
+    return 0;
+  }
+  
+  auto now = std::chrono::steady_clock::now();
+  auto uptime = std::chrono::duration_cast<std::chrono::milliseconds>(
+    now - metrics_.start_time).count();
+  return static_cast<uint64_t>(uptime);
 }
 
 } // namespace simulator

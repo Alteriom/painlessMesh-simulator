@@ -49,6 +49,8 @@ struct NodeMetrics {
   uint64_t bytes_sent = 0;            ///< Total bytes sent
   uint64_t bytes_received = 0;        ///< Total bytes received
   std::chrono::steady_clock::time_point start_time;  ///< Node start timestamp
+  uint32_t crash_count = 0;           ///< Number of times node has crashed
+  uint64_t total_uptime_ms = 0;       ///< Total uptime in milliseconds across all sessions
 };
 
 /**
@@ -120,9 +122,27 @@ public:
    * @brief Stops the mesh node gracefully
    * 
    * Disconnects from mesh, cancels pending operations, and releases
-   * network resources.
+   * network resources. Updates uptime metrics before stopping.
    */
   void stop();
+  
+  /**
+   * @brief Crashes the node ungracefully
+   * 
+   * Simulates a node crash or power failure by stopping immediately
+   * without cleanup. Increments crash count and updates metrics.
+   * Unlike stop(), this does not properly disconnect from the mesh,
+   * simulating an unexpected failure.
+   */
+  void crash();
+  
+  /**
+   * @brief Restarts the node
+   * 
+   * Stops the node gracefully, then starts it again. This simulates
+   * a controlled restart scenario.
+   */
+  void restart();
   
   /**
    * @brief Updates the node state
@@ -168,6 +188,20 @@ public:
    * @return true if node is started, false otherwise
    */
   bool isRunning() const { return running_; }
+  
+  /**
+   * @brief Gets the current uptime of the node
+   * 
+   * @return Uptime in milliseconds since last start, or 0 if not running
+   */
+  uint64_t getUptime() const;
+  
+  /**
+   * @brief Gets the total number of crashes
+   * 
+   * @return Number of times the node has crashed
+   */
+  uint32_t getCrashCount() const { return metrics_.crash_count; }
   
   /**
    * @brief Sets simulated network quality
