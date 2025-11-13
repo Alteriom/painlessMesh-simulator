@@ -771,6 +771,30 @@ src/core/virtual_node.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/core/virtual_node.cpp.s
 .PHONY : src/core/virtual_node.cpp.s
 
+src/firmware/simple_broadcast_firmware.o: src/firmware/simple_broadcast_firmware.cpp.o
+.PHONY : src/firmware/simple_broadcast_firmware.o
+
+# target to build an object file
+src/firmware/simple_broadcast_firmware.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/firmware/simple_broadcast_firmware.cpp.o
+.PHONY : src/firmware/simple_broadcast_firmware.cpp.o
+
+src/firmware/simple_broadcast_firmware.i: src/firmware/simple_broadcast_firmware.cpp.i
+.PHONY : src/firmware/simple_broadcast_firmware.i
+
+# target to preprocess a source file
+src/firmware/simple_broadcast_firmware.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/firmware/simple_broadcast_firmware.cpp.i
+.PHONY : src/firmware/simple_broadcast_firmware.cpp.i
+
+src/firmware/simple_broadcast_firmware.s: src/firmware/simple_broadcast_firmware.cpp.s
+.PHONY : src/firmware/simple_broadcast_firmware.s
+
+# target to generate assembly for a file
+src/firmware/simple_broadcast_firmware.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/firmware/simple_broadcast_firmware.cpp.s
+.PHONY : src/firmware/simple_broadcast_firmware.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -1155,6 +1179,30 @@ test/test_event_scheduler.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_event_scheduler.cpp.s
 .PHONY : test/test_event_scheduler.cpp.s
 
+test/test_firmware.o: test/test_firmware.cpp.o
+.PHONY : test/test_firmware.o
+
+# target to build an object file
+test/test_firmware.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_firmware.cpp.o
+.PHONY : test/test_firmware.cpp.o
+
+test/test_firmware.i: test/test_firmware.cpp.i
+.PHONY : test/test_firmware.i
+
+# target to preprocess a source file
+test/test_firmware.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_firmware.cpp.i
+.PHONY : test/test_firmware.cpp.i
+
+test/test_firmware.s: test/test_firmware.cpp.s
+.PHONY : test/test_firmware.s
+
+# target to generate assembly for a file
+test/test_firmware.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_firmware.cpp.s
+.PHONY : test/test_firmware.cpp.s
+
 test/test_network_integration.o: test/test_network_integration.cpp.o
 .PHONY : test/test_network_integration.o
 
@@ -1364,6 +1412,9 @@ help:
 	@echo "... src/core/virtual_node.o"
 	@echo "... src/core/virtual_node.i"
 	@echo "... src/core/virtual_node.s"
+	@echo "... src/firmware/simple_broadcast_firmware.o"
+	@echo "... src/firmware/simple_broadcast_firmware.i"
+	@echo "... src/firmware/simple_broadcast_firmware.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
@@ -1412,6 +1463,9 @@ help:
 	@echo "... test/test_event_scheduler.o"
 	@echo "... test/test_event_scheduler.i"
 	@echo "... test/test_event_scheduler.s"
+	@echo "... test/test_firmware.o"
+	@echo "... test/test_firmware.i"
+	@echo "... test/test_firmware.s"
 	@echo "... test/test_network_integration.o"
 	@echo "... test/test_network_integration.i"
 	@echo "... test/test_network_integration.s"
