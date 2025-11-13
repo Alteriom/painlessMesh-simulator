@@ -259,6 +259,14 @@ public:
    * @return Error message from last failed operation
    */
   std::string getLastError() const { return last_error_; }
+  
+  /**
+   * @brief Generates unique node ID from string
+   * 
+   * @param id_str String identifier
+   * @return uint32_t node ID
+   */
+  uint32_t generateNodeId(const std::string& id_str);
 
 private:
   std::string last_error_;               ///< Last error message
@@ -385,14 +393,6 @@ private:
    * @return EventAction
    */
   EventAction stringToEventAction(const std::string& action_str);
-  
-  /**
-   * @brief Generates unique node ID from string
-   * 
-   * @param id_str String identifier
-   * @return uint32_t node ID
-   */
-  uint32_t generateNodeId(const std::string& id_str);
 };
 
 } // namespace simulator

@@ -239,6 +239,7 @@ if(ENABLE_TESTING)
     test/test_config_loader.cpp
     test/test_cli_parser.cpp
     test/test_network_simulator.cpp
+    test/test_network_integration.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
