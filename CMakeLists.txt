@@ -162,8 +162,8 @@ set(SIMULATOR_SOURCES
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
   src/config/config_loader.cpp
+  src/network/network_simulator.cpp
   # src/scenario/scenario_engine.cpp
-  # src/network/network_simulator.cpp
   # src/firmware/firmware_base.cpp
   # src/metrics/metrics_collector.cpp
 )
@@ -238,6 +238,7 @@ if(ENABLE_TESTING)
     test/test_node_manager.cpp
     test/test_config_loader.cpp
     test/test_cli_parser.cpp
+    test/test_network_simulator.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
