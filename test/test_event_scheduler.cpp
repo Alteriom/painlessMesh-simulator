@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "simulator/event.hpp"
 #include "simulator/event_scheduler.hpp"
+#include "simulator/events/node_crash_event.hpp"
 #include "simulator/node_manager.hpp"
 #include "simulator/network_simulator.hpp"
 #include <boost/asio.hpp>
@@ -431,5 +432,32 @@ TEST_CASE("EventScheduler integration test", "[event_scheduler][integration]") {
     // All events should have executed
     REQUIRE(event_count == 6);
     REQUIRE_FALSE(scheduler.hasPendingEvents());
+  }
+}
+
+TEST_CASE("NodeCrashEvent", "[event][node_crash]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network;
+  
+  SECTION("provides descriptive message") {
+    NodeCrashEvent event(1001);
+    REQUIRE(event.getDescription() == "Node crash: node 1001");
+  }
+  
+  SECTION("throws error if node doesn't exist") {
+    NodeCrashEvent event(9999);
+    REQUIRE_THROWS_AS(event.execute(manager, network), std::runtime_error);
+  }
+  
+  SECTION("can be scheduled with event scheduler") {
+    // Just test scheduling, not actual node start/stop
+    // (node start requires network permissions in some environments)
+    EventScheduler scheduler;
+    scheduler.scheduleEvent(std::make_unique<NodeCrashEvent>(1001), 30);
+    
+    REQUIRE(scheduler.hasPendingEvents());
+    REQUIRE(scheduler.getPendingEventCount() == 1);
+    REQUIRE(scheduler.getNextEventTime() == 30);
   }
 }

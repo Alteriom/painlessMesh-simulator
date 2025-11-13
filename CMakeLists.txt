@@ -164,6 +164,7 @@ set(SIMULATOR_SOURCES
   src/config/config_loader.cpp
   src/network/network_simulator.cpp
   src/scenario/event_scheduler.cpp
+  src/scenario/events/node_crash_event.cpp
   # src/scenario/scenario_engine.cpp
   # src/firmware/firmware_base.cpp
   # src/metrics/metrics_collector.cpp
@@ -176,6 +177,7 @@ set(SIMULATOR_HEADERS
   include/simulator/config_loader.hpp
   include/simulator/event.hpp
   include/simulator/event_scheduler.hpp
+  include/simulator/events/node_crash_event.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/firmware_base.hpp
