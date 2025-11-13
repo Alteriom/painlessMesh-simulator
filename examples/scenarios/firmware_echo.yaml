@@ -1,0 +1,88 @@
+simulation:
+  name: "Echo Client/Server Test"
+  description: "Test EchoServer and EchoClient firmware with 1 server and 5 clients"
+  duration: 60  # Run for 60 seconds
+  time_scale: 1.0
+  seed: 12345
+
+network:
+  default_latency:
+    min_ms: 10
+    max_ms: 50
+  default_packet_loss:
+    rate: 0.0
+  default_bandwidth:
+    bits_per_second: 1000000
+
+nodes:
+  # Echo server node
+  - id: "server1"
+    type: "server"
+    firmware: "EchoServer"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+  
+  # Echo client nodes - broadcast mode
+  - id: "client1"
+    type: "client"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+  
+  - id: "client2"
+    type: "client"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+  
+  - id: "client3"
+    type: "client"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+  
+  - id: "client4"
+    type: "client"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+  
+  - id: "client5"
+    type: "client"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+
+topology:
+  type: "star"  # Star topology with server at center
+
+metrics:
+  output: "firmware_echo_metrics.csv"
+  interval: 5
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "bytes_sent"
+    - "bytes_received"

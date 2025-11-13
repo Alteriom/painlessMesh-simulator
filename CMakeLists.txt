@@ -175,6 +175,8 @@ set(SIMULATOR_SOURCES
   src/scenario/events/network_heal_event.cpp
   # Firmware framework
   src/firmware/simple_broadcast_firmware.cpp
+  src/firmware/echo_server_firmware.cpp
+  src/firmware/echo_client_firmware.cpp
   # src/scenario/scenario_engine.cpp
   # src/metrics/metrics_collector.cpp
 )
@@ -199,6 +201,8 @@ set(SIMULATOR_HEADERS
   include/simulator/firmware/firmware_base.hpp
   include/simulator/firmware/firmware_factory.hpp
   include/simulator/firmware/simple_broadcast_firmware.hpp
+  include/simulator/firmware/echo_server_firmware.hpp
+  include/simulator/firmware/echo_client_firmware.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/metrics_collector.hpp

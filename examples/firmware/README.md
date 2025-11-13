@@ -14,6 +14,10 @@ Located in `src/firmware/simple_broadcast_firmware.cpp`, this is a built-in firm
 - Message reception handling
 - Auto-registration using `REGISTER_FIRMWARE` macro
 
+**Configuration:**
+- `broadcast_interval`: Interval between broadcasts in milliseconds (default: 5000)
+- `broadcast_message`: Message prefix to broadcast (default: "Hello from node")
+
 **Usage in YAML:**
 ```yaml
 nodes:
@@ -25,6 +29,60 @@ nodes:
       broadcast_interval: "3000"
       broadcast_message: "Hello from"
 ```
+
+**Example Scenario:** See `examples/scenarios/firmware_broadcast.yaml`
+
+### EchoServerFirmware
+
+Located in `src/firmware/echo_server_firmware.cpp`, this firmware responds to any received message by echoing it back to the sender with an "ECHO: " prefix.
+
+**Features:**
+- Echoes all received messages back to sender
+- Tracks number of messages echoed
+- Tracks number of client connections
+- Useful for testing request/response patterns
+
+**Configuration:** None required
+
+**Usage in YAML:**
+```yaml
+nodes:
+  - id: "server1"
+    firmware: "EchoServer"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+```
+
+**Example Scenario:** See `examples/scenarios/firmware_echo.yaml`
+
+### EchoClientFirmware
+
+Located in `src/firmware/echo_client_firmware.cpp`, this firmware periodically sends requests and processes echo responses from echo servers.
+
+**Features:**
+- Sends periodic requests
+- Supports broadcast or targeted sending
+- Processes echo responses
+- Tracks requests sent and responses received
+
+**Configuration:**
+- `server_node_id`: Target server node ID, or "0" for broadcast mode (default: "0")
+- `request_interval`: Interval between requests in seconds (default: 5)
+
+**Usage in YAML:**
+```yaml
+nodes:
+  - id: "client1"
+    firmware: "EchoClient"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+      server_node_id: "0"  # Broadcast mode
+      request_interval: "3"
+```
+
+**Example Scenario:** See `examples/scenarios/firmware_echo.yaml`
 
 ## Creating Your Own Firmware
 
