@@ -201,6 +201,7 @@ jobs:
 - **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
+- **[Packet Loss Simulation](docs/PACKET_LOSS.md)**: Configure and test with packet loss
 
 ### Windows Development
 
