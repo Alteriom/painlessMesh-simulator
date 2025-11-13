@@ -47,12 +47,23 @@ struct ConnectionLatencyConfig {
 };
 
 /**
+ * @brief Specific connection packet loss override
+ */
+struct ConnectionPacketLossConfig {
+  std::string from;                      ///< Source node ID
+  std::string to;                        ///< Destination node ID
+  PacketLossConfig config;               ///< Packet loss configuration
+};
+
+/**
  * @brief Network quality configuration
  */
 struct NetworkConfig {
   LatencyConfig default_latency;                           ///< Default latency settings
   std::vector<ConnectionLatencyConfig> specific_latencies; ///< Per-connection latency overrides
-  float packet_loss = 0.0f;                                ///< Packet loss rate (0.0-1.0)
+  PacketLossConfig default_packet_loss;                    ///< Default packet loss settings
+  std::vector<ConnectionPacketLossConfig> specific_packet_losses; ///< Per-connection packet loss overrides
+  float packet_loss = 0.0f;                                ///< Legacy packet loss rate (0.0-1.0)
   uint64_t bandwidth = 1000000;                            ///< Bandwidth in bits per second
 };
 

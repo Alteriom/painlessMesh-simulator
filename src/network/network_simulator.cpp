@@ -58,6 +58,16 @@ LatencyConfig NetworkSimulator::getLatency(uint32_t fromNode, uint32_t toNode) c
 void NetworkSimulator::enqueueMessage(uint32_t from, uint32_t to, 
                                        const std::string& message, 
                                        uint64_t currentTime) {
+  // Check if packet should be dropped
+  if (shouldDropPacket(from, to)) {
+    // Record dropped packet
+    recordPacketStats(from, to, true);
+    return;  // Drop the packet
+  }
+  
+  // Record delivered packet
+  recordPacketStats(from, to, false);
+  
   // Get latency configuration for this connection
   LatencyConfig config = getLatency(from, to);
   
@@ -112,10 +122,19 @@ NetworkSimulator::LatencyStats NetworkSimulator::getStats(uint32_t fromNode, uin
     stats.min_latency_ms = conn_stats.min_latency_ms;
     stats.max_latency_ms = conn_stats.max_latency_ms;
     stats.message_count = conn_stats.message_count;
+    stats.dropped_count = conn_stats.dropped_count;
+    stats.delivered_count = conn_stats.delivered_count;
+    
     if (conn_stats.message_count > 0) {
       stats.avg_latency_ms = static_cast<uint32_t>(
         conn_stats.total_latency_ms / conn_stats.message_count
       );
+    }
+    
+    uint64_t total_attempts = conn_stats.dropped_count + conn_stats.delivered_count;
+    if (total_attempts > 0) {
+      stats.drop_rate = static_cast<float>(conn_stats.dropped_count) / 
+                       static_cast<float>(total_attempts);
     }
   }
   
@@ -212,6 +231,17 @@ void NetworkSimulator::recordStats(uint32_t from, uint32_t to, uint32_t latency_
   stats.max_latency_ms = std::max(stats.max_latency_ms, latency_ms);
 }
 
+void NetworkSimulator::recordPacketStats(uint32_t from, uint32_t to, bool dropped) {
+  ConnectionKey key = std::make_pair(from, to);
+  ConnectionStats& stats = stats_map_[key];
+  
+  if (dropped) {
+    stats.dropped_count++;
+  } else {
+    stats.delivered_count++;
+  }
+}
+
 std::string distributionTypeToString(DistributionType type) {
   switch (type) {
     case DistributionType::UNIFORM:
@@ -237,6 +267,78 @@ DistributionType stringToDistributionType(const std::string& str) {
     return DistributionType::EXPONENTIAL;
   } else {
     throw std::invalid_argument("Unknown distribution type: " + str);
+  }
+}
+
+void NetworkSimulator::setDefaultPacketLoss(const PacketLossConfig& config) {
+  if (!config.isValid()) {
+    throw std::invalid_argument("Invalid packet loss configuration");
+  }
+  default_packet_loss_ = config;
+}
+
+void NetworkSimulator::setPacketLoss(uint32_t fromNode, uint32_t toNode, const PacketLossConfig& config) {
+  if (!config.isValid()) {
+    throw std::invalid_argument("Invalid packet loss configuration");
+  }
+  ConnectionKey key = std::make_pair(fromNode, toNode);
+  packet_loss_map_[key] = config;
+}
+
+PacketLossConfig NetworkSimulator::getPacketLoss(uint32_t fromNode, uint32_t toNode) const {
+  ConnectionKey key = std::make_pair(fromNode, toNode);
+  auto it = packet_loss_map_.find(key);
+  if (it != packet_loss_map_.end()) {
+    return it->second;
+  }
+  return default_packet_loss_;
+}
+
+bool NetworkSimulator::shouldDropPacket(uint32_t from, uint32_t to) {
+  // Get packet loss configuration for this connection
+  PacketLossConfig config = getPacketLoss(from, to);
+  
+  // If no packet loss configured, don't drop
+  if (config.probability <= 0.0f) {
+    return false;
+  }
+  
+  // If 100% packet loss, always drop
+  if (config.probability >= 1.0f) {
+    return true;
+  }
+  
+  ConnectionKey key = std::make_pair(from, to);
+  
+  if (config.burst_mode) {
+    // Burst mode: drop packets in bursts
+    BurstState& burst = burst_state_map_[key];
+    
+    if (burst.in_burst) {
+      // Continue current burst
+      burst.remaining--;
+      if (burst.remaining == 0) {
+        burst.in_burst = false;
+      }
+      return true;  // Drop this packet
+    } else {
+      // Decide whether to start a new burst
+      std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+      float random_value = dist(rng_);
+      
+      if (random_value < config.probability) {
+        // Start a new burst
+        burst.in_burst = true;
+        burst.remaining = config.burst_length - 1;  // -1 because we're dropping this one
+        return true;  // Drop this packet
+      }
+      return false;  // Don't drop
+    }
+  } else {
+    // Random mode: drop packets independently
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    float random_value = dist(rng_);
+    return random_value < config.probability;
   }
 }
 

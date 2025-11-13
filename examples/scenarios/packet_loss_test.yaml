@@ -1,0 +1,79 @@
+# Packet Loss Simulation Example
+# 
+# This example demonstrates packet loss simulation in painlessMesh.
+# It creates a 10-node mesh with varying packet loss configurations to test
+# mesh resilience under unreliable network conditions.
+
+simulation:
+  name: "Packet Loss Test"
+  description: "Demonstrates packet loss simulation with burst mode"
+  duration: 120  # 2 minutes
+  time_scale: 1.0  # Real-time simulation
+
+# Network configuration with packet loss settings
+network:
+  # Latency configuration
+  latency:
+    default:
+      min: 10      # Minimum latency in milliseconds
+      max: 50      # Maximum latency in milliseconds
+      distribution: "normal"
+  
+  # Packet loss configuration
+  packet_loss:
+    default:
+      probability: 0.05  # 5% packet loss by default
+      burst_mode: false
+    
+    # Specific connection packet loss overrides
+    specific_connections:
+      # Simulate a poor connection between sensor-0 and sensor-1
+      - from: "sensor-0"
+        to: "sensor-1"
+        probability: 0.20  # 20% packet loss
+        burst_mode: true
+        burst_length: 3
+      
+      # Simulate intermittent issues between sensor-2 and sensor-3
+      - from: "sensor-2"
+        to: "sensor-3"
+        probability: 0.15  # 15% packet loss
+        burst_mode: false
+      
+      # Simulate very poor connection with burst losses
+      - from: "sensor-4"
+        to: "sensor-5"
+        probability: 0.30  # 30% packet loss
+        burst_mode: true
+        burst_length: 5
+  
+  # Other network parameters
+  bandwidth: 1000000    # 1 Mbps
+
+# Node configuration
+nodes:
+  - template: "sensor"
+    count: 10
+    id_prefix: "sensor-"
+    config:
+      mesh_prefix: "PacketLossTest"
+      mesh_password: "testpass123"
+      mesh_port: 5555
+
+# Network topology
+topology:
+  type: "random"    # Random mesh topology
+  density: 0.4      # 40% connection density
+
+# Metrics collection
+metrics:
+  output: "results/packet_loss_test.csv"
+  interval: 5  # Collect metrics every 5 seconds
+  collect:
+    - "latency_min"
+    - "latency_max"
+    - "latency_avg"
+    - "messages_sent"
+    - "messages_received"
+    - "packets_dropped"
+    - "drop_rate"
