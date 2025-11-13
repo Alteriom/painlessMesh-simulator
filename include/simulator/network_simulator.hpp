@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <map>
+#include <set>
 #include <queue>
 #include <vector>
 #include <random>
@@ -322,6 +323,36 @@ public:
    * @param currentTime Current simulation time in milliseconds
    */
   void consumeBandwidth(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime);
+  
+  /**
+   * @brief Drops a connection between two nodes
+   * 
+   * Prevents message delivery on the specified connection. Messages sent
+   * on a dropped connection will be silently dropped.
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   */
+  void dropConnection(uint32_t from, uint32_t to);
+  
+  /**
+   * @brief Restores a previously dropped connection
+   * 
+   * Re-enables message delivery on the specified connection.
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   */
+  void restoreConnection(uint32_t from, uint32_t to);
+  
+  /**
+   * @brief Checks if a connection is active (not dropped)
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @return true if connection is active, false if dropped
+   */
+  bool isConnectionActive(uint32_t from, uint32_t to) const;
 
 private:
   using ConnectionKey = std::pair<uint32_t, uint32_t>;
@@ -367,6 +398,9 @@ private:
     uint32_t remaining = 0;
   };
   std::map<ConnectionKey, BurstState> burst_state_map_;     ///< Burst state per connection
+  
+  // Connection state tracking
+  std::set<ConnectionKey> dropped_connections_;             ///< Set of dropped connections
   
   // Random number generation
   std::mt19937 rng_;                                        ///< Random number generator
