@@ -69,8 +69,8 @@ else()
 endif()
 
 # Find required packages
-# Try to find Boost (Asio is header-only, so we don't actually need system lib)
-find_package(Boost 1.66 REQUIRED)
+# Try to find Boost (Asio is header-only, but we need program_options for CLI)
+find_package(Boost 1.66 REQUIRED COMPONENTS program_options)
 
 # For compatibility, create Boost::system target if it doesn't exist
 # Modern Boost (1.70+) with CMake config files may not provide it
@@ -197,14 +197,16 @@ target_link_libraries(simulator_lib
     painlessmesh
 )
 
-# Main simulator executable (to be implemented)
-# add_executable(painlessmesh-simulator
-#   src/main.cpp
-# )
-# target_link_libraries(painlessmesh-simulator
-#   PRIVATE
-#     simulator_lib
-# )
+# Main simulator executable
+add_executable(painlessmesh-simulator
+  src/main.cpp
+  src/cli/cli_parser.cpp
+)
+target_link_libraries(painlessmesh-simulator
+  PRIVATE
+    simulator_lib
+    Boost::program_options
+)
 
 # Testing
 if(ENABLE_TESTING)
@@ -224,12 +226,15 @@ if(ENABLE_TESTING)
     test/test_virtual_node.cpp
     test/test_node_manager.cpp
     test/test_config_loader.cpp
+    test/test_cli_parser.cpp
+    src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
   target_link_libraries(simulator_tests
     PRIVATE
       simulator_lib
       Catch2::Catch2WithMain
+      Boost::program_options
   )
   
   add_test(NAME simulator_tests COMMAND simulator_tests)
