@@ -66,38 +66,44 @@ return (std::max)(0, (std::min)(100, quality));
 ## Current Build Status
 
 ### ✅ Resolved Issues
-- ✅ CMake finds correct painlessMesh path
-- ✅ setsockopt() type mismatch resolved
-- ✅ ERROR macro conflict resolved
-- ✅ uint type errors resolved
-- ✅ min/max macro conflicts resolved
-- ✅ Build system now correctly uses `D:\Github\painlessMesh` instead of submodule
+- ✅ CMake finds correct painlessMesh path (D:\Github\painlessMesh)
+- ✅ setsockopt() type mismatch resolved (asynctcp.hpp)
+- ✅ ERROR macro conflict resolved (logger.hpp)
+- ✅ uint type errors resolved (logger.hpp, protocol.hpp)
+- ✅ std::min/max macro conflicts resolved (mesh.hpp, buffer.hpp, router.hpp)
+- ✅ Build system correctly uses D:\Github\painlessMesh
+- ✅ ArduinoJson std::string support enabled (ARDUINOJSON_ENABLE_STD_STRING)
+- ✅ TCP lambda access issues resolved (mesh.hpp - made semaphore methods public)
+- ✅ Callback access issues resolved (mesh.hpp - made droppedConnectionCallbacks public)
 
 ### ⚠️ Remaining Issues
 
-#### Protected Member Access Errors in `tcp.hpp`
-Multiple errors accessing protected members of `Mesh` class:
-- `semaphoreTake()` - protected method
-- `semaphoreGive()` - protected method  
-- `droppedConnectionCallbacks` - protected member
+#### Multiple MSVC Protected Member Access Errors
+MSVC is significantly stricter than GCC about friend function access, especially with template classes and lambdas.
 
-**Error Examples**:
-```
-D:\Github\painlessMesh\src\painlessmesh\tcp.hpp(32,18): error C2248: 
-'painlessmesh::Mesh<painlessmesh::Connection>::semaphoreTake': 
-cannot access protected member declared in class 'painlessmesh::Mesh<painlessmesh::Connection>'
-```
+**Root Cause**: GCC allows friend functions and their lambdas to access protected members. MSVC requires explicit public access or more specific friend declarations.
 
-**Possible Causes**:
-1. MSVC is stricter than GCC about `friend` declarations
-2. Template friend declaration syntax may need adjustment
-3. Access control may need to be relaxed (protected → public)
+**Errors Resolved So Far**:
+- ✅ `semaphoreTake()`, `semaphoreGive()` - made public
+- ✅ `droppedConnectionCallbacks` - made public  
+- ✅ `timeOffset` - made public (ntp.hpp MeshTime class)
+- ✅ `startTimeSync()` - made public
 
-**Next Steps**:
-1. Examine `mesh.hpp` to see if `tcp.hpp` should be a friend class
-2. Check if there's a missing `friend` declaration  
-3. Consider making semaphore methods public (if architecturally appropriate)
-4. This may be an existing cross-platform issue in painlessMesh that needs upstream fix
+**Current Error** (as of latest build):
+- ❌ `nodeId` in `Layout<T>` class - still protected (ntp.hpp:147)
+
+**Pattern**: Multiple protected members across different template classes need public access for MSVC compatibility.
+
+**Strategy**: Continue making friend-accessed members public with Windows compatibility comments. This is acceptable as they're already accessed by friend functions in GCC builds.
+
+**Files Modified for Windows MSVC Compatibility**:
+1. D:\Github\painlessMesh\src\painlessmesh\mesh.hpp - 3 public: sections added
+2. D:\Github\painlessMesh\src\painlessmesh\ntp.hpp - 1 public: section added
+3. D:\Github\painlessMesh\src\painlessmesh\buffer.hpp - std::min fixes
+4. D:\Github\painlessMesh\src\painlessmesh\router.hpp - std::min fixes
+5. D:\Github\painlessMesh-simulator\CMakeLists.txt - ARDUINOJSON_ENABLE_STD_STRING added
+
+**Next Step**: Make `nodeId` public in `Layout` class, then continue as needed
 
 ## Build Command
 

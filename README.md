@@ -5,6 +5,8 @@
 
 A standalone device simulator for testing and validating painlessMesh networks with 100+ virtual nodes.
 
+**→ New here? Start with [GETTING_STARTED.md](GETTING_STARTED.md)**
+
 ## Overview
 
 The painlessMesh Device Simulator enables:
@@ -18,7 +20,31 @@ The painlessMesh Device Simulator enables:
 
 ## Quick Start
 
-### Installation
+### Windows Developers: Choose Your Path
+
+**Option 1: Docker** (Fastest setup)
+```powershell
+# Build and run with Docker (no dependencies needed!)
+.\docker-quickstart.ps1 build
+.\docker-quickstart.ps1 test
+```
+
+**Option 2: WSL2** (Best development experience)
+```powershell
+# Install WSL2 (PowerShell as Administrator)
+wsl --install -d Ubuntu-22.04
+
+# Inside WSL2:
+sudo apt install build-essential cmake ninja-build libboost-all-dev libyaml-cpp-dev
+cd /mnt/d/Github/painlessMesh-simulator
+mkdir build && cd build
+cmake -G Ninja ..
+ninja
+```
+
+See **[WSL2 Setup Guide](docs/WSL2_SETUP_GUIDE.md)** or **[Docker Guide](docs/DOCKER_GUIDE.md)** for details.
+
+### Linux/macOS Installation
 
 ```bash
 # Clone repository with submodules
@@ -176,11 +202,12 @@ jobs:
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
 
-### Windows Build Documentation
+### Windows Development
 
-- **[Windows Build Quick Start](docs/WINDOWS_BUILD_QUICKSTART.md)**: Build on Windows (5 minutes)
-- **[Windows Build Guide](docs/WINDOWS_BUILD_GUIDE.md)**: Comprehensive Windows guide
-- **[Setup Summary](docs/SETUP_SUMMARY.md)**: Overview of CI-matching build tools
+- **[Docker Guide](docs/DOCKER_GUIDE.md)**: 🐳 **Fastest** - Build and run with Docker (no local setup)
+- **[WSL2 Setup Guide](docs/WSL2_SETUP_GUIDE.md)**: ⚡ **Best for development** - Full Linux environment on Windows
+- **[Windows Build Decision](docs/WINDOWS_BUILD_DECISION.md)**: Why WSL2/Docker is recommended
+- **[Windows Native Build](docs/WINDOWS_BUILD_GUIDE.md)**: Native MSVC build (advanced, experimental)
 
 ### AI Agent Documentation
 

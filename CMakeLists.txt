@@ -181,6 +181,9 @@ set(SIMULATOR_HEADERS
 
 # Create simulator library
 add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
+target_compile_definitions(simulator_lib PUBLIC
+  ARDUINOJSON_ENABLE_STD_STRING=1  # Enable std::string support in ArduinoJson
+)
 target_include_directories(simulator_lib PUBLIC
   # Our boost compatibility headers first to override others
   ${CMAKE_CURRENT_SOURCE_DIR}/include/simulator/boost

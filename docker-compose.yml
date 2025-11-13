@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Development environment with source mounted
+  dev:
+    build:
+      context: .
+      target: development
+    image: painlessmesh-simulator:dev
+    container_name: painlessmesh-simulator-dev
+    volumes:
+      - .:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    environment:
+      - CMAKE_BUILD_TYPE=Debug
+
+  # Build-only service
+  build:
+    build:
+      context: .
+      target: builder
+    image: painlessmesh-simulator:builder
+    container_name: painlessmesh-simulator-builder
+    volumes:
+      - .:/build
+      - build-cache:/build/build
+    working_dir: /build
+    command: >
+      bash -c "
+        mkdir -p build && cd build &&
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Release .. &&
+        ninja &&
+        echo 'Build complete! Artifacts in ./build/'
+      "
+
+  # Runtime service for running simulations
+  simulator:
+    build:
+      context: .
+      target: runtime
+    image: painlessmesh-simulator:runtime
+    container_name: painlessmesh-simulator
+    volumes:
+      - ./examples:/opt/simulator/examples:ro
+      - ./results:/opt/simulator/results
+    working_dir: /opt/simulator
+    command: ["painlessmesh-simulator", "--config", "examples/scenarios/simple_mesh.yaml"]
+
+  # Test runner
+  test:
+    build:
+      context: .
+      target: builder
+    image: painlessmesh-simulator:test
+    container_name: painlessmesh-simulator-test
+    volumes:
+      - .:/build
+      - build-cache:/build/build
+    working_dir: /build/build
+    command: >
+      bash -c "
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug .. &&
+        ninja &&
+        ./simulator_tests
+      "
+
+volumes:
+  build-cache:
+    driver: local
