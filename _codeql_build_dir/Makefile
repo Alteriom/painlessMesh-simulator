@@ -413,6 +413,78 @@ src/scenario/event_scheduler.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/event_scheduler.cpp.s
 .PHONY : src/scenario/event_scheduler.cpp.s
 
+src/scenario/events/connection_degrade_event.o: src/scenario/events/connection_degrade_event.cpp.o
+.PHONY : src/scenario/events/connection_degrade_event.o
+
+# target to build an object file
+src/scenario/events/connection_degrade_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_degrade_event.cpp.o
+.PHONY : src/scenario/events/connection_degrade_event.cpp.o
+
+src/scenario/events/connection_degrade_event.i: src/scenario/events/connection_degrade_event.cpp.i
+.PHONY : src/scenario/events/connection_degrade_event.i
+
+# target to preprocess a source file
+src/scenario/events/connection_degrade_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_degrade_event.cpp.i
+.PHONY : src/scenario/events/connection_degrade_event.cpp.i
+
+src/scenario/events/connection_degrade_event.s: src/scenario/events/connection_degrade_event.cpp.s
+.PHONY : src/scenario/events/connection_degrade_event.s
+
+# target to generate assembly for a file
+src/scenario/events/connection_degrade_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_degrade_event.cpp.s
+.PHONY : src/scenario/events/connection_degrade_event.cpp.s
+
+src/scenario/events/connection_drop_event.o: src/scenario/events/connection_drop_event.cpp.o
+.PHONY : src/scenario/events/connection_drop_event.o
+
+# target to build an object file
+src/scenario/events/connection_drop_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_drop_event.cpp.o
+.PHONY : src/scenario/events/connection_drop_event.cpp.o
+
+src/scenario/events/connection_drop_event.i: src/scenario/events/connection_drop_event.cpp.i
+.PHONY : src/scenario/events/connection_drop_event.i
+
+# target to preprocess a source file
+src/scenario/events/connection_drop_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_drop_event.cpp.i
+.PHONY : src/scenario/events/connection_drop_event.cpp.i
+
+src/scenario/events/connection_drop_event.s: src/scenario/events/connection_drop_event.cpp.s
+.PHONY : src/scenario/events/connection_drop_event.s
+
+# target to generate assembly for a file
+src/scenario/events/connection_drop_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_drop_event.cpp.s
+.PHONY : src/scenario/events/connection_drop_event.cpp.s
+
+src/scenario/events/connection_restore_event.o: src/scenario/events/connection_restore_event.cpp.o
+.PHONY : src/scenario/events/connection_restore_event.o
+
+# target to build an object file
+src/scenario/events/connection_restore_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_restore_event.cpp.o
+.PHONY : src/scenario/events/connection_restore_event.cpp.o
+
+src/scenario/events/connection_restore_event.i: src/scenario/events/connection_restore_event.cpp.i
+.PHONY : src/scenario/events/connection_restore_event.i
+
+# target to preprocess a source file
+src/scenario/events/connection_restore_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_restore_event.cpp.i
+.PHONY : src/scenario/events/connection_restore_event.cpp.i
+
+src/scenario/events/connection_restore_event.s: src/scenario/events/connection_restore_event.cpp.s
+.PHONY : src/scenario/events/connection_restore_event.s
+
+# target to generate assembly for a file
+src/scenario/events/connection_restore_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/connection_restore_event.cpp.s
+.PHONY : src/scenario/events/connection_restore_event.cpp.s
+
 src/scenario/events/node_crash_event.o: src/scenario/events/node_crash_event.cpp.o
 .PHONY : src/scenario/events/node_crash_event.o
 
@@ -556,6 +628,30 @@ test/test_config_loader.s: test/test_config_loader.cpp.s
 test/test_config_loader.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_config_loader.cpp.s
 .PHONY : test/test_config_loader.cpp.s
+
+test/test_connection_events.o: test/test_connection_events.cpp.o
+.PHONY : test/test_connection_events.o
+
+# target to build an object file
+test/test_connection_events.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_connection_events.cpp.o
+.PHONY : test/test_connection_events.cpp.o
+
+test/test_connection_events.i: test/test_connection_events.cpp.i
+.PHONY : test/test_connection_events.i
+
+# target to preprocess a source file
+test/test_connection_events.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_connection_events.cpp.i
+.PHONY : test/test_connection_events.cpp.i
+
+test/test_connection_events.s: test/test_connection_events.cpp.s
+.PHONY : test/test_connection_events.s
+
+# target to generate assembly for a file
+test/test_connection_events.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_connection_events.cpp.s
+.PHONY : test/test_connection_events.cpp.s
 
 test/test_event_scheduler.o: test/test_event_scheduler.cpp.o
 .PHONY : test/test_event_scheduler.o
@@ -742,6 +838,15 @@ help:
 	@echo "... src/scenario/event_scheduler.o"
 	@echo "... src/scenario/event_scheduler.i"
 	@echo "... src/scenario/event_scheduler.s"
+	@echo "... src/scenario/events/connection_degrade_event.o"
+	@echo "... src/scenario/events/connection_degrade_event.i"
+	@echo "... src/scenario/events/connection_degrade_event.s"
+	@echo "... src/scenario/events/connection_drop_event.o"
+	@echo "... src/scenario/events/connection_drop_event.i"
+	@echo "... src/scenario/events/connection_drop_event.s"
+	@echo "... src/scenario/events/connection_restore_event.o"
+	@echo "... src/scenario/events/connection_restore_event.i"
+	@echo "... src/scenario/events/connection_restore_event.s"
 	@echo "... src/scenario/events/node_crash_event.o"
 	@echo "... src/scenario/events/node_crash_event.i"
 	@echo "... src/scenario/events/node_crash_event.s"
@@ -760,6 +865,9 @@ help:
 	@echo "... test/test_config_loader.o"
 	@echo "... test/test_config_loader.i"
 	@echo "... test/test_config_loader.s"
+	@echo "... test/test_connection_events.o"
+	@echo "... test/test_connection_events.i"
+	@echo "... test/test_connection_events.s"
 	@echo "... test/test_event_scheduler.o"
 	@echo "... test/test_event_scheduler.i"
 	@echo "... test/test_event_scheduler.s"
