@@ -24,6 +24,9 @@ option(ENABLE_COVERAGE "Enable code coverage" OFF)
 option(BUILD_EXAMPLES "Build example scenarios and firmware" ON)
 option(BUILD_DOCS "Build documentation" OFF)
 
+# Allow using a local painlessMesh clone instead of submodule
+set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh" CACHE PATH "Path to painlessMesh library")
+
 # Set default build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
@@ -113,43 +116,48 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-# Submodules check
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
-  message(WARNING "painlessMesh submodule not found. Run: git submodule update --init --recursive")
-  message(STATUS "Attempting to initialize submodules...")
-  execute_process(
-    COMMAND git submodule update --init --recursive
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    RESULT_VARIABLE GIT_SUBMOD_RESULT
-  )
-  if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-    message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+# painlessMesh setup - check custom path or use submodule
+if(NOT EXISTS "${PAINLESSMESH_PATH}/src")
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
+    message(WARNING "painlessMesh not found at ${PAINLESSMESH_PATH}")
+    message(STATUS "Attempting to initialize submodules...")
+    execute_process(
+      COMMAND git submodule update --init --recursive
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE GIT_SUBMOD_RESULT
+    )
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+    endif()
+    set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh")
+  else()
+    set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh")
   endif()
 endif()
 
 # Add painlessMesh library
 # Since painlessMesh doesn't create a library target, we create an interface library
 # that provides the include paths and dependencies needed for the simulator
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
+if(EXISTS "${PAINLESSMESH_PATH}/src")
   add_library(painlessmesh INTERFACE)
   target_include_directories(painlessmesh INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+    ${PAINLESSMESH_PATH}/src
+    ${PAINLESSMESH_PATH}/src/arduino
+    ${PAINLESSMESH_PATH}/src/boost
   )
   target_link_libraries(painlessmesh INTERFACE
     Boost::system
     Threads::Threads
   )
-  message(STATUS "painlessMesh library configured as interface target")
+  message(STATUS "painlessMesh library configured from: ${PAINLESSMESH_PATH}")
 else()
-  message(WARNING "painlessMesh submodule sources not found, library target not created")
+  message(FATAL_ERROR "painlessMesh sources not found at ${PAINLESSMESH_PATH}")
 endif()
 
 # Simulator library (core components)
 set(SIMULATOR_SOURCES
   # Core components
-  external/painlessMesh/test/catch/fake_serial.cpp
+  ${PAINLESSMESH_PATH}/test/catch/fake_serial.cpp
   src/core/painlessmesh_support.cpp
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
@@ -179,14 +187,14 @@ target_include_directories(simulator_lib PUBLIC
   # Then our main include directory
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   # painlessMesh test includes (for fake_serial.hpp etc)
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/boost
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/TaskScheduler/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/ArduinoJson/src
+  ${PAINLESSMESH_PATH}/test/include
+  ${PAINLESSMESH_PATH}/test/boost
+  ${PAINLESSMESH_PATH}/test/TaskScheduler/src
+  ${PAINLESSMESH_PATH}/test/ArduinoJson/src
   # painlessMesh library headers
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+  ${PAINLESSMESH_PATH}/src
+  ${PAINLESSMESH_PATH}/src/arduino
+  ${PAINLESSMESH_PATH}/src/boost
 )
 target_link_libraries(simulator_lib
   PUBLIC

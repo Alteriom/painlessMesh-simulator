@@ -1,5 +1,5 @@
 # painlessMesh library - core mesh networking
 [submodule "external/painlessMesh"]
-	path = external/painlessMesh
+	path = /painlessMesh
 	url = https://github.com/Alteriom/painlessMesh.git
 	branch = main
