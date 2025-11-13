@@ -56,6 +56,15 @@ struct ConnectionPacketLossConfig {
 };
 
 /**
+ * @brief Specific connection bandwidth override
+ */
+struct ConnectionBandwidthConfig {
+  std::string from;                      ///< Source node ID
+  std::string to;                        ///< Destination node ID
+  BandwidthConfig config;                ///< Bandwidth configuration
+};
+
+/**
  * @brief Network quality configuration
  */
 struct NetworkConfig {
@@ -63,8 +72,10 @@ struct NetworkConfig {
   std::vector<ConnectionLatencyConfig> specific_latencies; ///< Per-connection latency overrides
   PacketLossConfig default_packet_loss;                    ///< Default packet loss settings
   std::vector<ConnectionPacketLossConfig> specific_packet_losses; ///< Per-connection packet loss overrides
+  BandwidthConfig default_bandwidth;                       ///< Default bandwidth settings
+  std::vector<ConnectionBandwidthConfig> specific_bandwidths; ///< Per-connection bandwidth overrides
   float packet_loss = 0.0f;                                ///< Legacy packet loss rate (0.0-1.0)
-  uint64_t bandwidth = 1000000;                            ///< Bandwidth in bits per second
+  uint64_t bandwidth = 1000000;                            ///< Legacy bandwidth in bits per second
 };
 
 /**

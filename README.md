@@ -14,7 +14,7 @@ The painlessMesh Device Simulator enables:
 - 🚀 **Large-Scale Testing**: Spawn 100+ virtual ESP32/ESP8266 mesh nodes
 - 🔧 **Firmware Validation**: Test actual firmware code without hardware
 - 📋 **Scenario-Based Testing**: Configure complex test scenarios via YAML
-- 🌐 **Network Simulation**: Realistic conditions (latency, packet loss, partitions)
+- 🌐 **Network Simulation**: Realistic conditions (latency, bandwidth limits, packet loss, partitions)
 - 📊 **Performance Analysis**: Collect metrics and visualize topology
 - 🔄 **CI/CD Integration**: Automated firmware testing
 
@@ -201,6 +201,8 @@ jobs:
 - **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
+- **[Network Latency Simulation](docs/NETWORK_LATENCY.md)**: Configure realistic network delays
+- **[Bandwidth Limiting](docs/BANDWIDTH_LIMITING.md)**: Rate limiting with token bucket algorithm
 - **[Packet Loss Simulation](docs/PACKET_LOSS.md)**: Configure and test with packet loss
 
 ### Windows Development
