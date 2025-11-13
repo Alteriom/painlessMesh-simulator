@@ -414,6 +414,10 @@ EventConfig ConfigLoader::parseEvent(const YAML::Node& node) {
   }
   config.delay = getUInt32(node, "delay", 0);
   
+  // Parse connection event parameters
+  config.latency = getUInt32(node, "latency", 500);
+  config.packet_loss = getFloat(node, "packet_loss", 0.30f);
+  
   // Parse targets array
   if (hasKey(node, "targets") && node["targets"].IsSequence()) {
     for (const auto& target : node["targets"]) {
@@ -837,6 +841,9 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "restore_link") return EventAction::RESTORE_LINK;
   if (lower == "inject_message") return EventAction::INJECT_MESSAGE;
   if (lower == "set_network_quality") return EventAction::SET_NETWORK_QUALITY;
+  if (lower == "connection_drop") return EventAction::CONNECTION_DROP;
+  if (lower == "connection_restore") return EventAction::CONNECTION_RESTORE;
+  if (lower == "connection_degrade") return EventAction::CONNECTION_DEGRADE;
   
   throw std::runtime_error("Unknown event action: " + action_str);
 }

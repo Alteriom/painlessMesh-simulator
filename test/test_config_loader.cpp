@@ -660,3 +660,173 @@ topology:
   // Clean up
   std::remove(temp_file.c_str());
 }
+
+TEST_CASE("ConfigLoader parses connection events", "[config_loader]") {
+  SECTION("connection_drop event") {
+    std::string yaml = R"(
+simulation:
+  name: "Connection Drop Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    mesh_prefix: "TestMesh"
+    mesh_password: "password"
+
+events:
+  - time: 30
+    action: connection_drop
+    from: node-1
+    to: node-2
+    description: "Drop connection"
+    )";
+    
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    
+    REQUIRE(config.has_value());
+    REQUIRE(config->events.size() == 1);
+    REQUIRE(config->events[0].action == EventAction::CONNECTION_DROP);
+    REQUIRE(config->events[0].time == 30);
+    REQUIRE(config->events[0].from == "node-1");
+    REQUIRE(config->events[0].to == "node-2");
+  }
+  
+  SECTION("connection_restore event") {
+    std::string yaml = R"(
+simulation:
+  name: "Connection Restore Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    mesh_prefix: "TestMesh"
+    mesh_password: "password"
+
+events:
+  - time: 60
+    action: connection_restore
+    from: node-1
+    to: node-2
+    )";
+    
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    
+    REQUIRE(config.has_value());
+    REQUIRE(config->events.size() == 1);
+    REQUIRE(config->events[0].action == EventAction::CONNECTION_RESTORE);
+    REQUIRE(config->events[0].time == 60);
+    REQUIRE(config->events[0].from == "node-1");
+    REQUIRE(config->events[0].to == "node-2");
+  }
+  
+  SECTION("connection_degrade event with default parameters") {
+    std::string yaml = R"(
+simulation:
+  name: "Connection Degrade Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    mesh_prefix: "TestMesh"
+    mesh_password: "password"
+
+events:
+  - time: 45
+    action: connection_degrade
+    from: node-3
+    to: node-4
+    )";
+    
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    
+    REQUIRE(config.has_value());
+    REQUIRE(config->events.size() == 1);
+    REQUIRE(config->events[0].action == EventAction::CONNECTION_DEGRADE);
+    REQUIRE(config->events[0].time == 45);
+    REQUIRE(config->events[0].from == "node-3");
+    REQUIRE(config->events[0].to == "node-4");
+    REQUIRE(config->events[0].latency == 500);      // Default
+    REQUIRE(config->events[0].packet_loss == 0.30f); // Default
+  }
+  
+  SECTION("connection_degrade event with custom parameters") {
+    std::string yaml = R"(
+simulation:
+  name: "Connection Degrade Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    mesh_prefix: "TestMesh"
+    mesh_password: "password"
+
+events:
+  - time: 45
+    action: connection_degrade
+    from: node-3
+    to: node-4
+    latency: 1000
+    packet_loss: 0.50
+    )";
+    
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    
+    REQUIRE(config.has_value());
+    REQUIRE(config->events.size() == 1);
+    REQUIRE(config->events[0].action == EventAction::CONNECTION_DEGRADE);
+    REQUIRE(config->events[0].latency == 1000);
+    REQUIRE(config->events[0].packet_loss == 0.50f);
+  }
+  
+  SECTION("multiple connection events") {
+    std::string yaml = R"(
+simulation:
+  name: "Multiple Connection Events"
+  duration: 120
+
+nodes:
+  - id: "node-1"
+    mesh_prefix: "TestMesh"
+    mesh_password: "password"
+
+events:
+  - time: 20
+    action: connection_drop
+    from: node-1
+    to: node-2
+  
+  - time: 40
+    action: connection_degrade
+    from: node-2
+    to: node-3
+    latency: 800
+    packet_loss: 0.35
+  
+  - time: 60
+    action: connection_restore
+    from: node-1
+    to: node-2
+    )";
+    
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    
+    REQUIRE(config.has_value());
+    REQUIRE(config->events.size() == 3);
+    
+    REQUIRE(config->events[0].action == EventAction::CONNECTION_DROP);
+    REQUIRE(config->events[0].time == 20);
+    
+    REQUIRE(config->events[1].action == EventAction::CONNECTION_DEGRADE);
+    REQUIRE(config->events[1].time == 40);
+    REQUIRE(config->events[1].latency == 800);
+    REQUIRE(config->events[1].packet_loss == 0.35f);
+    
+    REQUIRE(config->events[2].action == EventAction::CONNECTION_RESTORE);
+    REQUIRE(config->events[2].time == 60);
+  }
+}
