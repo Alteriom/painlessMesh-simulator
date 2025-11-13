@@ -127,6 +127,30 @@ TEST_CASE("FirmwareFactory registration", "[firmware][factory]") {
     REQUIRE_FALSE(FirmwareFactory::instance().isRegistered("Test"));
   }
   
+  SECTION("hasFirmware() works as alias for isRegistered()") {
+    FirmwareFactory::instance().registerFirmware("Test", 
+      []() { return std::make_unique<TestFirmware>(); });
+    
+    REQUIRE(FirmwareFactory::instance().hasFirmware("Test"));
+    REQUIRE_FALSE(FirmwareFactory::instance().hasFirmware("Unknown"));
+  }
+  
+  SECTION("listFirmware() returns all registered firmware") {
+    FirmwareFactory::instance().registerFirmware("Firmware1", 
+      []() { return std::make_unique<TestFirmware>(); });
+    FirmwareFactory::instance().registerFirmware("Firmware2", 
+      []() { return std::make_unique<TestFirmware>(); });
+    FirmwareFactory::instance().registerFirmware("Firmware3", 
+      []() { return std::make_unique<TestFirmware>(); });
+    
+    auto list = FirmwareFactory::instance().listFirmware();
+    
+    REQUIRE(list.size() == 3);
+    REQUIRE(std::find(list.begin(), list.end(), "Firmware1") != list.end());
+    REQUIRE(std::find(list.begin(), list.end(), "Firmware2") != list.end());
+    REQUIRE(std::find(list.begin(), list.end(), "Firmware3") != list.end());
+  }
+  
   // Clean up
   FirmwareFactory::instance().clear();
 }
