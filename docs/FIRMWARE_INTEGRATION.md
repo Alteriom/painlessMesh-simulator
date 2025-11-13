@@ -209,19 +209,49 @@ void setup() override {
 
 ### Sending Messages
 
+You can use the protected helper methods for common operations:
+
 ```cpp
-// Broadcast to all nodes
-mesh_->sendBroadcast("Hello everyone!");
+// Using helper methods (recommended - handles null checks)
+void loop() override {
+  sendBroadcast("Hello everyone!");  // Broadcast to all nodes
+  sendSingle(targetNodeId, "Hello node!");  // Send to specific node
+}
 
-// Send to specific node
-mesh_->sendSingle(targetNodeId, "Hello node!");
+// Or access mesh directly for advanced features
+void advancedSend() {
+  // Send with callback
+  mesh_->sendBroadcast("Message", [](uint32_t from, bool success) {
+    if (success) {
+      std::cout << "Message sent successfully" << std::endl;
+    }
+  });
+}
+```
 
-// Send with callback
-mesh_->sendBroadcast("Message", [](uint32_t from, bool success) {
-  if (success) {
-    std::cout << "Message sent successfully" << std::endl;
-  }
-});
+### Using Helper Methods
+
+The FirmwareBase class provides convenient helper methods:
+
+```cpp
+void setup() override {
+  // Get mesh information
+  uint32_t myId = getNodeId();
+  uint32_t currentTime = getNodeTime();
+  auto neighbors = getNodeList();
+  
+  std::cout << "Node " << myId << " started at time " << currentTime << std::endl;
+  std::cout << "Connected to " << neighbors.size() << " nodes" << std::endl;
+  
+  // Send initial broadcast
+  sendBroadcast("Node " + std::to_string(myId) + " is online");
+}
+
+void onReceive(uint32_t from, String& msg) override {
+  // Echo messages back to sender
+  String response = "Echo: " + msg;
+  sendSingle(from, response);
+}
 ```
 
 ## Testing Firmware
@@ -305,15 +335,24 @@ Run the simulator:
 
 #### Accessors
 - `std::string getName() const` - Get firmware name
+- `String getVersion() const` - Get firmware version (default: "1.0.0", override to customize)
 - `uint32_t getNodeId() const` - Get node ID
 - `String getConfig(const String& key, const String& default)` - Get config value
 - `bool hasConfig(const String& key) const` - Check if config key exists
+- `bool isInitialized() const` - Check if firmware has been initialized
+
+#### Protected Helper Methods
+- `void sendBroadcast(const String& msg)` - Send broadcast message to all nodes
+- `void sendSingle(uint32_t dest, const String& msg)` - Send message to specific node
+- `uint32_t getNodeTime() const` - Get current mesh time in microseconds
+- `std::list<uint32_t> getNodeList() const` - Get list of connected node IDs
 
 #### Protected Members
 - `painlessmesh::Mesh* mesh_` - Mesh instance
 - `Scheduler* scheduler_` - Task scheduler
 - `uint32_t node_id_` - Node ID
 - `std::map<String, String> config_` - Configuration map
+- `bool initialized_` - Initialization flag
 
 ## Examples
 

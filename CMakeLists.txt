@@ -174,6 +174,7 @@ set(SIMULATOR_SOURCES
   src/scenario/events/network_partition_event.cpp
   src/scenario/events/network_heal_event.cpp
   # Firmware framework
+  src/firmware/firmware_base.cpp
   src/firmware/simple_broadcast_firmware.cpp
   src/firmware/echo_server_firmware.cpp
   src/firmware/echo_client_firmware.cpp

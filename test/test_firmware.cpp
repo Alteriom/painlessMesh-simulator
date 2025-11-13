@@ -82,6 +82,40 @@ public:
   int32_t last_offset = 0;
 };
 
+// Test firmware that exercises helper methods
+class HelperTestFirmware : public FirmwareBase {
+public:
+  HelperTestFirmware() : FirmwareBase("HelperTest") {}
+  
+  void setup() override {
+    setup_called = true;
+  }
+  
+  void loop() override {}
+  
+  void testSendBroadcast(const String& msg) {
+    sendBroadcast(msg);
+    broadcast_count++;
+  }
+  
+  void testSendSingle(uint32_t dest, const String& msg) {
+    sendSingle(dest, msg);
+    single_count++;
+  }
+  
+  uint32_t testGetNodeTime() {
+    return getNodeTime();
+  }
+  
+  std::list<uint32_t> testGetNodeList() {
+    return getNodeList();
+  }
+  
+  bool setup_called = false;
+  uint32_t broadcast_count = 0;
+  uint32_t single_count = 0;
+};
+
 TEST_CASE("FirmwareFactory registration", "[firmware][factory]") {
   // Clean factory for testing
   FirmwareFactory::instance().clear();
@@ -289,6 +323,35 @@ TEST_CASE("Firmware lifecycle", "[firmware][node]") {
     
     node.stop();
   }
+  
+  SECTION("firmware initialization tracking") {
+    auto firmware = std::make_unique<TestFirmware>();
+    auto* fw_ptr = dynamic_cast<TestFirmware*>(firmware.get());
+    
+    // Before initialization
+    REQUIRE_FALSE(fw_ptr->isInitialized());
+    
+    VirtualNode node(2002, config, &scheduler, io);
+    node.loadFirmware(std::move(firmware));
+    
+    // After loading but before start, still not initialized
+    REQUIRE_FALSE(fw_ptr->isInitialized());
+    
+    node.start();
+    
+    // After node start, firmware should be initialized
+    REQUIRE(fw_ptr->isInitialized());
+    
+    node.stop();
+  }
+  
+  SECTION("firmware version") {
+    auto firmware = std::make_unique<TestFirmware>();
+    auto* fw_ptr = dynamic_cast<TestFirmware*>(firmware.get());
+    
+    // Default version should be "1.0.0"
+    REQUIRE(fw_ptr->getVersion() == "1.0.0");
+  }
 }
 
 TEST_CASE("Firmware callback routing", "[firmware][node][callbacks]") {
@@ -343,6 +406,60 @@ TEST_CASE("Firmware callback routing", "[firmware][node][callbacks]") {
     
     node1.stop();
     node2.stop();
+  }
+}
+
+TEST_CASE("Firmware helper methods", "[firmware][helpers]") {
+  boost::asio::io_context io;
+  Scheduler scheduler;
+  
+  NodeConfig config;
+  config.nodeId = 2005;
+  config.meshPrefix = "TestMesh";
+  config.meshPassword = "password";
+  config.meshPort = 18005;
+  
+  SECTION("helper methods work after initialization") {
+    auto firmware = std::make_unique<HelperTestFirmware>();
+    auto* fw_ptr = dynamic_cast<HelperTestFirmware*>(firmware.get());
+    
+    VirtualNode node(2005, config, &scheduler, io);
+    node.loadFirmware(std::move(firmware));
+    node.start();
+    
+    // Test sendBroadcast helper
+    fw_ptr->testSendBroadcast("Test broadcast");
+    REQUIRE(fw_ptr->broadcast_count == 1);
+    
+    // Test sendSingle helper
+    fw_ptr->testSendSingle(9999, "Test single");
+    REQUIRE(fw_ptr->single_count == 1);
+    
+    // Test getNodeTime helper (should return a value, exact value depends on mesh time)
+    uint32_t time = fw_ptr->testGetNodeTime();
+    (void)time;  // Just verify it returns without error
+    
+    // Test getNodeList helper (should return empty or node list)
+    auto nodeList = fw_ptr->testGetNodeList();
+    // Node list depends on connections, size should be valid (no crash)
+    (void)nodeList.size();  // Just verify it returns without error
+    
+    node.stop();
+  }
+  
+  SECTION("helper methods safe when mesh not initialized") {
+    auto firmware = std::make_unique<HelperTestFirmware>();
+    auto* fw_ptr = firmware.get();
+    
+    // Before initialization, helpers should handle null mesh gracefully
+    fw_ptr->testSendBroadcast("Test");  // Should not crash
+    fw_ptr->testSendSingle(9999, "Test");  // Should not crash
+    
+    uint32_t time = fw_ptr->testGetNodeTime();
+    REQUIRE(time == 0);  // Should return 0 when mesh is null
+    
+    auto nodeList = fw_ptr->testGetNodeList();
+    REQUIRE(nodeList.empty());  // Should return empty list when mesh is null
   }
 }
 
