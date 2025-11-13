@@ -1,0 +1,54 @@
+# Dockerfile for Windows CI Build Environment
+# This replicates the GitHub Actions windows-latest runner environment
+# Requires Windows containers (not Linux containers)
+
+# Use the same Windows Server version as GitHub Actions windows-latest
+# As of 2024, windows-latest uses Windows Server 2022
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install Chocolatey (package manager)
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install Git
+RUN choco install -y git --params '/GitAndUnixToolsOnPath'
+
+# Install Visual Studio Build Tools 2022
+# This is a minimal installation matching GitHub Actions
+RUN choco install -y visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --includeOptional --passive"
+
+# Install CMake
+RUN choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+
+# Install Ninja (faster builds)
+RUN choco install -y ninja
+
+# Install vcpkg
+WORKDIR C:\\
+RUN git clone https://github.com/microsoft/vcpkg.git C:\vcpkg; \
+    C:\vcpkg\bootstrap-vcpkg.bat
+
+# Install dependencies via vcpkg (matching CI)
+# Note: yaml-cpp is added here (missing in CI but needed)
+RUN C:\vcpkg\vcpkg.exe install boost-system:x64-windows boost-asio:x64-windows yaml-cpp:x64-windows
+
+# Set environment variables
+ENV VCPKG_ROOT=C:\vcpkg
+ENV CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+
+# Set working directory
+WORKDIR C:\workspace
+
+# Default command: open PowerShell for interactive use
+CMD ["powershell"]
+
+# Usage:
+# Build: docker build -f docker\Dockerfile.windows -t painlessmesh-simulator-windows .
+# Run:   docker run -it --rm -v ${PWD}:C:\workspace painlessmesh-simulator-windows
+#
+# Inside container:
+# PS> cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE -B build
+# PS> cmake --build build --config Release

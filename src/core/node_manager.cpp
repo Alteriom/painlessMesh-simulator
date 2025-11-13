@@ -6,9 +6,13 @@
  * @license MIT License
  */
 
+// IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include "simulator/platform_compat.hpp"
+
 #include "simulator/node_manager.hpp"
 #include "simulator/virtual_node.hpp"
 #include <stdexcept>
+#include <cstdlib>
 #include <TaskSchedulerDeclarations.h>
 
 namespace simulator {
@@ -98,6 +102,27 @@ void NodeManager::updateAll() {
   
   // Poll IO context to process network events
   io_.poll();
+}
+
+void NodeManager::establishConnectivity() {
+  if (nodes_.empty()) {
+    return;
+  }
+  
+  // Create a vector of node pointers for easier access
+  std::vector<std::shared_ptr<VirtualNode>> node_list;
+  node_list.reserve(nodes_.size());
+  for (auto& pair : nodes_) {
+    node_list.push_back(pair.second);
+  }
+  
+  // Connect each node (starting from the second) to a random previous node
+  // This creates a connected tree topology
+  for (size_t i = 1; i < node_list.size(); ++i) {
+    // Connect to a random node among the previously added nodes
+    size_t target_idx = std::rand() % i;
+    node_list[i]->connectTo(*node_list[target_idx]);
+  }
 }
 
 std::shared_ptr<VirtualNode> NodeManager::getNode(uint32_t nodeId) {

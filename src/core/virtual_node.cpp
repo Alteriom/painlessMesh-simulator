@@ -6,6 +6,9 @@
  * @license MIT License
  */
 
+// IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include "simulator/platform_compat.hpp"
+
 // Include Arduino compatibility header which sets up proper header ordering
 // This Arduino.h is in include/simulator/boost/Arduino.h and will be found
 // via the include path set in CMakeLists.txt
@@ -171,6 +174,19 @@ void VirtualNode::setNetworkQuality(float quality) {
   }
   network_quality_ = quality;
   // TODO: Implement actual network quality simulation
+}
+
+void VirtualNode::connectTo(VirtualNode& other) {
+  if (!mesh_) {
+    throw std::runtime_error("Mesh instance not initialized");
+  }
+  
+  if (!other.mesh_) {
+    throw std::runtime_error("Target mesh instance not initialized");
+  }
+  
+  // Connect this node to the other node
+  mesh_->connect(*other.mesh_);
 }
 
 void VirtualNode::onReceive(uint32_t from, std::string& msg) {

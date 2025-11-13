@@ -43,6 +43,28 @@ This is the complete planning documentation for the painlessMesh device simulato
 | [SIMULATOR_QUICKSTART.md](SIMULATOR_QUICKSTART.md) | 9KB | Quick start and usage | Developers, users |
 | [SIMULATOR_PLAN.md](SIMULATOR_PLAN.md) | 32KB | Complete specification | Architects, implementers |
 
+## 🖥️ Platform Setup
+
+### Choose Your Development Environment
+
+- **[Docker Guide](DOCKER_GUIDE.md)** - 🐳 **Fastest setup!** Build and run with Docker (zero local dependencies)
+- **[WSL2 Setup Guide](WSL2_SETUP_GUIDE.md)** - ⚡ **Best for development** Build on Windows with Linux tools
+- **[Windows Build Decision](WINDOWS_BUILD_DECISION.md)** - Why Docker/WSL2 is recommended over native MSVC
+- **[Windows Native Build](WINDOWS_BUILD_GUIDE.md)** - MSVC native build (experimental, not recommended)
+
+### Quick Comparison
+
+| Method | Setup Time | Dev Experience | CI/CD Ready | Recommended For |
+|--------|------------|----------------|-------------|-----------------|
+| **Docker** | 2 min | Good | ✅ Excellent | Quick start, CI/CD |
+| **WSL2** | 10 min | ✅ Excellent | Good | Active development |
+| **Native Linux** | 5 min | ✅ Excellent | ✅ Excellent | Linux users |
+| **Native Windows** | ❌ Complex | Poor | ❌ No | Not recommended |
+
+### CI/CD Environment
+
+The simulator CI/CD uses **ubuntu-latest** with GCC. Docker and WSL2 provide identical local development environments.
+
 ## 🎬 Getting Started Paths
 
 ### Path 1: "I need to understand the proposal"

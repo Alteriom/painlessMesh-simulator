@@ -9,6 +9,9 @@
  * @license MIT License
  */
 
+// IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include "simulator/platform_compat.hpp"
+
 // Include Arduino compatibility header which sets up proper header ordering
 // This Arduino.h is in include/simulator/boost/Arduino.h and will be found
 // via the include path set in CMakeLists.txt

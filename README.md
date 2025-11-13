@@ -5,6 +5,8 @@
 
 A standalone device simulator for testing and validating painlessMesh networks with 100+ virtual nodes.
 
+**→ New here? Start with [GETTING_STARTED.md](GETTING_STARTED.md)**
+
 ## Overview
 
 The painlessMesh Device Simulator enables:
@@ -18,7 +20,31 @@ The painlessMesh Device Simulator enables:
 
 ## Quick Start
 
-### Installation
+### Windows Developers: Choose Your Path
+
+**Option 1: Docker** (Fastest setup)
+```powershell
+# Build and run with Docker (no dependencies needed!)
+.\docker-quickstart.ps1 build
+.\docker-quickstart.ps1 test
+```
+
+**Option 2: WSL2** (Best development experience)
+```powershell
+# Install WSL2 (PowerShell as Administrator)
+wsl --install -d Ubuntu-22.04
+
+# Inside WSL2:
+sudo apt install build-essential cmake ninja-build libboost-all-dev libyaml-cpp-dev
+cd /mnt/d/Github/painlessMesh-simulator
+mkdir build && cd build
+cmake -G Ninja ..
+ninja
+```
+
+See **[WSL2 Setup Guide](docs/WSL2_SETUP_GUIDE.md)** or **[Docker Guide](docs/DOCKER_GUIDE.md)** for details.
+
+### Linux/macOS Installation
 
 ```bash
 # Clone repository with submodules
@@ -63,7 +89,7 @@ metrics:
 Run the simulation:
 
 ```bash
-./painlessmesh-simulator --config my_test.yaml --ui terminal
+./painlessmesh-simulator --config my_test.yaml
 ```
 
 ## Features
@@ -164,7 +190,7 @@ jobs:
         run: |
           ./bin/painlessmesh-simulator \
             --config scenarios/validation.yaml \
-            --headless
+            --log-level WARN
 ```
 
 ## Documentation
@@ -175,6 +201,13 @@ jobs:
 - **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
 - **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
+
+### Windows Development
+
+- **[Docker Guide](docs/DOCKER_GUIDE.md)**: 🐳 **Fastest** - Build and run with Docker (no local setup)
+- **[WSL2 Setup Guide](docs/WSL2_SETUP_GUIDE.md)**: ⚡ **Best for development** - Full Linux environment on Windows
+- **[Windows Build Decision](docs/WINDOWS_BUILD_DECISION.md)**: Why WSL2/Docker is recommended
+- **[Windows Native Build](docs/WINDOWS_BUILD_GUIDE.md)**: Native MSVC build (advanced, experimental)
 
 ### AI Agent Documentation
 
@@ -194,51 +227,142 @@ jobs:
 
 ### Simple Mesh Formation
 ```bash
+# Run basic mesh with default settings
 ./painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml
 ```
 
 ### Stress Test (100+ Nodes)
 ```bash
-./painlessmesh-simulator --config examples/scenarios/stress_test.yaml
+# Run stress test with debug logging and custom output directory
+./painlessmesh-simulator --config examples/scenarios/stress_test.yaml \
+  --log-level DEBUG \
+  --output stress_test_results/
 ```
 
 ### Network Partition Recovery
 ```bash
-./painlessmesh-simulator --config examples/scenarios/partition_recovery.yaml
+# Run partition test at 5x speed to complete faster
+./painlessmesh-simulator --config examples/scenarios/partition_recovery.yaml \
+  --time-scale 5.0
 ```
 
-### MQTT Bridge Testing
+### Fast Validation
 ```bash
-./painlessmesh-simulator --config examples/scenarios/mqtt_bridge.yaml
+# Validate configuration without running simulation
+./painlessmesh-simulator --config my_scenario.yaml --validate-only
 ```
 
 ## Command-Line Options
 
+### Required Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--config <file>` | `-c` | Path to YAML scenario configuration file |
+
+### Optional Overrides
+
+Override configuration file settings from the command line:
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--duration <seconds>` | `-d` | (from config) | Override simulation duration in seconds |
+| `--time-scale <factor>` | `-t` | `1.0` | Time scale multiplier (e.g., `2.0` = 2x speed, `0.5` = half speed) |
+| `--output <dir>` | `-o` | `results/` | Output directory for results and metrics |
+
+### Logging and Display
+
+Control logging verbosity and output format:
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--log-level <level>` | `-l` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `--ui <mode>` | `-u` | `none` | UI mode: `none`, `terminal` |
+
+### Validation and Information
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--validate-only` | | Validate configuration file and exit without running simulation |
+| `--help` | `-h` | Display help message and exit |
+| `--version` | `-v` | Display version information and exit |
+
+### Usage Examples
+
+**Basic simulation:**
 ```bash
-# Basic usage
-./painlessmesh-simulator --config <scenario.yaml>
-
-# With visualization
-./painlessmesh-simulator --config <scenario.yaml> --ui terminal
-
-# Fast-forward simulation
-./painlessmesh-simulator --config <scenario.yaml> --speed 10
-
-# Export topology
-./painlessmesh-simulator --config <scenario.yaml> --export-dot topology.dot
-
-# Headless mode (for CI)
-./painlessmesh-simulator --config <scenario.yaml> --headless
-
-# Verbose logging
-./painlessmesh-simulator --config <scenario.yaml> --log-level DEBUG
-
-# Custom duration
-./painlessmesh-simulator --config <scenario.yaml> --duration 300
-
-# Save results
-./painlessmesh-simulator --config <scenario.yaml> --output results/
+./painlessmesh-simulator --config scenario.yaml
 ```
+
+**Fast-forward 5x speed with 2 minute duration:**
+```bash
+./painlessmesh-simulator --config scenario.yaml --time-scale 5.0 --duration 120
+```
+
+**Debug logging with custom output directory:**
+```bash
+./painlessmesh-simulator --config scenario.yaml \
+  --log-level DEBUG \
+  --output my_results/
+```
+
+**Validate configuration without running:**
+```bash
+./painlessmesh-simulator --config scenario.yaml --validate-only
+```
+
+**Terminal UI for real-time monitoring:**
+```bash
+./painlessmesh-simulator --config scenario.yaml --ui terminal
+```
+
+**Combined options for CI/CD:**
+```bash
+./painlessmesh-simulator --config test_scenario.yaml \
+  --duration 60 \
+  --time-scale 10.0 \
+  --log-level WARN \
+  --output ci_results/
+```
+
+### Exit Codes
+
+The simulator uses standard exit codes to indicate the result of execution:
+
+| Exit Code | Meaning | Example Scenario |
+|-----------|---------|------------------|
+| `0` | Success | Simulation completed successfully or help/version displayed |
+| `1` | General error | Missing config file, invalid options, runtime error, file I/O error |
+| `2` | Validation failure | Configuration file validation failed (with `--validate-only` or before simulation) |
+
+**Example usage in scripts:**
+
+```bash
+# Validate before running
+if ! ./painlessmesh-simulator --config scenario.yaml --validate-only; then
+  echo "Configuration validation failed!"
+  exit 1
+fi
+
+# Run simulation and check result
+./painlessmesh-simulator --config scenario.yaml
+if [ $? -eq 0 ]; then
+  echo "Simulation completed successfully"
+else
+  echo "Simulation failed with exit code $?"
+  exit 1
+fi
+```
+
+### Common Tips
+
+> **Tip**: Use `--validate-only` to quickly check configuration files for errors before committing to a long simulation run.
+
+> **Tip**: Set `--time-scale` greater than 1.0 to speed up simulations for faster testing. For example, `--time-scale 10.0` runs a 10-minute simulation in 1 minute.
+
+> **Tip**: Use `--log-level DEBUG` when troubleshooting issues, but keep it at `INFO` or higher for production runs to avoid performance overhead.
+
+> **Warning**: Very high time-scale values (>10.0) may cause timing inaccuracies in the simulation. Use with caution for performance testing scenarios.
 
 ## Building from Source
 
@@ -281,6 +405,13 @@ Use vcpkg:
 ```powershell
 vcpkg install boost-asio yaml-cpp
 ```
+
+**Or use the automated CI-matching build script:**
+```powershell
+.\scripts\build-windows-ci.ps1
+```
+
+See **[Windows Build Guide](docs/WINDOWS_BUILD_GUIDE.md)** for detailed instructions and troubleshooting.
 
 ### Build
 

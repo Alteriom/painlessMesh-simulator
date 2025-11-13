@@ -24,6 +24,9 @@ option(ENABLE_COVERAGE "Enable code coverage" OFF)
 option(BUILD_EXAMPLES "Build example scenarios and firmware" ON)
 option(BUILD_DOCS "Build documentation" OFF)
 
+# Allow using a local painlessMesh clone instead of submodule
+set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh" CACHE PATH "Path to painlessMesh library")
+
 # Set default build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
@@ -69,8 +72,8 @@ else()
 endif()
 
 # Find required packages
-# Try to find Boost (Asio is header-only, so we don't actually need system lib)
-find_package(Boost 1.66 REQUIRED)
+# Try to find Boost (Asio is header-only, but we need program_options for CLI)
+find_package(Boost 1.66 REQUIRED COMPONENTS program_options)
 
 # For compatibility, create Boost::system target if it doesn't exist
 # Modern Boost (1.70+) with CMake config files may not provide it
@@ -88,7 +91,15 @@ find_package(yaml-cpp QUIET)
 if(yaml-cpp_FOUND)
   message(STATUS "Found yaml-cpp: ${yaml-cpp_VERSION}")
 else()
-  message(STATUS "yaml-cpp not found, will be built from source if needed")
+  message(STATUS "yaml-cpp not found, building from source...")
+  include(FetchContent)
+  FetchContent_Declare(
+    yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    GIT_TAG yaml-cpp-0.7.0
+  )
+  FetchContent_MakeAvailable(yaml-cpp)
+  set(yaml-cpp_FOUND TRUE)
 endif()
 
 find_package(Curses QUIET)
@@ -105,47 +116,52 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-# Submodules check
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
-  message(WARNING "painlessMesh submodule not found. Run: git submodule update --init --recursive")
-  message(STATUS "Attempting to initialize submodules...")
-  execute_process(
-    COMMAND git submodule update --init --recursive
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    RESULT_VARIABLE GIT_SUBMOD_RESULT
-  )
-  if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-    message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+# painlessMesh setup - check custom path or use submodule
+if(NOT EXISTS "${PAINLESSMESH_PATH}/src")
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
+    message(WARNING "painlessMesh not found at ${PAINLESSMESH_PATH}")
+    message(STATUS "Attempting to initialize submodules...")
+    execute_process(
+      COMMAND git submodule update --init --recursive
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE GIT_SUBMOD_RESULT
+    )
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+    endif()
+    set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh")
+  else()
+    set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh")
   endif()
 endif()
 
 # Add painlessMesh library
 # Since painlessMesh doesn't create a library target, we create an interface library
 # that provides the include paths and dependencies needed for the simulator
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src")
+if(EXISTS "${PAINLESSMESH_PATH}/src")
   add_library(painlessmesh INTERFACE)
   target_include_directories(painlessmesh INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+    ${PAINLESSMESH_PATH}/src
+    ${PAINLESSMESH_PATH}/src/arduino
+    ${PAINLESSMESH_PATH}/src/boost
   )
   target_link_libraries(painlessmesh INTERFACE
     Boost::system
     Threads::Threads
   )
-  message(STATUS "painlessMesh library configured as interface target")
+  message(STATUS "painlessMesh library configured from: ${PAINLESSMESH_PATH}")
 else()
-  message(WARNING "painlessMesh submodule sources not found, library target not created")
+  message(FATAL_ERROR "painlessMesh sources not found at ${PAINLESSMESH_PATH}")
 endif()
 
 # Simulator library (core components)
 set(SIMULATOR_SOURCES
   # Core components
-  external/painlessMesh/test/catch/fake_serial.cpp
+  ${PAINLESSMESH_PATH}/test/catch/fake_serial.cpp
   src/core/painlessmesh_support.cpp
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
-  # src/config/config_loader.cpp
+  src/config/config_loader.cpp
   # src/scenario/scenario_engine.cpp
   # src/network/network_simulator.cpp
   # src/firmware/firmware_base.cpp
@@ -156,7 +172,7 @@ set(SIMULATOR_HEADERS
   # Header files
   include/simulator/virtual_node.hpp
   include/simulator/node_manager.hpp
-  # include/simulator/config_loader.hpp
+  include/simulator/config_loader.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/firmware_base.hpp
@@ -165,37 +181,43 @@ set(SIMULATOR_HEADERS
 
 # Create simulator library
 add_library(simulator_lib STATIC ${SIMULATOR_SOURCES})
+target_compile_definitions(simulator_lib PUBLIC
+  ARDUINOJSON_ENABLE_STD_STRING=1  # Enable std::string support in ArduinoJson
+)
 target_include_directories(simulator_lib PUBLIC
   # Our boost compatibility headers first to override others
   ${CMAKE_CURRENT_SOURCE_DIR}/include/simulator/boost
   # Then our main include directory
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   # painlessMesh test includes (for fake_serial.hpp etc)
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/boost
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/TaskScheduler/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/test/ArduinoJson/src
+  ${PAINLESSMESH_PATH}/test/include
+  ${PAINLESSMESH_PATH}/test/boost
+  ${PAINLESSMESH_PATH}/test/TaskScheduler/src
+  ${PAINLESSMESH_PATH}/test/ArduinoJson/src
   # painlessMesh library headers
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/arduino
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/painlessMesh/src/boost
+  ${PAINLESSMESH_PATH}/src
+  ${PAINLESSMESH_PATH}/src/arduino
+  ${PAINLESSMESH_PATH}/src/boost
 )
 target_link_libraries(simulator_lib
   PUBLIC
     Boost::system
     Threads::Threads
+    yaml-cpp
   PRIVATE
     painlessmesh
 )
 
-# Main simulator executable (to be implemented)
-# add_executable(painlessmesh-simulator
-#   src/main.cpp
-# )
-# target_link_libraries(painlessmesh-simulator
-#   PRIVATE
-#     simulator_lib
-# )
+# Main simulator executable
+add_executable(painlessmesh-simulator
+  src/main.cpp
+  src/cli/cli_parser.cpp
+)
+target_link_libraries(painlessmesh-simulator
+  PRIVATE
+    simulator_lib
+    Boost::program_options
+)
 
 # Testing
 if(ENABLE_TESTING)
@@ -214,13 +236,16 @@ if(ENABLE_TESTING)
   add_executable(simulator_tests
     test/test_virtual_node.cpp
     test/test_node_manager.cpp
-    # test/test_config_loader.cpp
+    test/test_config_loader.cpp
+    test/test_cli_parser.cpp
+    src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
   target_link_libraries(simulator_tests
     PRIVATE
       simulator_lib
       Catch2::Catch2WithMain
+      Boost::program_options
   )
   
   add_test(NAME simulator_tests COMMAND simulator_tests)

@@ -34,7 +34,7 @@ lib/
 *.out
 *.app
 painlessmesh-simulator
-simulator
+/simulator
 
 # CMake
 CMakeCache.txt

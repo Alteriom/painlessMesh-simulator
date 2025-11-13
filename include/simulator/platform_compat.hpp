@@ -32,6 +32,12 @@
 
 #include <cstdint>
 #include <ctime>
+#include <string>  // Required for TSTRING typedef in Arduino.h
+
+// Windows doesn't have SO_REUSEPORT - just use SO_REUSEADDR
+#ifndef SO_REUSEPORT
+#define SO_REUSEPORT SO_REUSEADDR
+#endif
 
 // Note: timeval is already defined in winsock2.h, so we don't redefine it
 

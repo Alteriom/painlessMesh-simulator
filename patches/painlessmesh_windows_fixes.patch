@@ -1,0 +1,34 @@
+diff --git a/src/boost/asynctcp.hpp b/src/boost/asynctcp.hpp
+index 1111111..2222222 100644
+--- a/src/boost/asynctcp.hpp
++++ b/src/boost/asynctcp.hpp
+@@ -233,7 +233,11 @@ class AsyncServer {
+   void begin() {
+     mAcceptor.open(tcp::v4());
+     int one = 1;
++#ifdef _WIN32
++    setsockopt(mAcceptor.native_handle(), SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, reinterpret_cast<const char*>(&one), sizeof(one));
++#else
+     setsockopt(mAcceptor.native_handle(), SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
++#endif
+     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), _port);
+     mAcceptor.set_option(boost::asio::socket_base::reuse_address(true));
+     mAcceptor.set_option(boost::asio::ip::tcp::no_delay(true));
+diff --git a/src/painlessmesh/logger.hpp b/src/painlessmesh/logger.hpp
+index 3333333..4444444 100644
+--- a/src/painlessmesh/logger.hpp
++++ b/src/painlessmesh/logger.hpp
+@@ -9,8 +9,13 @@
+ #include "Arduino.h"
+ 
+ #define REMOTE_QUEUE_SIZE 10
++
++// Windows defines ERROR as a macro, undefine it
++#ifdef ERROR
++#undef ERROR
++#endif
+ 
+ typedef enum {
+   ERROR = 1 << 0,
+   STARTUP = 1 << 1,
+   MESH_STATUS = 1 << 2,

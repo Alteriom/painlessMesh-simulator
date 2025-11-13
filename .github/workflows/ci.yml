@@ -169,7 +169,7 @@ jobs:
         shell: cmd
       
       - name: Install dependencies
-        run: C:\vcpkg\vcpkg.exe install boost-system:x64-windows boost-asio:x64-windows
+        run: C:\vcpkg\vcpkg.exe install boost-system:x64-windows boost-asio:x64-windows yaml-cpp:x64-windows
         shell: cmd
       
       - name: Configure CMake
@@ -277,9 +277,16 @@ jobs:
       
       - name: Run basic validation
         run: |
-          # This will run once example scenarios are created
-          echo "Integration tests will run example scenarios when main executable is implemented"
-          # Future: ./build/bin/painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml --headless
+          # Run simple mesh scenario
+          ./build/bin/painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml --duration 30 --log-level INFO
+          
+          # Verify the simulator ran successfully
+          if [ $? -eq 0 ]; then
+            echo "✓ Simple mesh scenario completed successfully"
+          else
+            echo "✗ Simple mesh scenario failed"
+            exit 1
+          fi
       
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -321,8 +328,10 @@ jobs:
       
       - name: Run benchmarks
         run: |
-          echo "Performance benchmarks will run stress tests when main executable is implemented"
-          # Future: ./build/bin/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --headless
+          # Run stress test scenario at 5x speed
+          ./build/bin/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --duration 60 --time-scale 5.0 --log-level WARN
+          
+          echo "Benchmark completed - check results directory for metrics"
       
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
