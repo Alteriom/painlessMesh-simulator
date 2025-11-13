@@ -365,6 +365,30 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+src/network/network_simulator.o: src/network/network_simulator.cpp.o
+.PHONY : src/network/network_simulator.o
+
+# target to build an object file
+src/network/network_simulator.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/network/network_simulator.cpp.o
+.PHONY : src/network/network_simulator.cpp.o
+
+src/network/network_simulator.i: src/network/network_simulator.cpp.i
+.PHONY : src/network/network_simulator.i
+
+# target to preprocess a source file
+src/network/network_simulator.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/network/network_simulator.cpp.i
+.PHONY : src/network/network_simulator.cpp.i
+
+src/network/network_simulator.s: src/network/network_simulator.cpp.s
+.PHONY : src/network/network_simulator.s
+
+# target to generate assembly for a file
+src/network/network_simulator.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/network/network_simulator.cpp.s
+.PHONY : src/network/network_simulator.cpp.s
+
 test/test_cli_parser.o: test/test_cli_parser.cpp.o
 .PHONY : test/test_cli_parser.o
 
@@ -412,6 +436,54 @@ test/test_config_loader.s: test/test_config_loader.cpp.s
 test/test_config_loader.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_config_loader.cpp.s
 .PHONY : test/test_config_loader.cpp.s
+
+test/test_network_integration.o: test/test_network_integration.cpp.o
+.PHONY : test/test_network_integration.o
+
+# target to build an object file
+test/test_network_integration.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_integration.cpp.o
+.PHONY : test/test_network_integration.cpp.o
+
+test/test_network_integration.i: test/test_network_integration.cpp.i
+.PHONY : test/test_network_integration.i
+
+# target to preprocess a source file
+test/test_network_integration.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_integration.cpp.i
+.PHONY : test/test_network_integration.cpp.i
+
+test/test_network_integration.s: test/test_network_integration.cpp.s
+.PHONY : test/test_network_integration.s
+
+# target to generate assembly for a file
+test/test_network_integration.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_integration.cpp.s
+.PHONY : test/test_network_integration.cpp.s
+
+test/test_network_simulator.o: test/test_network_simulator.cpp.o
+.PHONY : test/test_network_simulator.o
+
+# target to build an object file
+test/test_network_simulator.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_simulator.cpp.o
+.PHONY : test/test_network_simulator.cpp.o
+
+test/test_network_simulator.i: test/test_network_simulator.cpp.i
+.PHONY : test/test_network_simulator.i
+
+# target to preprocess a source file
+test/test_network_simulator.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_simulator.cpp.i
+.PHONY : test/test_network_simulator.cpp.i
+
+test/test_network_simulator.s: test/test_network_simulator.cpp.s
+.PHONY : test/test_network_simulator.s
+
+# target to generate assembly for a file
+test/test_network_simulator.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_simulator.cpp.s
+.PHONY : test/test_network_simulator.cpp.s
 
 test/test_node_manager.o: test/test_node_manager.cpp.o
 .PHONY : test/test_node_manager.o
@@ -496,12 +568,21 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/network/network_simulator.o"
+	@echo "... src/network/network_simulator.i"
+	@echo "... src/network/network_simulator.s"
 	@echo "... test/test_cli_parser.o"
 	@echo "... test/test_cli_parser.i"
 	@echo "... test/test_cli_parser.s"
 	@echo "... test/test_config_loader.o"
 	@echo "... test/test_config_loader.i"
 	@echo "... test/test_config_loader.s"
+	@echo "... test/test_network_integration.o"
+	@echo "... test/test_network_integration.i"
+	@echo "... test/test_network_integration.s"
+	@echo "... test/test_network_simulator.o"
+	@echo "... test/test_network_simulator.i"
+	@echo "... test/test_network_simulator.s"
 	@echo "... test/test_node_manager.o"
 	@echo "... test/test_node_manager.i"
 	@echo "... test/test_node_manager.s"

@@ -1,0 +1,74 @@
+# Network Latency Simulation Example
+# 
+# This example demonstrates realistic network latency simulation in painlessMesh.
+# It creates a 10-node mesh with varying latency configurations to simulate
+# different network conditions.
+
+simulation:
+  name: "Network Latency Test"
+  description: "Demonstrates latency simulation with different distributions"
+  duration: 120  # 2 minutes
+  time_scale: 1.0  # Real-time simulation
+
+# Network configuration with latency settings
+network:
+  # Default latency applied to all connections unless overridden
+  latency:
+    default:
+      min: 10      # Minimum latency in milliseconds
+      max: 50      # Maximum latency in milliseconds
+      distribution: "normal"  # Options: uniform, normal, exponential
+    
+    # Specific connection latencies override the default
+    # Useful for simulating poor connections, distant nodes, etc.
+    specific_connections:
+      # Simulate a poor connection between sensor-0 and sensor-1
+      - from: "sensor-0"
+        to: "sensor-1"
+        min: 100
+        max: 200
+        distribution: "uniform"
+      
+      # Simulate a very fast connection between sensor-1 and sensor-2
+      - from: "sensor-1"
+        to: "sensor-2"
+        min: 5
+        max: 15
+        distribution: "exponential"
+      
+      # Simulate variable latency between sensor-2 and sensor-3
+      - from: "sensor-2"
+        to: "sensor-3"
+        min: 20
+        max: 100
+        distribution: "normal"
+  
+  # Other network parameters
+  packet_loss: 0.0      # 0% packet loss
+  bandwidth: 1000000    # 1 Mbps
+
+# Node configuration
+nodes:
+  - template: "sensor"
+    count: 10
+    id_prefix: "sensor-"
+    config:
+      mesh_prefix: "LatencyTest"
+      mesh_password: "testpass123"
+      mesh_port: 5555
+
+# Network topology
+topology:
+  type: "random"    # Random mesh topology
+  density: 0.3      # 30% connection density
+
+# Metrics collection
+metrics:
+  output: "results/latency_test.csv"
+  interval: 5  # Collect metrics every 5 seconds
+  collect:
+    - "latency_min"
+    - "latency_max"
+    - "latency_avg"
+    - "messages_sent"
+    - "messages_received"

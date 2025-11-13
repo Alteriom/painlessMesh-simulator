@@ -156,9 +156,52 @@ NetworkConfig ConfigLoader::parseNetwork(const YAML::Node& node) {
   // Parse latency
   if (hasKey(node, "latency")) {
     const auto& latency_node = node["latency"];
-    config.latency.min_ms = getUInt32(latency_node, "min", 10);
-    config.latency.max_ms = getUInt32(latency_node, "max", 50);
-    config.latency.distribution = getString(latency_node, "distribution", "normal");
+    
+    // Parse default latency
+    if (hasKey(latency_node, "default")) {
+      const auto& default_node = latency_node["default"];
+      config.default_latency.min_ms = getUInt32(default_node, "min", 10);
+      config.default_latency.max_ms = getUInt32(default_node, "max", 50);
+      std::string dist_str = getString(default_node, "distribution", "normal");
+      try {
+        config.default_latency.distribution = stringToDistributionType(dist_str);
+      } catch (const std::exception& e) {
+        // Default to normal if invalid
+        config.default_latency.distribution = DistributionType::NORMAL;
+      }
+    } else {
+      // Old format: latency directly under "latency" key
+      config.default_latency.min_ms = getUInt32(latency_node, "min", 10);
+      config.default_latency.max_ms = getUInt32(latency_node, "max", 50);
+      std::string dist_str = getString(latency_node, "distribution", "normal");
+      try {
+        config.default_latency.distribution = stringToDistributionType(dist_str);
+      } catch (const std::exception& e) {
+        config.default_latency.distribution = DistributionType::NORMAL;
+      }
+    }
+    
+    // Parse specific connections
+    if (hasKey(latency_node, "specific_connections") && 
+        latency_node["specific_connections"].IsSequence()) {
+      for (const auto& conn_node : latency_node["specific_connections"]) {
+        ConnectionLatencyConfig conn_config;
+        conn_config.from = getString(conn_node, "from");
+        conn_config.to = getString(conn_node, "to");
+        conn_config.config.min_ms = getUInt32(conn_node, "min", config.default_latency.min_ms);
+        conn_config.config.max_ms = getUInt32(conn_node, "max", config.default_latency.max_ms);
+        
+        std::string dist_str = getString(conn_node, "distribution", 
+                                        distributionTypeToString(config.default_latency.distribution));
+        try {
+          conn_config.config.distribution = stringToDistributionType(dist_str);
+        } catch (const std::exception& e) {
+          conn_config.config.distribution = config.default_latency.distribution;
+        }
+        
+        config.specific_latencies.push_back(conn_config);
+      }
+    }
   }
   
   config.packet_loss = getFloat(node, "packet_loss", 0.0f);
@@ -426,12 +469,43 @@ void ConfigLoader::validateSimulation(const SimulationConfig& config,
 
 void ConfigLoader::validateNetwork(const NetworkConfig& config,
                                    std::vector<ValidationError>& errors) {
-  if (config.latency.min_ms > config.latency.max_ms) {
+  // Validate default latency
+  if (!config.default_latency.isValid()) {
     ValidationError err;
-    err.field = "network.latency";
+    err.field = "network.latency.default";
     err.message = "Minimum latency cannot be greater than maximum";
     err.suggestion = "Set min <= max";
     errors.push_back(err);
+  }
+  
+  // Validate specific connection latencies
+  for (size_t i = 0; i < config.specific_latencies.size(); ++i) {
+    const auto& conn = config.specific_latencies[i];
+    
+    if (conn.from.empty()) {
+      ValidationError err;
+      err.field = "network.latency.specific_connections[" + std::to_string(i) + "].from";
+      err.message = "Source node ID cannot be empty";
+      err.suggestion = "Specify a valid node ID";
+      errors.push_back(err);
+    }
+    
+    if (conn.to.empty()) {
+      ValidationError err;
+      err.field = "network.latency.specific_connections[" + std::to_string(i) + "].to";
+      err.message = "Destination node ID cannot be empty";
+      err.suggestion = "Specify a valid node ID";
+      errors.push_back(err);
+    }
+    
+    if (!conn.config.isValid()) {
+      ValidationError err;
+      err.field = "network.latency.specific_connections[" + std::to_string(i) + "]";
+      err.message = "Minimum latency cannot be greater than maximum for connection " + 
+                    conn.from + " -> " + conn.to;
+      err.suggestion = "Set min <= max";
+      errors.push_back(err);
+    }
   }
   
   if (config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
