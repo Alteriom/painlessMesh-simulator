@@ -16,7 +16,9 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <map>
 #include <boost/optional.hpp>
+#include "simulator/network_simulator.hpp"
 
 namespace YAML {
   class Node;
@@ -36,21 +38,22 @@ enum class TopologyType {
 };
 
 /**
- * @brief Network latency configuration
+ * @brief Specific connection latency override
  */
-struct LatencyConfig {
-  uint32_t min_ms = 10;                  ///< Minimum latency in milliseconds
-  uint32_t max_ms = 50;                  ///< Maximum latency in milliseconds
-  std::string distribution = "normal";   ///< Distribution type: normal, uniform, exponential
+struct ConnectionLatencyConfig {
+  std::string from;                      ///< Source node ID
+  std::string to;                        ///< Destination node ID
+  LatencyConfig config;                  ///< Latency configuration
 };
 
 /**
  * @brief Network quality configuration
  */
 struct NetworkConfig {
-  LatencyConfig latency;                 ///< Latency settings
-  float packet_loss = 0.0f;              ///< Packet loss rate (0.0-1.0)
-  uint64_t bandwidth = 1000000;          ///< Bandwidth in bits per second
+  LatencyConfig default_latency;                           ///< Default latency settings
+  std::vector<ConnectionLatencyConfig> specific_latencies; ///< Per-connection latency overrides
+  float packet_loss = 0.0f;                                ///< Packet loss rate (0.0-1.0)
+  uint64_t bandwidth = 1000000;                            ///< Bandwidth in bits per second
 };
 
 /**

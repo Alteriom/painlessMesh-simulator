@@ -188,11 +188,76 @@ topology:
   auto config = loader.loadFromString(yaml);
   
   REQUIRE(config.has_value());
-  REQUIRE(config->network.latency.min_ms == 20);
-  REQUIRE(config->network.latency.max_ms == 100);
-  REQUIRE(config->network.latency.distribution == "normal");
+  REQUIRE(config->network.default_latency.min_ms == 20);
+  REQUIRE(config->network.default_latency.max_ms == 100);
+  REQUIRE(config->network.default_latency.distribution == DistributionType::NORMAL);
   REQUIRE(config->network.packet_loss == 0.05f);
   REQUIRE(config->network.bandwidth == 2000000);
+}
+
+TEST_CASE("ConfigLoader parses specific connection latencies", "[config_loader]") {
+  std::string yaml = R"(
+simulation:
+  name: "Latency Test"
+  duration: 60
+
+nodes:
+  - template: "sensor"
+    count: 3
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+
+network:
+  latency:
+    default:
+      min: 10
+      max: 50
+      distribution: "normal"
+    
+    specific_connections:
+      - from: "sensor-0"
+        to: "sensor-1"
+        min: 100
+        max: 200
+        distribution: "uniform"
+      
+      - from: "sensor-1"
+        to: "sensor-2"
+        min: 5
+        max: 15
+        distribution: "exponential"
+
+topology:
+  type: "random"
+  )";
+  
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  
+  REQUIRE(config.has_value());
+  
+  // Check default latency
+  REQUIRE(config->network.default_latency.min_ms == 10);
+  REQUIRE(config->network.default_latency.max_ms == 50);
+  REQUIRE(config->network.default_latency.distribution == DistributionType::NORMAL);
+  
+  // Check specific connections
+  REQUIRE(config->network.specific_latencies.size() == 2);
+  
+  // First specific connection
+  REQUIRE(config->network.specific_latencies[0].from == "sensor-0");
+  REQUIRE(config->network.specific_latencies[0].to == "sensor-1");
+  REQUIRE(config->network.specific_latencies[0].config.min_ms == 100);
+  REQUIRE(config->network.specific_latencies[0].config.max_ms == 200);
+  REQUIRE(config->network.specific_latencies[0].config.distribution == DistributionType::UNIFORM);
+  
+  // Second specific connection
+  REQUIRE(config->network.specific_latencies[1].from == "sensor-1");
+  REQUIRE(config->network.specific_latencies[1].to == "sensor-2");
+  REQUIRE(config->network.specific_latencies[1].config.min_ms == 5);
+  REQUIRE(config->network.specific_latencies[1].config.max_ms == 15);
+  REQUIRE(config->network.specific_latencies[1].config.distribution == DistributionType::EXPONENTIAL);
 }
 
 TEST_CASE("ConfigLoader validates network parameters", "[config_loader]") {
