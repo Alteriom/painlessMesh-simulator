@@ -437,6 +437,78 @@ src/scenario/events/node_crash_event.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_crash_event.cpp.s
 .PHONY : src/scenario/events/node_crash_event.cpp.s
 
+src/scenario/events/node_restart_event.o: src/scenario/events/node_restart_event.cpp.o
+.PHONY : src/scenario/events/node_restart_event.o
+
+# target to build an object file
+src/scenario/events/node_restart_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_restart_event.cpp.o
+.PHONY : src/scenario/events/node_restart_event.cpp.o
+
+src/scenario/events/node_restart_event.i: src/scenario/events/node_restart_event.cpp.i
+.PHONY : src/scenario/events/node_restart_event.i
+
+# target to preprocess a source file
+src/scenario/events/node_restart_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_restart_event.cpp.i
+.PHONY : src/scenario/events/node_restart_event.cpp.i
+
+src/scenario/events/node_restart_event.s: src/scenario/events/node_restart_event.cpp.s
+.PHONY : src/scenario/events/node_restart_event.s
+
+# target to generate assembly for a file
+src/scenario/events/node_restart_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_restart_event.cpp.s
+.PHONY : src/scenario/events/node_restart_event.cpp.s
+
+src/scenario/events/node_start_event.o: src/scenario/events/node_start_event.cpp.o
+.PHONY : src/scenario/events/node_start_event.o
+
+# target to build an object file
+src/scenario/events/node_start_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_start_event.cpp.o
+.PHONY : src/scenario/events/node_start_event.cpp.o
+
+src/scenario/events/node_start_event.i: src/scenario/events/node_start_event.cpp.i
+.PHONY : src/scenario/events/node_start_event.i
+
+# target to preprocess a source file
+src/scenario/events/node_start_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_start_event.cpp.i
+.PHONY : src/scenario/events/node_start_event.cpp.i
+
+src/scenario/events/node_start_event.s: src/scenario/events/node_start_event.cpp.s
+.PHONY : src/scenario/events/node_start_event.s
+
+# target to generate assembly for a file
+src/scenario/events/node_start_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_start_event.cpp.s
+.PHONY : src/scenario/events/node_start_event.cpp.s
+
+src/scenario/events/node_stop_event.o: src/scenario/events/node_stop_event.cpp.o
+.PHONY : src/scenario/events/node_stop_event.o
+
+# target to build an object file
+src/scenario/events/node_stop_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_stop_event.cpp.o
+.PHONY : src/scenario/events/node_stop_event.cpp.o
+
+src/scenario/events/node_stop_event.i: src/scenario/events/node_stop_event.cpp.i
+.PHONY : src/scenario/events/node_stop_event.i
+
+# target to preprocess a source file
+src/scenario/events/node_stop_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_stop_event.cpp.i
+.PHONY : src/scenario/events/node_stop_event.cpp.i
+
+src/scenario/events/node_stop_event.s: src/scenario/events/node_stop_event.cpp.s
+.PHONY : src/scenario/events/node_stop_event.s
+
+# target to generate assembly for a file
+src/scenario/events/node_stop_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_stop_event.cpp.s
+.PHONY : src/scenario/events/node_stop_event.cpp.s
+
 test/test_cli_parser.o: test/test_cli_parser.cpp.o
 .PHONY : test/test_cli_parser.o
 
@@ -557,6 +629,30 @@ test/test_network_simulator.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_network_simulator.cpp.s
 .PHONY : test/test_network_simulator.cpp.s
 
+test/test_node_lifecycle.o: test/test_node_lifecycle.cpp.o
+.PHONY : test/test_node_lifecycle.o
+
+# target to build an object file
+test/test_node_lifecycle.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_node_lifecycle.cpp.o
+.PHONY : test/test_node_lifecycle.cpp.o
+
+test/test_node_lifecycle.i: test/test_node_lifecycle.cpp.i
+.PHONY : test/test_node_lifecycle.i
+
+# target to preprocess a source file
+test/test_node_lifecycle.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_node_lifecycle.cpp.i
+.PHONY : test/test_node_lifecycle.cpp.i
+
+test/test_node_lifecycle.s: test/test_node_lifecycle.cpp.s
+.PHONY : test/test_node_lifecycle.s
+
+# target to generate assembly for a file
+test/test_node_lifecycle.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_node_lifecycle.cpp.s
+.PHONY : test/test_node_lifecycle.cpp.s
+
 test/test_node_manager.o: test/test_node_manager.cpp.o
 .PHONY : test/test_node_manager.o
 
@@ -649,6 +745,15 @@ help:
 	@echo "... src/scenario/events/node_crash_event.o"
 	@echo "... src/scenario/events/node_crash_event.i"
 	@echo "... src/scenario/events/node_crash_event.s"
+	@echo "... src/scenario/events/node_restart_event.o"
+	@echo "... src/scenario/events/node_restart_event.i"
+	@echo "... src/scenario/events/node_restart_event.s"
+	@echo "... src/scenario/events/node_start_event.o"
+	@echo "... src/scenario/events/node_start_event.i"
+	@echo "... src/scenario/events/node_start_event.s"
+	@echo "... src/scenario/events/node_stop_event.o"
+	@echo "... src/scenario/events/node_stop_event.i"
+	@echo "... src/scenario/events/node_stop_event.s"
 	@echo "... test/test_cli_parser.o"
 	@echo "... test/test_cli_parser.i"
 	@echo "... test/test_cli_parser.s"
@@ -664,6 +769,9 @@ help:
 	@echo "... test/test_network_simulator.o"
 	@echo "... test/test_network_simulator.i"
 	@echo "... test/test_network_simulator.s"
+	@echo "... test/test_node_lifecycle.o"
+	@echo "... test/test_node_lifecycle.i"
+	@echo "... test/test_node_lifecycle.s"
 	@echo "... test/test_node_manager.o"
 	@echo "... test/test_node_manager.i"
 	@echo "... test/test_node_manager.s"
