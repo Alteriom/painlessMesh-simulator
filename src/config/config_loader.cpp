@@ -248,7 +248,46 @@ NetworkConfig ConfigLoader::parseNetwork(const YAML::Node& node) {
     config.default_packet_loss.probability = config.packet_loss;
   }
   
-  config.bandwidth = getUInt64(node, "bandwidth", 1000000);
+  // Parse bandwidth configuration
+  if (hasKey(node, "bandwidth")) {
+    const auto& bandwidth_node = node["bandwidth"];
+    
+    if (bandwidth_node.IsMap()) {
+      // New structured format
+      
+      // Parse default bandwidth
+      if (hasKey(bandwidth_node, "default")) {
+        const auto& default_node = bandwidth_node["default"];
+        config.default_bandwidth.max_bytes_per_sec = getUInt32(default_node, "max_bytes_per_sec", 0);
+        config.default_bandwidth.max_messages_per_sec = getUInt32(default_node, "max_messages_per_sec", 0);
+        config.default_bandwidth.bucket_size = getUInt32(default_node, "bucket_size", 1000);
+      }
+      
+      // Parse specific connections
+      if (hasKey(bandwidth_node, "specific_connections") && 
+          bandwidth_node["specific_connections"].IsSequence()) {
+        for (const auto& conn_node : bandwidth_node["specific_connections"]) {
+          ConnectionBandwidthConfig conn_config;
+          conn_config.from = getString(conn_node, "from");
+          conn_config.to = getString(conn_node, "to");
+          conn_config.config.max_bytes_per_sec = getUInt32(conn_node, "max_bytes_per_sec", 
+                                                           config.default_bandwidth.max_bytes_per_sec);
+          conn_config.config.max_messages_per_sec = getUInt32(conn_node, "max_messages_per_sec", 
+                                                               config.default_bandwidth.max_messages_per_sec);
+          conn_config.config.bucket_size = getUInt32(conn_node, "bucket_size", 
+                                                      config.default_bandwidth.bucket_size);
+          
+          config.specific_bandwidths.push_back(conn_config);
+        }
+      }
+    } else {
+      // Legacy format: simple uint64 value (bits per second)
+      config.bandwidth = bandwidth_node.as<uint64_t>();
+    }
+  } else {
+    // If no bandwidth key, check for legacy format at top level
+    config.bandwidth = getUInt64(node, "bandwidth", 1000000);
+  }
   
   return config;
 }

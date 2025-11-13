@@ -1,0 +1,81 @@
+# Bandwidth Limiting Example
+# 
+# This example demonstrates bandwidth limiting in painlessMesh simulator.
+# It creates a 10-node mesh with bandwidth constraints to simulate
+# low-bandwidth network conditions and test mesh performance.
+
+simulation:
+  name: "Bandwidth Limiting Test"
+  description: "Demonstrates bandwidth limiting with token bucket algorithm"
+  duration: 120  # 2 minutes
+  time_scale: 1.0  # Real-time simulation
+
+# Network configuration with bandwidth settings
+network:
+  # Latency configuration (keep moderate for testing)
+  latency:
+    default:
+      min: 20
+      max: 50
+      distribution: "normal"
+  
+  # Packet loss configuration (minimal for testing bandwidth)
+  packet_loss:
+    default:
+      probability: 0.01  # 1% packet loss
+  
+  # Bandwidth limiting configuration
+  bandwidth:
+    default:
+      max_bytes_per_sec: 10000       # 10 KB/s default (low bandwidth)
+      max_messages_per_sec: 100      # 100 messages/sec max
+      bucket_size: 2000              # 2000 token bucket for bursts
+    
+    # Specific connection bandwidth overrides
+    specific_connections:
+      # Simulate a very slow connection between sensor-0 and sensor-1
+      - from: "sensor-0"
+        to: "sensor-1"
+        max_bytes_per_sec: 1000      # 1 KB/s (very slow)
+        max_messages_per_sec: 10     # 10 messages/sec
+        bucket_size: 500
+      
+      # Simulate a fast connection between sensor-1 and sensor-2
+      - from: "sensor-1"
+        to: "sensor-2"
+        max_bytes_per_sec: 50000     # 50 KB/s (fast)
+        max_messages_per_sec: 500
+        bucket_size: 5000
+      
+      # Simulate message-limited connection (many small messages)
+      - from: "sensor-2"
+        to: "sensor-3"
+        max_messages_per_sec: 20     # Only 20 messages/sec allowed
+        bucket_size: 40              # Small burst window
+
+# Node configuration
+nodes:
+  - template: "sensor"
+    count: 10
+    id_prefix: "sensor-"
+    config:
+      mesh_prefix: "BandwidthTest"
+      mesh_password: "testpass123"
+      mesh_port: 5555
+
+# Network topology
+topology:
+  type: "random"    # Random mesh topology
+  density: 0.3      # 30% connection density
+
+# Metrics collection
+metrics:
+  output: "results/bandwidth_test.csv"
+  interval: 5  # Collect metrics every 5 seconds
+  collect:
+    - "latency_avg"
+    - "messages_sent"
+    - "messages_received"
+    - "bandwidth_throttled"
+    - "bytes_sent"
+    - "bandwidth_utilization"
