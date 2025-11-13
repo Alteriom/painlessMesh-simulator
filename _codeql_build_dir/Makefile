@@ -389,6 +389,54 @@ src/network/network_simulator.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/network/network_simulator.cpp.s
 .PHONY : src/network/network_simulator.cpp.s
 
+src/scenario/event_scheduler.o: src/scenario/event_scheduler.cpp.o
+.PHONY : src/scenario/event_scheduler.o
+
+# target to build an object file
+src/scenario/event_scheduler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/event_scheduler.cpp.o
+.PHONY : src/scenario/event_scheduler.cpp.o
+
+src/scenario/event_scheduler.i: src/scenario/event_scheduler.cpp.i
+.PHONY : src/scenario/event_scheduler.i
+
+# target to preprocess a source file
+src/scenario/event_scheduler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/event_scheduler.cpp.i
+.PHONY : src/scenario/event_scheduler.cpp.i
+
+src/scenario/event_scheduler.s: src/scenario/event_scheduler.cpp.s
+.PHONY : src/scenario/event_scheduler.s
+
+# target to generate assembly for a file
+src/scenario/event_scheduler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/event_scheduler.cpp.s
+.PHONY : src/scenario/event_scheduler.cpp.s
+
+src/scenario/events/node_crash_event.o: src/scenario/events/node_crash_event.cpp.o
+.PHONY : src/scenario/events/node_crash_event.o
+
+# target to build an object file
+src/scenario/events/node_crash_event.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_crash_event.cpp.o
+.PHONY : src/scenario/events/node_crash_event.cpp.o
+
+src/scenario/events/node_crash_event.i: src/scenario/events/node_crash_event.cpp.i
+.PHONY : src/scenario/events/node_crash_event.i
+
+# target to preprocess a source file
+src/scenario/events/node_crash_event.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_crash_event.cpp.i
+.PHONY : src/scenario/events/node_crash_event.cpp.i
+
+src/scenario/events/node_crash_event.s: src/scenario/events/node_crash_event.cpp.s
+.PHONY : src/scenario/events/node_crash_event.s
+
+# target to generate assembly for a file
+src/scenario/events/node_crash_event.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/scenario/events/node_crash_event.cpp.s
+.PHONY : src/scenario/events/node_crash_event.cpp.s
+
 test/test_cli_parser.o: test/test_cli_parser.cpp.o
 .PHONY : test/test_cli_parser.o
 
@@ -436,6 +484,30 @@ test/test_config_loader.s: test/test_config_loader.cpp.s
 test/test_config_loader.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_config_loader.cpp.s
 .PHONY : test/test_config_loader.cpp.s
+
+test/test_event_scheduler.o: test/test_event_scheduler.cpp.o
+.PHONY : test/test_event_scheduler.o
+
+# target to build an object file
+test/test_event_scheduler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_event_scheduler.cpp.o
+.PHONY : test/test_event_scheduler.cpp.o
+
+test/test_event_scheduler.i: test/test_event_scheduler.cpp.i
+.PHONY : test/test_event_scheduler.i
+
+# target to preprocess a source file
+test/test_event_scheduler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_event_scheduler.cpp.i
+.PHONY : test/test_event_scheduler.cpp.i
+
+test/test_event_scheduler.s: test/test_event_scheduler.cpp.s
+.PHONY : test/test_event_scheduler.s
+
+# target to generate assembly for a file
+test/test_event_scheduler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_event_scheduler.cpp.s
+.PHONY : test/test_event_scheduler.cpp.s
 
 test/test_network_integration.o: test/test_network_integration.cpp.o
 .PHONY : test/test_network_integration.o
@@ -571,12 +643,21 @@ help:
 	@echo "... src/network/network_simulator.o"
 	@echo "... src/network/network_simulator.i"
 	@echo "... src/network/network_simulator.s"
+	@echo "... src/scenario/event_scheduler.o"
+	@echo "... src/scenario/event_scheduler.i"
+	@echo "... src/scenario/event_scheduler.s"
+	@echo "... src/scenario/events/node_crash_event.o"
+	@echo "... src/scenario/events/node_crash_event.i"
+	@echo "... src/scenario/events/node_crash_event.s"
 	@echo "... test/test_cli_parser.o"
 	@echo "... test/test_cli_parser.i"
 	@echo "... test/test_cli_parser.s"
 	@echo "... test/test_config_loader.o"
 	@echo "... test/test_config_loader.i"
 	@echo "... test/test_config_loader.s"
+	@echo "... test/test_event_scheduler.o"
+	@echo "... test/test_event_scheduler.i"
+	@echo "... test/test_event_scheduler.s"
 	@echo "... test/test_network_integration.o"
 	@echo "... test/test_network_integration.i"
 	@echo "... test/test_network_integration.s"
