@@ -533,6 +533,10 @@ void NetworkSimulator::restoreConnection(uint32_t from, uint32_t to) {
   dropped_connections_.erase(key);
 }
 
+void NetworkSimulator::restoreAllConnections() {
+  dropped_connections_.clear();
+}
+
 bool NetworkSimulator::isConnectionActive(uint32_t from, uint32_t to) const {
   ConnectionKey key = std::make_pair(from, to);
   return dropped_connections_.find(key) == dropped_connections_.end();

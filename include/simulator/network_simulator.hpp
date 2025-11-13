@@ -346,6 +346,14 @@ public:
   void restoreConnection(uint32_t from, uint32_t to);
   
   /**
+   * @brief Restores all previously dropped connections
+   * 
+   * Re-enables message delivery on all connections that were
+   * previously dropped. Useful for healing network partitions.
+   */
+  void restoreAllConnections();
+  
+  /**
    * @brief Checks if a connection is active (not dropped)
    * 
    * @param from Source node ID

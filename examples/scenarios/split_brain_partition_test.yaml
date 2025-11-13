@@ -1,0 +1,167 @@
+---
+# Network Partition (Split-Brain) Test Scenario
+# Demonstrates network partition and heal events
+# Tests bridge coordination when mesh is split into isolated groups
+
+simulation:
+  name: "Split-Brain Partition Test"
+  description: "Test network partition and healing with bridge coordination"
+  duration: 120  # 2 minutes
+  time_scale: 1.0
+
+nodes:
+  # Group 1: Bridge + 3 sensors
+  - id: "bridge-1"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-3"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  # Group 2: Bridge + 3 sensors
+  - id: "bridge-2"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-5"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-6"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  # Group 3: Bridge + 3 sensors
+  - id: "bridge-3"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-7"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-8"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+  
+  - id: "sensor-9"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition123"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"  # All nodes fully connected initially
+
+# Event timeline demonstrating network partition and heal
+events:
+  # Initial phase: All nodes start and form unified mesh
+  - time: 0
+    action: start_all_nodes
+    description: "Start all 12 nodes"
+  
+  # Allow mesh to stabilize (10 seconds)
+  # Single bridge should be elected for the entire mesh
+  
+  # Split network into 3 isolated partitions at 30s
+  # This simulates a major network failure (split-brain scenario)
+  - time: 30
+    action: network_partition
+    groups:
+      - [bridge-1, sensor-1, sensor-2, sensor-3]
+      - [bridge-2, sensor-4, sensor-5, sensor-6]
+      - [bridge-3, sensor-7, sensor-8, sensor-9]
+    description: "Split mesh into 3 isolated partitions"
+  
+  # During partition (30s - 90s):
+  # - Each partition operates independently
+  # - Each partition should elect its own bridge
+  # - No communication between partitions
+  # - Messages within each partition continue to work
+  
+  # Heal network at 90s - rejoin all partitions
+  # This simulates network recovery
+  - time: 90
+    action: network_heal
+    description: "Heal partitions and reform unified mesh"
+  
+  # After heal (90s - 120s):
+  # - All nodes reconnect into single mesh
+  # - Single bridge should be re-elected globally
+  # - Normal mesh operation resumes
+
+metrics:
+  output: "results/split_brain_metrics.csv"
+  interval: 5
+  collect:
+    - "partition_state"      # Which partition each node belongs to
+    - "bridge_elections"     # Bridge election events
+    - "message_delivery"     # Message success/failure
+    - "partition_count"      # Number of active partitions
+    - "nodes_per_partition"  # Distribution of nodes
+    - "connection_state"     # Inter-partition connections
+
+# Expected behavior:
+# Phase 1 (0-30s): Unified mesh
+#   - All 12 nodes form single mesh
+#   - Single bridge elected (e.g., bridge-1)
+#   - All nodes can communicate
+#
+# Phase 2 (30-90s): Split-brain (3 partitions)
+#   - Network splits into 3 isolated groups
+#   - Each partition elects its own bridge:
+#     * Partition 1: bridge-1 leads {bridge-1, sensor-1,2,3}
+#     * Partition 2: bridge-2 leads {bridge-2, sensor-4,5,6}
+#     * Partition 3: bridge-3 leads {bridge-3, sensor-7,8,9}
+#   - No communication between partitions
+#   - Each partition operates independently
+#
+# Phase 3 (90-120s): Healed mesh
+#   - All partitions rejoin into single mesh
+#   - New bridge election occurs globally
+#   - One bridge wins, others step down
+#   - Normal operation resumes
+#
+# This scenario tests:
+#   ✓ Network partition event execution
+#   ✓ Independent partition operation
+#   ✓ Per-partition bridge election
+#   ✓ Network heal event execution
+#   ✓ Mesh reformation after partition
+#   ✓ Global bridge re-election after heal
+#   ✓ Message routing within/across partitions
