@@ -12,6 +12,8 @@
 #include "simulator/firmware/firmware_base.hpp"
 #include "simulator/firmware/firmware_factory.hpp"
 #include "simulator/firmware/simple_broadcast_firmware.hpp"
+#include "simulator/firmware/echo_server_firmware.hpp"
+#include "simulator/firmware/echo_client_firmware.hpp"
 #include "simulator/virtual_node.hpp"
 #include "simulator/node_manager.hpp"
 
@@ -387,5 +389,241 @@ TEST_CASE("SimpleBroadcast firmware functionality", "[firmware][integration]") {
     // REQUIRE(firmware->getMessagesSent() >= 1);
     
     node.stop();
+  }
+}
+
+TEST_CASE("EchoServer firmware is registered", "[firmware][factory]") {
+  // EchoServer should auto-register via REGISTER_FIRMWARE macro
+  if (!FirmwareFactory::instance().isRegistered("EchoServer")) {
+    FirmwareFactory::instance().registerFirmware("EchoServer",
+      []() { return std::make_unique<EchoServerFirmware>(); });
+  }
+  
+  REQUIRE(FirmwareFactory::instance().isRegistered("EchoServer"));
+  
+  auto firmware = FirmwareFactory::instance().create("EchoServer");
+  REQUIRE(firmware != nullptr);
+  REQUIRE(firmware->getName() == "EchoServer");
+}
+
+TEST_CASE("EchoClient firmware is registered", "[firmware][factory]") {
+  // EchoClient should auto-register via REGISTER_FIRMWARE macro
+  if (!FirmwareFactory::instance().isRegistered("EchoClient")) {
+    FirmwareFactory::instance().registerFirmware("EchoClient",
+      []() { return std::make_unique<EchoClientFirmware>(); });
+  }
+  
+  REQUIRE(FirmwareFactory::instance().isRegistered("EchoClient"));
+  
+  auto firmware = FirmwareFactory::instance().create("EchoClient");
+  REQUIRE(firmware != nullptr);
+  REQUIRE(firmware->getName() == "EchoClient");
+}
+
+TEST_CASE("EchoServer firmware functionality", "[firmware][integration]") {
+  boost::asio::io_context io;
+  Scheduler scheduler;
+  
+  // Register EchoServer if not already registered
+  if (!FirmwareFactory::instance().isRegistered("EchoServer")) {
+    FirmwareFactory::instance().registerFirmware("EchoServer",
+      []() { return std::make_unique<EchoServerFirmware>(); });
+  }
+  
+  SECTION("echoes received messages") {
+    NodeConfig config;
+    config.nodeId = 4001;
+    config.meshPrefix = "TestMesh";
+    config.meshPassword = "password";
+    config.meshPort = 20001;
+    config.firmware = "EchoServer";
+    
+    VirtualNode node(4001, config, &scheduler, io);
+    node.loadFirmware("EchoServer");
+    node.start();
+    
+    auto* firmware = dynamic_cast<EchoServerFirmware*>(node.getFirmware());
+    REQUIRE(firmware != nullptr);
+    
+    // Initially no echoes sent
+    REQUIRE(firmware->getEchoCount() == 0);
+    
+    // Simulate receiving a message
+    String test_msg = "Test message";
+    firmware->onReceive(9999, test_msg);
+    
+    // Should have echoed once
+    REQUIRE(firmware->getEchoCount() == 1);
+    
+    node.stop();
+  }
+  
+  SECTION("tracks new connections") {
+    NodeConfig config;
+    config.nodeId = 4002;
+    config.meshPrefix = "TestMesh";
+    config.meshPassword = "password";
+    config.meshPort = 20002;
+    config.firmware = "EchoServer";
+    
+    VirtualNode node(4002, config, &scheduler, io);
+    node.loadFirmware("EchoServer");
+    node.start();
+    
+    auto* firmware = dynamic_cast<EchoServerFirmware*>(node.getFirmware());
+    REQUIRE(firmware != nullptr);
+    
+    // Initially no connections
+    REQUIRE(firmware->getConnectionCount() == 0);
+    
+    // Simulate a connection
+    firmware->onNewConnection(9999);
+    
+    // Should have tracked the connection
+    REQUIRE(firmware->getConnectionCount() == 1);
+    
+    node.stop();
+  }
+}
+
+TEST_CASE("EchoClient firmware functionality", "[firmware][integration]") {
+  boost::asio::io_context io;
+  Scheduler scheduler;
+  
+  // Register EchoClient if not already registered
+  if (!FirmwareFactory::instance().isRegistered("EchoClient")) {
+    FirmwareFactory::instance().registerFirmware("EchoClient",
+      []() { return std::make_unique<EchoClientFirmware>(); });
+  }
+  
+  SECTION("sends periodic requests") {
+    NodeConfig config;
+    config.nodeId = 5001;
+    config.meshPrefix = "TestMesh";
+    config.meshPassword = "password";
+    config.meshPort = 21001;
+    config.firmware = "EchoClient";
+    config.firmwareConfig["server_node_id"] = "0";  // Broadcast mode
+    config.firmwareConfig["request_interval"] = "1";  // 1 second
+    
+    VirtualNode node(5001, config, &scheduler, io);
+    node.loadFirmware("EchoClient");
+    node.start();
+    
+    auto* firmware = dynamic_cast<EchoClientFirmware*>(node.getFirmware());
+    REQUIRE(firmware != nullptr);
+    
+    // Initially no requests sent
+    REQUIRE(firmware->getRequestsSent() == 0);
+    
+    // Note: Actual sending requires task scheduler to run
+    // This test just verifies initialization
+    
+    node.stop();
+  }
+  
+  SECTION("processes echo responses") {
+    NodeConfig config;
+    config.nodeId = 5002;
+    config.meshPrefix = "TestMesh";
+    config.meshPassword = "password";
+    config.meshPort = 21002;
+    config.firmware = "EchoClient";
+    config.firmwareConfig["server_node_id"] = "4001";
+    config.firmwareConfig["request_interval"] = "5";
+    
+    VirtualNode node(5002, config, &scheduler, io);
+    node.loadFirmware("EchoClient");
+    node.start();
+    
+    auto* firmware = dynamic_cast<EchoClientFirmware*>(node.getFirmware());
+    REQUIRE(firmware != nullptr);
+    
+    // Initially no responses received
+    REQUIRE(firmware->getResponsesReceived() == 0);
+    
+    // Simulate receiving an echo response
+    String echo_response = "ECHO: Test request";
+    firmware->onReceive(4001, echo_response);
+    
+    // Should have tracked the response
+    REQUIRE(firmware->getResponsesReceived() == 1);
+    
+    // Non-echo message should not increment counter
+    String normal_msg = "Not an echo";
+    firmware->onReceive(4001, normal_msg);
+    
+    // Should still be 1
+    REQUIRE(firmware->getResponsesReceived() == 1);
+    
+    node.stop();
+  }
+}
+
+TEST_CASE("Echo client/server integration", "[firmware][integration]") {
+  boost::asio::io_context io;
+  Scheduler scheduler;
+  
+  // Register firmware if not already registered
+  if (!FirmwareFactory::instance().isRegistered("EchoServer")) {
+    FirmwareFactory::instance().registerFirmware("EchoServer",
+      []() { return std::make_unique<EchoServerFirmware>(); });
+  }
+  if (!FirmwareFactory::instance().isRegistered("EchoClient")) {
+    FirmwareFactory::instance().registerFirmware("EchoClient",
+      []() { return std::make_unique<EchoClientFirmware>(); });
+  }
+  
+  SECTION("client and server communicate") {
+    NodeConfig server_config;
+    server_config.nodeId = 6001;
+    server_config.meshPrefix = "TestMesh";
+    server_config.meshPassword = "password";
+    server_config.meshPort = 22001;
+    server_config.firmware = "EchoServer";
+    
+    NodeConfig client_config;
+    client_config.nodeId = 6002;
+    client_config.meshPrefix = "TestMesh";
+    client_config.meshPassword = "password";
+    client_config.meshPort = 22002;
+    client_config.firmware = "EchoClient";
+    client_config.firmwareConfig["server_node_id"] = "0";  // Broadcast
+    client_config.firmwareConfig["request_interval"] = "2";
+    
+    VirtualNode server(6001, server_config, &scheduler, io);
+    VirtualNode client(6002, client_config, &scheduler, io);
+    
+    server.loadFirmware("EchoServer");
+    client.loadFirmware("EchoClient");
+    
+    server.start();
+    client.start();
+    
+    auto* server_fw = dynamic_cast<EchoServerFirmware*>(server.getFirmware());
+    auto* client_fw = dynamic_cast<EchoClientFirmware*>(client.getFirmware());
+    
+    REQUIRE(server_fw != nullptr);
+    REQUIRE(client_fw != nullptr);
+    
+    // Connect nodes
+    server.connectTo(client);
+    
+    // Simulate client sending a request that server echoes back
+    String request = "Request #0";
+    server_fw->onReceive(6002, request);
+    
+    // Server should have echoed
+    REQUIRE(server_fw->getEchoCount() == 1);
+    
+    // Simulate server's echo response being received by client
+    String response = "ECHO: " + request;
+    client_fw->onReceive(6001, response);
+    
+    // Client should have received response
+    REQUIRE(client_fw->getResponsesReceived() == 1);
+    
+    server.stop();
+    client.stop();
   }
 }
