@@ -52,6 +52,14 @@ std::shared_ptr<VirtualNode> NodeManager::createNode(const NodeConfig& config) {
     io_
   );
   
+  // Load firmware if specified
+  if (!config.firmware.empty()) {
+    if (!node->loadFirmware(config.firmware)) {
+      std::cerr << "[ERROR] Failed to load firmware for node " << config.nodeId << std::endl;
+      // Continue without firmware rather than failing node creation
+    }
+  }
+  
   // Store in map
   nodes_[config.nodeId] = node;
   

@@ -15,6 +15,8 @@
 #include "Arduino.h"
 
 #include "simulator/virtual_node.hpp"
+#include "simulator/firmware/firmware_base.hpp"
+#include "simulator/firmware/firmware_factory.hpp"
 
 #include <stdexcept>
 #include <iostream>
@@ -71,7 +73,8 @@ VirtualNode::VirtualNode(uint32_t nodeId,
       scheduler_(scheduler),
       io_(io),
       running_(false),
-      network_quality_(1.0f) {
+      network_quality_(1.0f),
+      config_(config) {
   
   // Validate node ID
   if (nodeId == 0) {
@@ -116,20 +119,19 @@ void VirtualNode::start() {
   // Record start time
   metrics_.start_time = std::chrono::steady_clock::now();
   
-  // Set up mesh callbacks
-  mesh_->onReceive([this](uint32_t from, std::string& msg) {
-    this->onReceive(from, msg);
-  });
+  // Set up mesh callbacks (will route to firmware if loaded)
+  routeCallbacksToFirmware();
   
-  mesh_->onNewConnection([this](uint32_t nodeId) {
-    this->onNewConnection(nodeId);
-  });
-  
-  mesh_->onChangedConnections([this]() {
-    this->onChangedConnections();
-  });
+  // Setup firmware after mesh initialized
+  setupFirmware();
   
   running_ = true;
+  
+  std::cout << "[INFO] Node " << node_id_ << " started";
+  if (firmware_) {
+    std::cout << " with firmware: " << firmware_->getName();
+  }
+  std::cout << std::endl;
 }
 
 void VirtualNode::stop() {
@@ -186,6 +188,11 @@ void VirtualNode::update() {
     mesh_->update();
   }
   
+  // Call firmware loop
+  if (firmware_ && firmware_initialized_) {
+    firmware_->loop();
+  }
+  
   // Poll IO context to process network events
   io_.poll();
 }
@@ -229,17 +236,33 @@ void VirtualNode::onReceive(uint32_t from, std::string& msg) {
   metrics_.messages_received++;
   metrics_.bytes_received += msg.size();
   
+  // Route to firmware if loaded
+  if (firmware_ && firmware_initialized_) {
+    String msgStr(msg.c_str());
+    firmware_->onReceive(from, msgStr);
+  }
+  
   // Optional: Log received message for debugging
   // std::cout << "Node " << node_id_ << " received message from " << from 
   //           << " (" << msg.size() << " bytes)" << std::endl;
 }
 
 void VirtualNode::onNewConnection(uint32_t nodeId) {
+  // Route to firmware if loaded
+  if (firmware_ && firmware_initialized_) {
+    firmware_->onNewConnection(nodeId);
+  }
+  
   // Optional: Log new connection
   // std::cout << "Node " << node_id_ << " connected to " << nodeId << std::endl;
 }
 
 void VirtualNode::onChangedConnections() {
+  // Route to firmware if loaded
+  if (firmware_ && firmware_initialized_) {
+    firmware_->onChangedConnections();
+  }
+  
   // Optional: Log topology change
   // std::cout << "Node " << node_id_ << " topology changed" << std::endl;
 }
@@ -253,6 +276,82 @@ uint64_t VirtualNode::getUptime() const {
   auto uptime = std::chrono::duration_cast<std::chrono::milliseconds>(
     now - metrics_.start_time).count();
   return static_cast<uint64_t>(uptime);
+}
+
+bool VirtualNode::loadFirmware(const std::string& firmwareName) {
+  if (firmwareName.empty()) {
+    return true;  // No firmware is valid (Phase 1 behavior)
+  }
+  
+  firmware_ = firmware::FirmwareFactory::instance().create(firmwareName);
+  if (!firmware_) {
+    std::cerr << "[ERROR] Failed to load firmware: " << firmwareName 
+              << " for node " << node_id_ << std::endl;
+    return false;
+  }
+  
+  std::cout << "[INFO] Loaded firmware '" << firmware_->getName() 
+            << "' for node " << node_id_ << std::endl;
+  return true;
+}
+
+void VirtualNode::loadFirmware(std::unique_ptr<firmware::FirmwareBase> firmware) {
+  firmware_ = std::move(firmware);
+  if (firmware_) {
+    std::cout << "[INFO] Loaded firmware '" << firmware_->getName() 
+              << "' for node " << node_id_ << std::endl;
+  }
+}
+
+bool VirtualNode::hasFirmware() const {
+  return firmware_ != nullptr;
+}
+
+firmware::FirmwareBase* VirtualNode::getFirmware() const {
+  return firmware_.get();
+}
+
+void VirtualNode::setupFirmware() {
+  if (!firmware_ || firmware_initialized_) {
+    return;
+  }
+  
+  // Convert config to map
+  std::map<String, String> configMap;
+  configMap[String("mesh_prefix")] = String(config_.meshPrefix.c_str());
+  configMap[String("mesh_password")] = String(config_.meshPassword.c_str());
+  
+  // Add custom firmware config
+  for (const auto& pair : config_.firmwareConfig) {
+    configMap[String(pair.first.c_str())] = String(pair.second.c_str());
+  }
+  
+  // Initialize firmware
+  firmware_->initialize(mesh_.get(), scheduler_, node_id_, configMap);
+  
+  // Call firmware setup
+  firmware_->setup();
+  firmware_initialized_ = true;
+  
+  std::cout << "[INFO] Firmware '" << firmware_->getName() 
+            << "' initialized for node " << node_id_ << std::endl;
+}
+
+void VirtualNode::routeCallbacksToFirmware() {
+  // Route onReceive callback
+  mesh_->onReceive([this](uint32_t from, std::string& msg) {
+    this->onReceive(from, msg);
+  });
+  
+  // Route onNewConnection callback
+  mesh_->onNewConnection([this](uint32_t nodeId) {
+    this->onNewConnection(nodeId);
+  });
+  
+  // Route onChangedConnections callback
+  mesh_->onChangedConnections([this]() {
+    this->onChangedConnections();
+  });
 }
 
 } // namespace simulator

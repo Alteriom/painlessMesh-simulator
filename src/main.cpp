@@ -158,6 +158,8 @@ int main(int argc, char* argv[]) {
         nc.meshPrefix = node_config.mesh_prefix;
         nc.meshPassword = node_config.mesh_password;
         nc.meshPort = node_config.mesh_port;
+        nc.firmware = node_config.firmware;
+        nc.firmwareConfig = node_config.firmwareConfig;
         
         auto node = manager.createNode(nc);
         

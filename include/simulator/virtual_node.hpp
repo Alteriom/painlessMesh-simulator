@@ -16,11 +16,18 @@
 #include <cstdint>
 #include <chrono>
 #include <string>
+#include <map>
 #include <boost/asio.hpp>
 
 // Forward declarations
 class Scheduler;
 class MeshTest;
+
+namespace simulator {
+namespace firmware {
+  class FirmwareBase;
+}
+}
 
 namespace painlessmesh {
 template <typename T>
@@ -38,6 +45,8 @@ struct NodeConfig {
   std::string meshPrefix;             ///< Mesh network SSID prefix
   std::string meshPassword;           ///< Mesh network password
   uint16_t meshPort = 5555;           ///< Mesh network port
+  std::string firmware;               ///< Firmware name (optional)
+  std::map<std::string, std::string> firmwareConfig;  ///< Firmware-specific configuration
 };
 
 /**
@@ -240,6 +249,41 @@ public:
    * @return Partition identifier (0 = no partition)
    */
   uint32_t getPartitionId() const { return partition_id_; }
+  
+  /**
+   * @brief Loads firmware by name from factory
+   * 
+   * @param firmwareName Name of firmware to load
+   * @return true if firmware loaded successfully, false otherwise
+   * 
+   * Loads firmware from the FirmwareFactory and prepares it for initialization.
+   * The firmware will be initialized when the node is started.
+   */
+  bool loadFirmware(const std::string& firmwareName);
+  
+  /**
+   * @brief Loads firmware instance directly
+   * 
+   * @param firmware Unique pointer to firmware instance
+   * 
+   * Takes ownership of the provided firmware instance.
+   * The firmware will be initialized when the node is started.
+   */
+  void loadFirmware(std::unique_ptr<firmware::FirmwareBase> firmware);
+  
+  /**
+   * @brief Checks if firmware is loaded
+   * 
+   * @return true if firmware is loaded, false otherwise
+   */
+  bool hasFirmware() const;
+  
+  /**
+   * @brief Gets pointer to loaded firmware
+   * 
+   * @return Pointer to firmware, or nullptr if no firmware loaded
+   */
+  firmware::FirmwareBase* getFirmware() const;
 
 private:
   uint32_t node_id_;                   ///< Unique node identifier
@@ -250,6 +294,26 @@ private:
   bool running_{false};                ///< Running state flag
   float network_quality_{1.0f};        ///< Network quality (0.0-1.0)
   uint32_t partition_id_{0};           ///< Partition ID (0 = no partition)
+  NodeConfig config_;                  ///< Node configuration
+  
+  // Firmware support
+  std::unique_ptr<firmware::FirmwareBase> firmware_;  ///< Loaded firmware instance
+  bool firmware_initialized_{false};   ///< Firmware initialization state
+  
+  /**
+   * @brief Initializes and sets up firmware
+   * 
+   * Called during node start to initialize firmware with mesh and scheduler,
+   * set up callbacks, and call firmware setup().
+   */
+  void setupFirmware();
+  
+  /**
+   * @brief Routes mesh callbacks to firmware
+   * 
+   * Sets up mesh event callbacks to forward events to firmware.
+   */
+  void routeCallbacksToFirmware();
   
   /**
    * @brief Callback for received messages

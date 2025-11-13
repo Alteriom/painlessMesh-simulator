@@ -103,6 +103,7 @@ struct NodeConfigExtended {
   std::string mesh_prefix;               ///< Mesh network SSID prefix
   std::string mesh_password;             ///< Mesh network password
   uint16_t mesh_port = 5555;             ///< Mesh network port
+  std::map<std::string, std::string> firmwareConfig;  ///< Firmware-specific configuration
   
   // Extended configuration (firmware-specific)
   boost::optional<uint32_t> sensor_interval;      ///< Sensor reading interval (ms)
