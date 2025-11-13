@@ -10,6 +10,7 @@
 #include "simulator/node_manager.hpp"
 #include "simulator/network_simulator.hpp"
 #include <stdexcept>
+#include <iostream>
 
 namespace simulator {
 
@@ -26,7 +27,10 @@ void NodeCrashEvent::execute(NodeManager& manager, NetworkSimulator& network) {
   }
   
   if (node->isRunning()) {
-    node->stop();
+    node->crash();
+    std::cout << "[EVENT] Node " << nodeId_ << " crashed (ungraceful)" << std::endl;
+  } else {
+    std::cout << "[EVENT] Node " << nodeId_ << " is already stopped" << std::endl;
   }
 }
 

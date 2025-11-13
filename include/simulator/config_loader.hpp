@@ -139,6 +139,7 @@ enum class EventAction {
   STOP_NODE,           ///< Stop a node
   START_NODE,          ///< Start a node
   RESTART_NODE,        ///< Restart a node
+  CRASH_NODE,          ///< Crash a node (ungraceful stop)
   REMOVE_NODE,         ///< Remove a node
   ADD_NODES,           ///< Add new nodes
   PARTITION_NETWORK,   ///< Partition network into groups
@@ -168,6 +169,8 @@ struct EventConfig {
   uint32_t count = 0;                    ///< Node count (for add_nodes)
   std::string template_name;             ///< Template name (for add_nodes)
   std::string id_prefix;                 ///< ID prefix (for add_nodes)
+  bool graceful = true;                  ///< Graceful shutdown (for stop_node)
+  uint32_t delay = 0;                    ///< Delay in seconds (for restart_node)
 };
 
 /**
