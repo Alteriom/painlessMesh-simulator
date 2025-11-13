@@ -1,0 +1,129 @@
+simulation:
+  name: "SimpleBroadcast Firmware Test"
+  description: "Test SimpleBroadcast firmware with 10 nodes"
+  duration: 30  # Run for 30 seconds
+  time_scale: 1.0
+  seed: 12345
+
+network:
+  default_latency:
+    min_ms: 10
+    max_ms: 50
+  default_packet_loss:
+    rate: 0.0
+  default_bandwidth:
+    bits_per_second: 1000000
+
+nodes:
+  # Create 10 nodes with SimpleBroadcast firmware
+  - id: "node1"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Hello from"
+  
+  - id: "node2"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Hello from"
+  
+  - id: "node3"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Hello from"
+  
+  - id: "node4"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Hello from"
+  
+  - id: "node5"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Hello from"
+  
+  - id: "node6"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "7000"
+      broadcast_message: "Greetings from"
+  
+  - id: "node7"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "7000"
+      broadcast_message: "Greetings from"
+  
+  - id: "node8"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "7000"
+      broadcast_message: "Greetings from"
+  
+  - id: "node9"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "10000"
+      broadcast_message: "Hi from"
+  
+  - id: "node10"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "10000"
+      broadcast_message: "Hi from"
+
+topology:
+  type: "mesh"  # Full mesh - all nodes connected
+
+metrics:
+  output: "simple_firmware_test_metrics.csv"
+  interval: 5
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "bytes_sent"
+    - "bytes_received"

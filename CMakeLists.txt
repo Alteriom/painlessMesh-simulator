@@ -173,8 +173,9 @@ set(SIMULATOR_SOURCES
   src/scenario/events/connection_degrade_event.cpp
   src/scenario/events/network_partition_event.cpp
   src/scenario/events/network_heal_event.cpp
+  # Firmware framework
+  src/firmware/simple_broadcast_firmware.cpp
   # src/scenario/scenario_engine.cpp
-  # src/firmware/firmware_base.cpp
   # src/metrics/metrics_collector.cpp
 )
 
@@ -194,9 +195,12 @@ set(SIMULATOR_HEADERS
   include/simulator/events/connection_degrade_event.hpp
   include/simulator/events/network_partition_event.hpp
   include/simulator/events/network_heal_event.hpp
+  # Firmware framework
+  include/simulator/firmware/firmware_base.hpp
+  include/simulator/firmware/firmware_factory.hpp
+  include/simulator/firmware/simple_broadcast_firmware.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
-  # include/simulator/firmware_base.hpp
   # include/simulator/metrics_collector.hpp
 )
 
@@ -265,6 +269,7 @@ if(ENABLE_TESTING)
     test/test_node_lifecycle.cpp
     test/test_connection_events.cpp
     test/test_partition_events.cpp
+    test/test_firmware.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )

@@ -313,7 +313,17 @@ NodeConfigExtended ConfigLoader::parseNode(const YAML::Node& node) {
     config.mesh_password = getString(cfg, "mesh_password");
     config.mesh_port = getUInt16(cfg, "mesh_port", 5555);
     
-    // Extended configuration
+    // Parse firmware-specific config (all non-mesh fields go to firmwareConfig)
+    for (const auto& kv : cfg) {
+      std::string key = kv.first.as<std::string>();
+      // Skip mesh-specific fields
+      if (key != "mesh_prefix" && key != "mesh_password" && key != "mesh_port") {
+        std::string value = kv.second.as<std::string>();
+        config.firmwareConfig[key] = value;
+      }
+    }
+    
+    // Extended configuration (legacy support)
     if (hasKey(cfg, "sensor_interval")) {
       config.sensor_interval = cfg["sensor_interval"].as<uint32_t>();
     }
@@ -346,6 +356,16 @@ NodeTemplate ConfigLoader::parseTemplate(const YAML::Node& node) {
     tmpl.base_config.mesh_prefix = getString(cfg, "mesh_prefix");
     tmpl.base_config.mesh_password = getString(cfg, "mesh_password");
     tmpl.base_config.mesh_port = getUInt16(cfg, "mesh_port", 5555);
+    
+    // Parse firmware-specific config (all non-mesh fields go to firmwareConfig)
+    for (const auto& kv : cfg) {
+      std::string key = kv.first.as<std::string>();
+      // Skip mesh-specific fields
+      if (key != "mesh_prefix" && key != "mesh_password" && key != "mesh_port") {
+        std::string value = kv.second.as<std::string>();
+        tmpl.base_config.firmwareConfig[key] = value;
+      }
+    }
     
     if (hasKey(cfg, "sensor_interval")) {
       tmpl.base_config.sensor_interval = cfg["sensor_interval"].as<uint32_t>();

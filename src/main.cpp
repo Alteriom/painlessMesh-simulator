@@ -13,6 +13,8 @@
 #include "simulator/cli_options.hpp"
 #include "simulator/config_loader.hpp"
 #include "simulator/node_manager.hpp"
+#include "simulator/firmware/firmware_factory.hpp"
+#include "simulator/firmware/simple_broadcast_firmware.hpp"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -66,6 +68,10 @@ void applyCliOverrides(ScenarioConfig& config, const CLIOptions& options) {
  */
 int main(int argc, char* argv[]) {
   try {
+    // Register built-in firmware
+    firmware::FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
+      []() { return std::make_unique<firmware::SimpleBroadcastFirmware>(); });
+    
     // Parse command-line arguments
     CLIOptions options;
     try {
@@ -158,6 +164,8 @@ int main(int argc, char* argv[]) {
         nc.meshPrefix = node_config.mesh_prefix;
         nc.meshPassword = node_config.mesh_password;
         nc.meshPort = node_config.mesh_port;
+        nc.firmware = node_config.firmware;
+        nc.firmwareConfig = node_config.firmwareConfig;
         
         auto node = manager.createNode(nc);
         

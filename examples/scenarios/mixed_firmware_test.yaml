@@ -1,0 +1,88 @@
+simulation:
+  name: "Mixed Firmware Test"
+  description: "Test mixed nodes - some with firmware, some without"
+  duration: 20  # Run for 20 seconds
+  time_scale: 1.0
+  seed: 54321
+
+network:
+  default_latency:
+    min_ms: 5
+    max_ms: 20
+  default_packet_loss:
+    rate: 0.0
+  default_bandwidth:
+    bits_per_second: 1000000
+
+nodes:
+  # Nodes with SimpleBroadcast firmware
+  - id: "broadcaster1"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "3000"
+      broadcast_message: "Broadcast from"
+  
+  - id: "broadcaster2"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "4000"
+      broadcast_message: "Broadcast from"
+  
+  - id: "broadcaster3"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+      broadcast_interval: "5000"
+      broadcast_message: "Broadcast from"
+  
+  # Nodes without firmware (Phase 1 behavior)
+  - id: "passive1"
+    type: "passive"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+  
+  - id: "passive2"
+    type: "passive"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+  
+  - id: "passive3"
+    type: "passive"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+  
+  - id: "passive4"
+    type: "passive"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+topology:
+  type: "mesh"  # Full mesh
+
+metrics:
+  output: "mixed_firmware_test_metrics.csv"
+  interval: 3
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "bytes_sent"
+    - "bytes_received"
