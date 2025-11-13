@@ -156,6 +156,25 @@ public:
   void clear() {
     creators_.clear();
   }
+  
+  /**
+   * @brief Checks if a firmware type exists (alias for isRegistered)
+   * 
+   * @param name Firmware name/identifier
+   * @return true if registered, false otherwise
+   */
+  bool hasFirmware(const std::string& name) const {
+    return isRegistered(name);
+  }
+  
+  /**
+   * @brief Gets list of registered firmware names (alias for getRegisteredNames)
+   * 
+   * @return Vector of registered firmware names
+   */
+  std::vector<std::string> listFirmware() const {
+    return getRegisteredNames();
+  }
 
 private:
   /// Private constructor (singleton pattern)

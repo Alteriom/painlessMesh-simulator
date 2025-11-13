@@ -145,6 +145,27 @@ REGISTER_FIRMWARE(MyCustom, MyCustomFirmware)
 
 Note: Auto-registration requires the .cpp file to be linked into the binary.
 
+### Checking Available Firmware
+
+You can check which firmware types are available:
+
+```cpp
+// Check if a specific firmware is registered
+if (FirmwareFactory::instance().hasFirmware("MyCustom")) {
+  std::cout << "MyCustom firmware is available" << std::endl;
+}
+
+// List all registered firmware
+auto available = FirmwareFactory::instance().listFirmware();
+std::cout << "Available firmware: ";
+for (const auto& name : available) {
+  std::cout << name << " ";
+}
+std::cout << std::endl;
+```
+
+This is useful for validating YAML configurations or debugging firmware loading issues.
+
 ### Accessing Configuration
 
 Firmware can access configuration values passed from YAML:
@@ -378,6 +399,17 @@ private:
 ```cpp
 FirmwareFactory::instance().registerFirmware("MyFirmware",
   []() { return std::make_unique<MyFirmware>(); });
+```
+
+Or check available firmware to debug:
+```cpp
+// List all available firmware
+auto available = FirmwareFactory::instance().listFirmware();
+std::cout << "Available firmware: ";
+for (const auto& name : available) {
+  std::cout << name << " ";
+}
+std::cout << std::endl;
 ```
 
 ### Firmware Not Executing
