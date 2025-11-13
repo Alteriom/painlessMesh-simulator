@@ -68,6 +68,23 @@ struct PacketLossConfig {
 };
 
 /**
+ * @brief Bandwidth limiting configuration for network connections
+ */
+struct BandwidthConfig {
+  uint32_t max_bytes_per_sec = 0;       ///< Maximum bytes per second (0 = unlimited)
+  uint32_t max_messages_per_sec = 0;    ///< Maximum messages per second (0 = unlimited)
+  uint32_t bucket_size = 1000;          ///< Token bucket size
+  
+  /**
+   * @brief Validates the configuration
+   * @return true if valid, false otherwise
+   */
+  bool isValid() const {
+    return bucket_size > 0;
+  }
+};
+
+/**
  * @brief A delayed message in the network simulator
  */
 struct DelayedMessage {
@@ -203,6 +220,9 @@ public:
     uint64_t dropped_count = 0;        ///< Number of dropped packets
     uint64_t delivered_count = 0;      ///< Number of delivered packets
     float drop_rate = 0.0f;            ///< Packet drop rate (0.0 to 1.0)
+    uint64_t bytes_sent = 0;           ///< Total bytes sent
+    uint64_t bandwidth_throttled = 0;  ///< Messages throttled due to bandwidth
+    float bandwidth_utilization = 0.0f; ///< Bandwidth utilization (0.0 to 1.0)
   };
   
   /**
@@ -254,6 +274,54 @@ public:
    * @return true if packet should be dropped, false otherwise
    */
   bool shouldDropPacket(uint32_t from, uint32_t to);
+  
+  /**
+   * @brief Sets default bandwidth configuration
+   * 
+   * @param config Default bandwidth configuration
+   * @throws std::invalid_argument if config is invalid
+   */
+  void setDefaultBandwidth(const BandwidthConfig& config);
+  
+  /**
+   * @brief Sets bandwidth for a specific connection
+   * 
+   * @param fromNode Source node ID
+   * @param toNode Destination node ID
+   * @param config Bandwidth configuration for this connection
+   * @throws std::invalid_argument if config is invalid
+   */
+  void setBandwidth(uint32_t fromNode, uint32_t toNode, const BandwidthConfig& config);
+  
+  /**
+   * @brief Gets bandwidth configuration for a connection
+   * 
+   * @param fromNode Source node ID
+   * @param toNode Destination node ID
+   * @return Bandwidth configuration (specific or default)
+   */
+  BandwidthConfig getBandwidth(uint32_t fromNode, uint32_t toNode) const;
+  
+  /**
+   * @brief Checks if a message can be sent based on bandwidth limits
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @param messageSize Size of message in bytes
+   * @param currentTime Current simulation time in milliseconds
+   * @return true if message can be sent, false if bandwidth exceeded
+   */
+  bool canSendMessage(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime);
+  
+  /**
+   * @brief Consumes bandwidth tokens for a message
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @param messageSize Size of message in bytes
+   * @param currentTime Current simulation time in milliseconds
+   */
+  void consumeBandwidth(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime);
 
 private:
   using ConnectionKey = std::pair<uint32_t, uint32_t>;
@@ -267,6 +335,19 @@ private:
   PacketLossConfig default_packet_loss_;                    ///< Default packet loss configuration
   std::map<ConnectionKey, PacketLossConfig> packet_loss_map_;  ///< Per-connection packet loss config
   
+  BandwidthConfig default_bandwidth_;                       ///< Default bandwidth configuration
+  std::map<ConnectionKey, BandwidthConfig> bandwidth_map_;  ///< Per-connection bandwidth config
+  
+  // Token bucket for bandwidth limiting
+  struct TokenBucket {
+    uint32_t bytes_tokens;                  ///< Available byte tokens
+    uint32_t messages_tokens;               ///< Available message tokens
+    uint64_t last_refill_time;              ///< Last refill time in milliseconds
+    uint64_t bytes_consumed;                ///< Total bytes consumed
+    uint64_t messages_consumed;             ///< Total messages consumed
+  };
+  std::map<ConnectionKey, TokenBucket> bandwidth_buckets_;  ///< Token buckets per connection
+  
   // Statistics tracking
   struct ConnectionStats {
     uint64_t total_latency_ms = 0;
@@ -275,6 +356,8 @@ private:
     uint64_t message_count = 0;
     uint64_t dropped_count = 0;
     uint64_t delivered_count = 0;
+    uint64_t bytes_sent = 0;                ///< Total bytes sent
+    uint64_t bandwidth_throttled = 0;       ///< Messages throttled due to bandwidth
   };
   std::map<ConnectionKey, ConnectionStats> stats_map_;      ///< Connection statistics
   
@@ -340,6 +423,15 @@ private:
    * @param dropped Whether the packet was dropped
    */
   void recordPacketStats(uint32_t from, uint32_t to, bool dropped);
+  
+  /**
+   * @brief Refills token bucket for a connection
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @param currentTime Current simulation time in milliseconds
+   */
+  void refillTokenBucket(uint32_t from, uint32_t to, uint64_t currentTime);
 };
 
 /**

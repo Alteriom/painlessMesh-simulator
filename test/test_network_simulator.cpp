@@ -841,3 +841,307 @@ TEST_CASE("NetworkSimulator packet loss integration with message delivery", "[ne
     REQUIRE(ready.size() == queued);
   }
 }
+
+TEST_CASE("BandwidthConfig validation", "[network_simulator][bandwidth]") {
+  SECTION("valid configuration with unlimited bandwidth") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 0;
+    config.max_messages_per_sec = 0;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("valid configuration with byte limit") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 10000;
+    config.bucket_size = 2000;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("valid configuration with message limit") {
+    BandwidthConfig config;
+    config.max_messages_per_sec = 100;
+    config.bucket_size = 200;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("invalid configuration with zero bucket size") {
+    BandwidthConfig config;
+    config.bucket_size = 0;
+    REQUIRE(config.isValid() == false);
+  }
+}
+
+TEST_CASE("NetworkSimulator default bandwidth", "[network_simulator][bandwidth]") {
+  NetworkSimulator sim;
+  
+  SECTION("can set default bandwidth") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 10000;
+    config.max_messages_per_sec = 100;
+    config.bucket_size = 2000;
+    
+    REQUIRE_NOTHROW(sim.setDefaultBandwidth(config));
+    
+    auto retrieved = sim.getBandwidth(1, 2);
+    REQUIRE(retrieved.max_bytes_per_sec == 10000);
+    REQUIRE(retrieved.max_messages_per_sec == 100);
+    REQUIRE(retrieved.bucket_size == 2000);
+  }
+  
+  SECTION("rejects invalid default bandwidth") {
+    BandwidthConfig config;
+    config.bucket_size = 0;
+    
+    REQUIRE_THROWS_AS(sim.setDefaultBandwidth(config), std::invalid_argument);
+  }
+}
+
+TEST_CASE("NetworkSimulator per-connection bandwidth", "[network_simulator][bandwidth]") {
+  NetworkSimulator sim;
+  
+  SECTION("can set per-connection bandwidth") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;
+    config.max_messages_per_sec = 10;
+    config.bucket_size = 500;
+    
+    REQUIRE_NOTHROW(sim.setBandwidth(1, 2, config));
+    
+    auto retrieved = sim.getBandwidth(1, 2);
+    REQUIRE(retrieved.max_bytes_per_sec == 1000);
+    REQUIRE(retrieved.max_messages_per_sec == 10);
+    REQUIRE(retrieved.bucket_size == 500);
+  }
+  
+  SECTION("different connections have independent bandwidth") {
+    BandwidthConfig config1;
+    config1.max_bytes_per_sec = 1000;
+    
+    BandwidthConfig config2;
+    config2.max_bytes_per_sec = 5000;
+    
+    sim.setBandwidth(1, 2, config1);
+    sim.setBandwidth(2, 3, config2);
+    
+    auto bw1 = sim.getBandwidth(1, 2);
+    auto bw2 = sim.getBandwidth(2, 3);
+    
+    REQUIRE(bw1.max_bytes_per_sec == 1000);
+    REQUIRE(bw2.max_bytes_per_sec == 5000);
+  }
+  
+  SECTION("unset connection uses default bandwidth") {
+    BandwidthConfig default_config;
+    default_config.max_bytes_per_sec = 8000;
+    sim.setDefaultBandwidth(default_config);
+    
+    auto retrieved = sim.getBandwidth(99, 100);
+    REQUIRE(retrieved.max_bytes_per_sec == 8000);
+  }
+  
+  SECTION("rejects invalid per-connection bandwidth") {
+    BandwidthConfig config;
+    config.bucket_size = 0;
+    
+    REQUIRE_THROWS_AS(sim.setBandwidth(1, 2, config), std::invalid_argument);
+  }
+}
+
+TEST_CASE("NetworkSimulator token bucket refill", "[network_simulator][bandwidth]") {
+  NetworkSimulator sim(42);
+  
+  SECTION("tokens refill over time for byte limit") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;  // 1000 bytes/sec
+    config.bucket_size = 1000;  // Smaller bucket to test exhaustion
+    sim.setBandwidth(1, 2, config);
+    
+    // First message should succeed (bucket initialized with full tokens)
+    REQUIRE(sim.canSendMessage(1, 2, 500, 0) == true);
+    sim.consumeBandwidth(1, 2, 500, 0);
+    
+    // Second message should succeed (still have tokens)
+    REQUIRE(sim.canSendMessage(1, 2, 500, 0) == true);
+    sim.consumeBandwidth(1, 2, 500, 0);
+    
+    // Third message should fail (bucket exhausted - 0 tokens left)
+    REQUIRE(sim.canSendMessage(1, 2, 500, 0) == false);
+    
+    // After 1 second (1000ms), should have 1000 tokens refilled
+    REQUIRE(sim.canSendMessage(1, 2, 900, 1000) == true);
+  }
+  
+  SECTION("tokens refill over time for message limit") {
+    BandwidthConfig config;
+    config.max_messages_per_sec = 10;  // 10 messages/sec
+    config.bucket_size = 15;  // Smaller bucket
+    sim.setBandwidth(1, 2, config);
+    
+    // Send messages to exhaust bucket
+    for (int i = 0; i < 15; ++i) {
+      REQUIRE(sim.canSendMessage(1, 2, 10, 0) == true);
+      sim.consumeBandwidth(1, 2, 10, 0);
+    }
+    
+    // Next message should fail
+    REQUIRE(sim.canSendMessage(1, 2, 10, 0) == false);
+    
+    // After 1 second, should have 10 tokens refilled
+    for (int i = 0; i < 10; ++i) {
+      REQUIRE(sim.canSendMessage(1, 2, 10, 1000) == true);
+      sim.consumeBandwidth(1, 2, 10, 1000);
+    }
+    
+    // Should be exhausted again
+    REQUIRE(sim.canSendMessage(1, 2, 10, 1000) == false);
+  }
+  
+  SECTION("tokens don't exceed bucket size") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;
+    config.bucket_size = 500;  // Small bucket
+    sim.setBandwidth(1, 2, config);
+    
+    // Wait a long time (10 seconds)
+    // Bucket should cap at bucket_size, not accumulate 10000 tokens
+    REQUIRE(sim.canSendMessage(1, 2, 500, 10000) == true);
+    sim.consumeBandwidth(1, 2, 500, 10000);
+    
+    // Should not have more tokens available
+    REQUIRE(sim.canSendMessage(1, 2, 100, 10000) == false);
+  }
+}
+
+TEST_CASE("NetworkSimulator bandwidth limiting integration", "[network_simulator][bandwidth]") {
+  NetworkSimulator sim(42);
+  
+  // Set fixed latency to isolate bandwidth testing
+  LatencyConfig latency;
+  latency.min_ms = 10;
+  latency.max_ms = 10;
+  sim.setDefaultLatency(latency);
+  
+  SECTION("messages are throttled when bandwidth exceeded") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 100;  // Very low: 100 bytes/sec
+    config.bucket_size = 200;
+    sim.setBandwidth(1, 2, config);
+    
+    // Send messages over time
+    int delivered = 0;
+    for (int i = 0; i < 10; ++i) {
+      sim.enqueueMessage(1, 2, std::string(50, 'x'), i * 100);  // 50 bytes every 100ms
+      if (sim.getPendingMessageCount() > delivered) {
+        delivered++;
+      }
+    }
+    
+    // Not all messages should be delivered due to bandwidth limits
+    REQUIRE(delivered < 10);
+    REQUIRE(delivered > 0);
+  }
+  
+  SECTION("unlimited bandwidth allows all messages") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 0;  // Unlimited
+    config.max_messages_per_sec = 0;
+    sim.setBandwidth(1, 2, config);
+    
+    // Send many messages
+    for (int i = 0; i < 100; ++i) {
+      sim.enqueueMessage(1, 2, std::string(1000, 'x'), i * 10);
+    }
+    
+    // All messages should be queued
+    REQUIRE(sim.getPendingMessageCount() == 100);
+  }
+  
+  SECTION("bandwidth statistics are tracked") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;
+    config.bucket_size = 2000;
+    sim.setBandwidth(1, 2, config);
+    
+    // Send some messages
+    for (int i = 0; i < 10; ++i) {
+      sim.enqueueMessage(1, 2, std::string(50, 'x'), i * 100);
+    }
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.bytes_sent > 0);
+    
+    // Try to send more to trigger throttling
+    for (int i = 0; i < 50; ++i) {
+      sim.enqueueMessage(1, 2, std::string(100, 'x'), i * 10);
+    }
+    
+    stats = sim.getStats(1, 2);
+    REQUIRE(stats.bandwidth_throttled > 0);
+  }
+  
+  SECTION("message limit throttles correctly") {
+    BandwidthConfig config;
+    config.max_messages_per_sec = 5;  // Only 5 messages per second
+    config.bucket_size = 8;  // Small bucket
+    sim.setBandwidth(1, 2, config);
+    
+    // Try to send 20 messages at once
+    for (int i = 0; i < 20; ++i) {
+      sim.enqueueMessage(1, 2, "test", 0);
+    }
+    
+    // Should only accept up to bucket_size messages
+    REQUIRE(sim.getPendingMessageCount() <= 8);
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.bandwidth_throttled > 0);
+  }
+}
+
+TEST_CASE("NetworkSimulator bandwidth with large messages", "[network_simulator][bandwidth]") {
+  NetworkSimulator sim(42);
+  
+  LatencyConfig latency;
+  latency.min_ms = 10;
+  latency.max_ms = 10;
+  sim.setDefaultLatency(latency);
+  
+  SECTION("large messages consume more tokens") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;
+    config.bucket_size = 1500;  // Bucket size of 1500
+    sim.setBandwidth(1, 2, config);
+    
+    // Send one large message (1200 bytes)
+    sim.enqueueMessage(1, 2, std::string(1200, 'x'), 0);
+    REQUIRE(sim.getPendingMessageCount() == 1);
+    
+    // Try to send another large message immediately (400 bytes)
+    sim.enqueueMessage(1, 2, std::string(400, 'x'), 0);
+    
+    // Second message should be throttled (only 300 tokens left)
+    REQUIRE(sim.getPendingMessageCount() == 1);
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.bandwidth_throttled > 0);
+  }
+  
+  SECTION("small messages consume fewer tokens") {
+    BandwidthConfig config;
+    config.max_bytes_per_sec = 1000;
+    config.bucket_size = 2000;
+    sim.setBandwidth(1, 2, config);
+    
+    // Send many small messages (10 bytes each)
+    int sent = 0;
+    for (int i = 0; i < 200; ++i) {
+      sim.enqueueMessage(1, 2, std::string(10, 'x'), 0);
+      if (sim.getPendingMessageCount() > sent) {
+        sent++;
+      }
+    }
+    
+    // Should be able to send 200 small messages (2000 bytes total)
+    REQUIRE(sent == 200);
+  }
+}

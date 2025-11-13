@@ -65,6 +65,19 @@ void NetworkSimulator::enqueueMessage(uint32_t from, uint32_t to,
     return;  // Drop the packet
   }
   
+  // Check bandwidth limits
+  size_t messageSize = message.size();
+  if (!canSendMessage(from, to, messageSize, currentTime)) {
+    // Record bandwidth throttling
+    ConnectionKey key = std::make_pair(from, to);
+    ConnectionStats& stats = stats_map_[key];
+    stats.bandwidth_throttled++;
+    return;  // Drop the message due to bandwidth limits
+  }
+  
+  // Consume bandwidth tokens
+  consumeBandwidth(from, to, messageSize, currentTime);
+  
   // Record delivered packet
   recordPacketStats(from, to, false);
   
@@ -135,6 +148,32 @@ NetworkSimulator::LatencyStats NetworkSimulator::getStats(uint32_t fromNode, uin
     if (total_attempts > 0) {
       stats.drop_rate = static_cast<float>(conn_stats.dropped_count) / 
                        static_cast<float>(total_attempts);
+    }
+    
+    // Add bandwidth statistics
+    stats.bytes_sent = conn_stats.bytes_sent;
+    stats.bandwidth_throttled = conn_stats.bandwidth_throttled;
+    
+    // Calculate bandwidth utilization if bandwidth is configured
+    BandwidthConfig bw_config = getBandwidth(fromNode, toNode);
+    if (bw_config.max_bytes_per_sec > 0 && conn_stats.message_count > 0) {
+      // Get time span from first to last message (approximate)
+      // For now, use a simple metric: bytes_sent vs theoretical maximum
+      auto bucket_it = bandwidth_buckets_.find(key);
+      if (bucket_it != bandwidth_buckets_.end()) {
+        const TokenBucket& bucket = bucket_it->second;
+        if (bucket.last_refill_time > 0) {
+          // Calculate utilization based on bytes consumed vs time
+          uint64_t time_span_ms = bucket.last_refill_time;
+          if (time_span_ms > 0) {
+            uint64_t max_bytes = (static_cast<uint64_t>(bw_config.max_bytes_per_sec) * time_span_ms) / 1000;
+            if (max_bytes > 0) {
+              stats.bandwidth_utilization = std::min(1.0f, 
+                static_cast<float>(bucket.bytes_consumed) / static_cast<float>(max_bytes));
+            }
+          }
+        }
+      }
     }
   }
   
@@ -340,6 +379,141 @@ bool NetworkSimulator::shouldDropPacket(uint32_t from, uint32_t to) {
     float random_value = dist(rng_);
     return random_value < config.probability;
   }
+}
+
+void NetworkSimulator::setDefaultBandwidth(const BandwidthConfig& config) {
+  if (!config.isValid()) {
+    throw std::invalid_argument("Invalid bandwidth configuration");
+  }
+  default_bandwidth_ = config;
+}
+
+void NetworkSimulator::setBandwidth(uint32_t fromNode, uint32_t toNode, const BandwidthConfig& config) {
+  if (!config.isValid()) {
+    throw std::invalid_argument("Invalid bandwidth configuration");
+  }
+  ConnectionKey key = std::make_pair(fromNode, toNode);
+  bandwidth_map_[key] = config;
+  
+  // Note: Token bucket is initialized lazily in refillTokenBucket on first use
+}
+
+BandwidthConfig NetworkSimulator::getBandwidth(uint32_t fromNode, uint32_t toNode) const {
+  ConnectionKey key = std::make_pair(fromNode, toNode);
+  auto it = bandwidth_map_.find(key);
+  if (it != bandwidth_map_.end()) {
+    return it->second;
+  }
+  return default_bandwidth_;
+}
+
+bool NetworkSimulator::canSendMessage(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime) {
+  // Get bandwidth configuration for this connection
+  BandwidthConfig config = getBandwidth(from, to);
+  
+  // If no bandwidth limits configured, allow message
+  if (config.max_bytes_per_sec == 0 && config.max_messages_per_sec == 0) {
+    return true;
+  }
+  
+  // Refill token bucket
+  refillTokenBucket(from, to, currentTime);
+  
+  ConnectionKey key = std::make_pair(from, to);
+  TokenBucket& bucket = bandwidth_buckets_[key];
+  
+  // Check if we have enough tokens
+  bool has_byte_tokens = (config.max_bytes_per_sec == 0) || 
+                         (bucket.bytes_tokens >= messageSize);
+  bool has_message_tokens = (config.max_messages_per_sec == 0) || 
+                            (bucket.messages_tokens >= 1);
+  
+  return has_byte_tokens && has_message_tokens;
+}
+
+void NetworkSimulator::consumeBandwidth(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime) {
+  BandwidthConfig config = getBandwidth(from, to);
+  
+  // If no bandwidth limits, nothing to consume
+  if (config.max_bytes_per_sec == 0 && config.max_messages_per_sec == 0) {
+    return;
+  }
+  
+  ConnectionKey key = std::make_pair(from, to);
+  TokenBucket& bucket = bandwidth_buckets_[key];
+  
+  // Consume tokens
+  if (config.max_bytes_per_sec > 0) {
+    bucket.bytes_tokens = (bucket.bytes_tokens >= messageSize) ? 
+                          (bucket.bytes_tokens - messageSize) : 0;
+    bucket.bytes_consumed += messageSize;
+  }
+  
+  if (config.max_messages_per_sec > 0) {
+    bucket.messages_tokens = (bucket.messages_tokens >= 1) ? 
+                             (bucket.messages_tokens - 1) : 0;
+    bucket.messages_consumed++;
+  }
+  
+  // Update statistics
+  ConnectionStats& stats = stats_map_[key];
+  stats.bytes_sent += messageSize;
+}
+
+void NetworkSimulator::refillTokenBucket(uint32_t from, uint32_t to, uint64_t currentTime) {
+  BandwidthConfig config = getBandwidth(from, to);
+  
+  // If no bandwidth limits, nothing to refill
+  if (config.max_bytes_per_sec == 0 && config.max_messages_per_sec == 0) {
+    return;
+  }
+  
+  ConnectionKey key = std::make_pair(from, to);
+  
+  // Check if bucket exists first
+  auto it = bandwidth_buckets_.find(key);
+  bool is_first_time = (it == bandwidth_buckets_.end());
+  
+  TokenBucket& bucket = bandwidth_buckets_[key];
+  
+  // Initialize if first time
+  if (is_first_time) {
+    bucket.last_refill_time = currentTime;
+    bucket.bytes_tokens = config.bucket_size;
+    bucket.messages_tokens = config.bucket_size;
+    bucket.bytes_consumed = 0;
+    bucket.messages_consumed = 0;
+    return;
+  }
+  
+  // Calculate time elapsed in milliseconds
+  uint64_t elapsed_ms = currentTime - bucket.last_refill_time;
+  
+  if (elapsed_ms == 0) {
+    return; // No time has passed
+  }
+  
+  // Refill byte tokens
+  if (config.max_bytes_per_sec > 0) {
+    // Calculate tokens to add: (bytes_per_sec * elapsed_ms) / 1000
+    uint64_t bytes_to_add = (static_cast<uint64_t>(config.max_bytes_per_sec) * elapsed_ms) / 1000;
+    bucket.bytes_tokens = std::min(
+      static_cast<uint64_t>(bucket.bytes_tokens + bytes_to_add),
+      static_cast<uint64_t>(config.bucket_size)
+    );
+  }
+  
+  // Refill message tokens
+  if (config.max_messages_per_sec > 0) {
+    // Calculate tokens to add: (messages_per_sec * elapsed_ms) / 1000
+    uint64_t messages_to_add = (static_cast<uint64_t>(config.max_messages_per_sec) * elapsed_ms) / 1000;
+    bucket.messages_tokens = std::min(
+      static_cast<uint64_t>(bucket.messages_tokens + messages_to_add),
+      static_cast<uint64_t>(config.bucket_size)
+    );
+  }
+  
+  bucket.last_refill_time = currentTime;
 }
 
 } // namespace simulator
