@@ -304,3 +304,202 @@ topology:
     REQUIRE(found_specific);
   }
 }
+
+TEST_CASE("NetworkSimulator mesh resilience with packet loss", "[network_integration][packet_loss]") {
+  // Simulate a 10-node mesh with 20% packet loss
+  NetworkSimulator net_sim(42);
+  
+  // Configure moderate latency
+  LatencyConfig latency;
+  latency.min_ms = 20;
+  latency.max_ms = 50;
+  latency.distribution = DistributionType::NORMAL;
+  net_sim.setDefaultLatency(latency);
+  
+  // Configure 20% packet loss
+  PacketLossConfig packet_loss;
+  packet_loss.probability = 0.20f;
+  packet_loss.burst_mode = false;
+  net_sim.setDefaultPacketLoss(packet_loss);
+  
+  SECTION("mesh still functions with 20% packet loss") {
+    uint64_t current_time = 0;
+    int total_sent = 0;
+    
+    // Simulate mesh communication: each node sends to 3 neighbors
+    for (uint32_t from = 1; from <= 10; ++from) {
+      for (uint32_t to = 1; to <= 10; ++to) {
+        if (from != to) {
+          // Each node sends 10 messages to its neighbors
+          for (int i = 0; i < 10; ++i) {
+            net_sim.enqueueMessage(from, to, "mesh data", current_time + i * 10);
+            total_sent++;
+          }
+        }
+      }
+    }
+    
+    // Total: 10 nodes * 9 neighbors * 10 messages = 900 messages
+    REQUIRE(total_sent == 900);
+    
+    // With 20% loss, expect approximately 720 messages to be delivered
+    size_t queued = net_sim.getPendingMessageCount();
+    REQUIRE(queued > 0);  // Some messages delivered
+    REQUIRE(queued < total_sent);  // Some messages dropped
+    
+    // Verify approximately 80% delivery (allow 10% margin)
+    float expected_delivered = total_sent * 0.80f;
+    REQUIRE(queued >= expected_delivered * 0.9f);
+    REQUIRE(queued <= expected_delivered * 1.1f);
+    
+    // Deliver all messages
+    auto ready = net_sim.getReadyMessages(10000);
+    REQUIRE(ready.size() == queued);
+  }
+  
+  SECTION("statistics reflect packet loss accurately") {
+    uint64_t current_time = 0;
+    
+    // Send 1000 messages from node 1 to node 2
+    for (int i = 0; i < 1000; ++i) {
+      net_sim.enqueueMessage(1, 2, "test", current_time + i);
+    }
+    
+    auto stats = net_sim.getStats(1, 2);
+    
+    // Verify drop statistics
+    REQUIRE(stats.dropped_count + stats.delivered_count == 1000);
+    REQUIRE(stats.dropped_count > 0);
+    REQUIRE(stats.delivered_count > 0);
+    
+    // Drop rate should be close to 20% (allow 5% margin)
+    REQUIRE(stats.drop_rate >= 0.15f);
+    REQUIRE(stats.drop_rate <= 0.25f);
+    
+    // Verify delivered messages can be retrieved
+    auto ready = net_sim.getReadyMessages(10000);
+    REQUIRE(ready.size() == stats.delivered_count);
+  }
+  
+  SECTION("packet loss with burst mode") {
+    // Reset simulator with different seed
+    NetworkSimulator burst_sim(12345);
+    
+    // Configure latency
+    burst_sim.setDefaultLatency(latency);
+    
+    // Configure packet loss with bursts
+    PacketLossConfig burst_loss;
+    burst_loss.probability = 0.25f;  // 25% probability of starting a burst
+    burst_loss.burst_mode = true;
+    burst_loss.burst_length = 5;
+    burst_sim.setDefaultPacketLoss(burst_loss);
+    
+    uint64_t current_time = 0;
+    
+    // Send many messages for better statistics
+    for (int i = 0; i < 1000; ++i) {
+      burst_sim.enqueueMessage(1, 2, "burst test", current_time + i);
+    }
+    
+    auto stats = burst_sim.getStats(1, 2);
+    
+    // Verify total attempts
+    REQUIRE(stats.dropped_count + stats.delivered_count == 1000);
+    
+    // With burst mode, the actual drop rate depends on how bursts align
+    // Verify basic properties: some drops, some deliveries
+    REQUIRE(stats.dropped_count > 0);
+    REQUIRE(stats.delivered_count > 0);
+    
+    // With burst mode and 25% burst probability, we expect significant variance
+    // Just verify it's doing something reasonable (between 0% and 100%)
+    REQUIRE(stats.drop_rate > 0.0f);
+    REQUIRE(stats.drop_rate < 1.0f);
+  }
+  
+  SECTION("per-connection packet loss isolation") {
+    net_sim.clear();
+    net_sim.resetStats();
+    
+    // Configure different loss rates for different connections
+    PacketLossConfig low_loss;
+    low_loss.probability = 0.05f;  // 5% loss
+    
+    PacketLossConfig high_loss;
+    high_loss.probability = 0.50f;  // 50% loss
+    
+    net_sim.setPacketLoss(1, 2, low_loss);
+    net_sim.setPacketLoss(3, 4, high_loss);
+    
+    // Send 200 messages on each connection
+    for (int i = 0; i < 200; ++i) {
+      net_sim.enqueueMessage(1, 2, "low loss", i);
+      net_sim.enqueueMessage(3, 4, "high loss", i);
+    }
+    
+    auto stats_low = net_sim.getStats(1, 2);
+    auto stats_high = net_sim.getStats(3, 4);
+    
+    // Low loss connection should have higher delivery rate
+    REQUIRE(stats_low.delivered_count > stats_high.delivered_count);
+    REQUIRE(stats_low.drop_rate < stats_high.drop_rate);
+    
+    // Verify drop rates are in expected ranges
+    REQUIRE(stats_low.drop_rate <= 0.15f);  // Should be ~5%
+    REQUIRE(stats_high.drop_rate >= 0.35f);  // Should be ~50%
+  }
+  
+  SECTION("mesh still converges with sustained packet loss") {
+    // Simulate realistic mesh scenario with continuous communication
+    net_sim.clear();
+    net_sim.resetStats();
+    
+    // Configure realistic packet loss (10%)
+    PacketLossConfig realistic_loss;
+    realistic_loss.probability = 0.10f;
+    net_sim.setDefaultPacketLoss(realistic_loss);
+    
+    uint64_t current_time = 0;
+    
+    // Simulate mesh protocol: nodes periodically broadcast
+    for (int round = 0; round < 10; ++round) {
+      for (uint32_t from = 1; from <= 10; ++from) {
+        for (uint32_t to = 1; to <= 10; ++to) {
+          if (from != to) {
+            net_sim.enqueueMessage(from, to, "heartbeat", current_time);
+          }
+        }
+      }
+      current_time += 1000;  // 1 second between rounds
+    }
+    
+    // Total: 10 rounds * 10 nodes * 9 neighbors = 900 messages
+    // With 10% loss, expect ~810 delivered
+    
+    auto ready = net_sim.getReadyMessages(20000);
+    REQUIRE(ready.size() > 700);  // Most messages delivered
+    REQUIRE(ready.size() < 900);  // Some dropped
+    
+    // Verify overall drop rate across all connections
+    uint64_t total_dropped = 0;
+    uint64_t total_delivered = 0;
+    
+    for (uint32_t from = 1; from <= 10; ++from) {
+      for (uint32_t to = 1; to <= 10; ++to) {
+        if (from != to) {
+          auto stats = net_sim.getStats(from, to);
+          total_dropped += stats.dropped_count;
+          total_delivered += stats.delivered_count;
+        }
+      }
+    }
+    
+    float overall_drop_rate = static_cast<float>(total_dropped) / 
+                             static_cast<float>(total_dropped + total_delivered);
+    
+    // Overall drop rate should be close to 10%
+    REQUIRE(overall_drop_rate >= 0.05f);
+    REQUIRE(overall_drop_rate <= 0.15f);
+  }
+}

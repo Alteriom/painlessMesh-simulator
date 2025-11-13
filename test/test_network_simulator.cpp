@@ -453,3 +453,391 @@ TEST_CASE("DelayedMessage comparison", "[network_simulator]") {
     REQUIRE((msg2 > msg1) == true);
   }
 }
+
+TEST_CASE("PacketLossConfig validation", "[network_simulator][packet_loss]") {
+  SECTION("valid configuration with 0% loss") {
+    PacketLossConfig config;
+    config.probability = 0.0f;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("valid configuration with 50% loss") {
+    PacketLossConfig config;
+    config.probability = 0.5f;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("valid configuration with 100% loss") {
+    PacketLossConfig config;
+    config.probability = 1.0f;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("valid burst mode configuration") {
+    PacketLossConfig config;
+    config.probability = 0.2f;
+    config.burst_mode = true;
+    config.burst_length = 5;
+    REQUIRE(config.isValid() == true);
+  }
+  
+  SECTION("invalid configuration with negative probability") {
+    PacketLossConfig config;
+    config.probability = -0.1f;
+    REQUIRE(config.isValid() == false);
+  }
+  
+  SECTION("invalid configuration with probability > 1.0") {
+    PacketLossConfig config;
+    config.probability = 1.5f;
+    REQUIRE(config.isValid() == false);
+  }
+  
+  SECTION("invalid configuration with zero burst length") {
+    PacketLossConfig config;
+    config.probability = 0.2f;
+    config.burst_mode = true;
+    config.burst_length = 0;
+    REQUIRE(config.isValid() == false);
+  }
+}
+
+TEST_CASE("NetworkSimulator default packet loss", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim;
+  
+  SECTION("can set default packet loss") {
+    PacketLossConfig config;
+    config.probability = 0.1f;
+    
+    REQUIRE_NOTHROW(sim.setDefaultPacketLoss(config));
+    
+    auto retrieved = sim.getPacketLoss(1, 2);
+    REQUIRE(retrieved.probability == 0.1f);
+  }
+  
+  SECTION("rejects invalid default packet loss") {
+    PacketLossConfig config;
+    config.probability = 1.5f;
+    
+    REQUIRE_THROWS_AS(sim.setDefaultPacketLoss(config), std::invalid_argument);
+  }
+}
+
+TEST_CASE("NetworkSimulator per-connection packet loss", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim;
+  
+  SECTION("can set per-connection packet loss") {
+    PacketLossConfig config;
+    config.probability = 0.25f;
+    config.burst_mode = true;
+    config.burst_length = 4;
+    
+    REQUIRE_NOTHROW(sim.setPacketLoss(1, 2, config));
+    
+    auto retrieved = sim.getPacketLoss(1, 2);
+    REQUIRE(retrieved.probability == 0.25f);
+    REQUIRE(retrieved.burst_mode == true);
+    REQUIRE(retrieved.burst_length == 4);
+  }
+  
+  SECTION("different connections have independent packet loss") {
+    PacketLossConfig config1;
+    config1.probability = 0.1f;
+    
+    PacketLossConfig config2;
+    config2.probability = 0.5f;
+    
+    sim.setPacketLoss(1, 2, config1);
+    sim.setPacketLoss(2, 3, config2);
+    
+    auto loss1 = sim.getPacketLoss(1, 2);
+    auto loss2 = sim.getPacketLoss(2, 3);
+    
+    REQUIRE(loss1.probability == 0.1f);
+    REQUIRE(loss2.probability == 0.5f);
+  }
+  
+  SECTION("unset connection uses default packet loss") {
+    PacketLossConfig default_config;
+    default_config.probability = 0.15f;
+    sim.setDefaultPacketLoss(default_config);
+    
+    auto retrieved = sim.getPacketLoss(99, 100);
+    REQUIRE(retrieved.probability == 0.15f);
+  }
+  
+  SECTION("rejects invalid per-connection packet loss") {
+    PacketLossConfig config;
+    config.probability = -0.1f;
+    
+    REQUIRE_THROWS_AS(sim.setPacketLoss(1, 2, config), std::invalid_argument);
+  }
+}
+
+TEST_CASE("NetworkSimulator packet dropping probability", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim(12345);  // Fixed seed for reproducibility
+  
+  SECTION("0% packet loss drops no packets") {
+    PacketLossConfig config;
+    config.probability = 0.0f;
+    sim.setDefaultPacketLoss(config);
+    
+    int dropped = 0;
+    for (int i = 0; i < 100; ++i) {
+      if (sim.shouldDropPacket(1, 2)) {
+        dropped++;
+      }
+    }
+    
+    REQUIRE(dropped == 0);
+  }
+  
+  SECTION("100% packet loss drops all packets") {
+    PacketLossConfig config;
+    config.probability = 1.0f;
+    sim.setDefaultPacketLoss(config);
+    
+    int dropped = 0;
+    for (int i = 0; i < 100; ++i) {
+      if (sim.shouldDropPacket(1, 2)) {
+        dropped++;
+      }
+    }
+    
+    REQUIRE(dropped == 100);
+  }
+  
+  SECTION("10% packet loss drops approximately 10% of packets") {
+    PacketLossConfig config;
+    config.probability = 0.1f;
+    sim.setDefaultPacketLoss(config);
+    
+    int dropped = 0;
+    int total = 1000;
+    for (int i = 0; i < total; ++i) {
+      if (sim.shouldDropPacket(1, 2)) {
+        dropped++;
+      }
+    }
+    
+    // Allow 5% margin of error (expected 100 ± 50)
+    REQUIRE(dropped >= 50);
+    REQUIRE(dropped <= 150);
+  }
+  
+  SECTION("50% packet loss drops approximately 50% of packets") {
+    PacketLossConfig config;
+    config.probability = 0.5f;
+    sim.setDefaultPacketLoss(config);
+    
+    int dropped = 0;
+    int total = 1000;
+    for (int i = 0; i < total; ++i) {
+      if (sim.shouldDropPacket(1, 2)) {
+        dropped++;
+      }
+    }
+    
+    // Allow 10% margin of error (expected 500 ± 100)
+    REQUIRE(dropped >= 400);
+    REQUIRE(dropped <= 600);
+  }
+}
+
+TEST_CASE("NetworkSimulator burst mode packet loss", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim(42);  // Fixed seed
+  
+  SECTION("burst mode drops packets in consecutive bursts") {
+    PacketLossConfig config;
+    config.probability = 0.3f;  // Lower probability to reduce back-to-back bursts
+    config.burst_mode = true;
+    config.burst_length = 3;
+    sim.setDefaultPacketLoss(config);
+    
+    std::vector<bool> drops;
+    for (int i = 0; i < 200; ++i) {
+      drops.push_back(sim.shouldDropPacket(1, 2));
+    }
+    
+    // Find bursts and verify each burst is a multiple of burst_length
+    // (multiple because back-to-back bursts can occur)
+    std::vector<int> burst_lengths;
+    int current_burst_length = 0;
+    
+    for (size_t i = 0; i < drops.size(); ++i) {
+      if (drops[i]) {
+        current_burst_length++;
+      } else {
+        if (current_burst_length > 0) {
+          burst_lengths.push_back(current_burst_length);
+          current_burst_length = 0;
+        }
+      }
+    }
+    // Don't forget last burst if it ends at the array boundary
+    if (current_burst_length > 0) {
+      burst_lengths.push_back(current_burst_length);
+    }
+    
+    // Verify all bursts are multiples of burst_length
+    // (because back-to-back bursts create longer sequences)
+    for (int len : burst_lengths) {
+      REQUIRE(len % config.burst_length == 0);
+    }
+    
+    // Should have at least some bursts with 30% probability
+    REQUIRE(burst_lengths.size() > 0);
+    
+    // At least some bursts should be exactly burst_length (not back-to-back)
+    bool has_single_burst = false;
+    for (int len : burst_lengths) {
+      if (len == config.burst_length) {
+        has_single_burst = true;
+        break;
+      }
+    }
+    REQUIRE(has_single_burst);
+  }
+}
+
+TEST_CASE("NetworkSimulator packet loss statistics", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim(42);
+  
+  // Set fixed latency to isolate packet loss testing
+  LatencyConfig latency;
+  latency.min_ms = 10;
+  latency.max_ms = 10;
+  sim.setDefaultLatency(latency);
+  
+  SECTION("tracks dropped and delivered packets") {
+    PacketLossConfig config;
+    config.probability = 0.5f;
+    sim.setDefaultPacketLoss(config);
+    
+    // Enqueue 100 messages
+    for (int i = 0; i < 100; ++i) {
+      sim.enqueueMessage(1, 2, "test", i * 100);
+    }
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.dropped_count + stats.delivered_count == 100);
+    REQUIRE(stats.dropped_count > 0);
+    REQUIRE(stats.delivered_count > 0);
+    
+    // Verify drop rate calculation
+    float expected_drop_rate = static_cast<float>(stats.dropped_count) / 100.0f;
+    REQUIRE(stats.drop_rate == expected_drop_rate);
+  }
+  
+  SECTION("tracks separate stats per connection") {
+    PacketLossConfig config1;
+    config1.probability = 0.2f;
+    
+    PacketLossConfig config2;
+    config2.probability = 0.8f;
+    
+    sim.setPacketLoss(1, 2, config1);
+    sim.setPacketLoss(2, 3, config2);
+    
+    for (int i = 0; i < 100; ++i) {
+      sim.enqueueMessage(1, 2, "test", i * 100);
+      sim.enqueueMessage(2, 3, "test", i * 100);
+    }
+    
+    auto stats1 = sim.getStats(1, 2);
+    auto stats2 = sim.getStats(2, 3);
+    
+    // Connection 2->3 should have more drops than 1->2
+    REQUIRE(stats2.dropped_count > stats1.dropped_count);
+    REQUIRE(stats1.delivered_count > stats2.delivered_count);
+  }
+  
+  SECTION("0% packet loss results in 0 drop rate") {
+    PacketLossConfig config;
+    config.probability = 0.0f;
+    sim.setDefaultPacketLoss(config);
+    
+    for (int i = 0; i < 50; ++i) {
+      sim.enqueueMessage(1, 2, "test", i * 100);
+    }
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.dropped_count == 0);
+    REQUIRE(stats.delivered_count == 50);
+    REQUIRE(stats.drop_rate == 0.0f);
+  }
+  
+  SECTION("100% packet loss results in 1.0 drop rate") {
+    PacketLossConfig config;
+    config.probability = 1.0f;
+    sim.setDefaultPacketLoss(config);
+    
+    for (int i = 0; i < 50; ++i) {
+      sim.enqueueMessage(1, 2, "test", i * 100);
+    }
+    
+    auto stats = sim.getStats(1, 2);
+    REQUIRE(stats.dropped_count == 50);
+    REQUIRE(stats.delivered_count == 0);
+    REQUIRE(stats.drop_rate == 1.0f);
+  }
+}
+
+TEST_CASE("NetworkSimulator packet loss integration with message delivery", "[network_simulator][packet_loss]") {
+  NetworkSimulator sim(42);
+  
+  LatencyConfig latency;
+  latency.min_ms = 50;
+  latency.max_ms = 50;
+  sim.setDefaultLatency(latency);
+  
+  SECTION("dropped packets are not delivered") {
+    PacketLossConfig config;
+    config.probability = 1.0f;  // Drop all packets
+    sim.setDefaultPacketLoss(config);
+    
+    sim.enqueueMessage(1, 2, "test1", 1000);
+    sim.enqueueMessage(1, 2, "test2", 1000);
+    sim.enqueueMessage(1, 2, "test3", 1000);
+    
+    // No messages should be queued since they're all dropped
+    REQUIRE(sim.getPendingMessageCount() == 0);
+    
+    // No messages should be ready for delivery
+    auto ready = sim.getReadyMessages(2000);
+    REQUIRE(ready.empty());
+  }
+  
+  SECTION("only delivered packets appear in queue") {
+    PacketLossConfig config;
+    config.probability = 0.0f;  // Drop no packets
+    sim.setDefaultPacketLoss(config);
+    
+    sim.enqueueMessage(1, 2, "test1", 1000);
+    sim.enqueueMessage(1, 2, "test2", 1000);
+    sim.enqueueMessage(1, 2, "test3", 1000);
+    
+    REQUIRE(sim.getPendingMessageCount() == 3);
+    
+    auto ready = sim.getReadyMessages(1050);
+    REQUIRE(ready.size() == 3);
+  }
+  
+  SECTION("partial packet loss delivers some messages") {
+    PacketLossConfig config;
+    config.probability = 0.5f;
+    sim.setDefaultPacketLoss(config);
+    
+    for (int i = 0; i < 100; ++i) {
+      sim.enqueueMessage(1, 2, "test", 1000 + i);
+    }
+    
+    // Some but not all messages should be queued
+    size_t queued = sim.getPendingMessageCount();
+    REQUIRE(queued > 0);
+    REQUIRE(queued < 100);
+    
+    auto ready = sim.getReadyMessages(2000);
+    REQUIRE(ready.size() == queued);
+  }
+}

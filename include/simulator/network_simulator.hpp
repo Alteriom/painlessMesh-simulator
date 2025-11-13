@@ -50,6 +50,24 @@ struct LatencyConfig {
 };
 
 /**
+ * @brief Packet loss configuration for network connections
+ */
+struct PacketLossConfig {
+  float probability = 0.0f;             ///< Packet loss probability (0.0 to 1.0)
+  bool burst_mode = false;              ///< Drop packets in bursts
+  uint32_t burst_length = 3;            ///< Number of packets per burst
+  
+  /**
+   * @brief Validates the configuration
+   * @return true if valid, false otherwise
+   */
+  bool isValid() const {
+    return probability >= 0.0f && probability <= 1.0f &&
+           burst_length > 0;
+  }
+};
+
+/**
  * @brief A delayed message in the network simulator
  */
 struct DelayedMessage {
@@ -182,6 +200,9 @@ public:
     uint32_t max_latency_ms = 0;       ///< Maximum observed latency
     uint32_t avg_latency_ms = 0;       ///< Average latency
     uint64_t message_count = 0;        ///< Number of messages
+    uint64_t dropped_count = 0;        ///< Number of dropped packets
+    uint64_t delivered_count = 0;      ///< Number of delivered packets
+    float drop_rate = 0.0f;            ///< Packet drop rate (0.0 to 1.0)
   };
   
   /**
@@ -197,6 +218,42 @@ public:
    * @brief Resets all statistics
    */
   void resetStats();
+  
+  /**
+   * @brief Sets default packet loss configuration
+   * 
+   * @param config Default packet loss configuration
+   * @throws std::invalid_argument if config is invalid
+   */
+  void setDefaultPacketLoss(const PacketLossConfig& config);
+  
+  /**
+   * @brief Sets packet loss for a specific connection
+   * 
+   * @param fromNode Source node ID
+   * @param toNode Destination node ID
+   * @param config Packet loss configuration for this connection
+   * @throws std::invalid_argument if config is invalid
+   */
+  void setPacketLoss(uint32_t fromNode, uint32_t toNode, const PacketLossConfig& config);
+  
+  /**
+   * @brief Gets packet loss configuration for a connection
+   * 
+   * @param fromNode Source node ID
+   * @param toNode Destination node ID
+   * @return Packet loss configuration (specific or default)
+   */
+  PacketLossConfig getPacketLoss(uint32_t fromNode, uint32_t toNode) const;
+  
+  /**
+   * @brief Determines if a packet should be dropped based on configuration
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @return true if packet should be dropped, false otherwise
+   */
+  bool shouldDropPacket(uint32_t from, uint32_t to);
 
 private:
   using ConnectionKey = std::pair<uint32_t, uint32_t>;
@@ -207,14 +264,26 @@ private:
                       std::vector<DelayedMessage>,
                       std::greater<DelayedMessage>> message_queue_;  ///< Message delay queue
   
+  PacketLossConfig default_packet_loss_;                    ///< Default packet loss configuration
+  std::map<ConnectionKey, PacketLossConfig> packet_loss_map_;  ///< Per-connection packet loss config
+  
   // Statistics tracking
   struct ConnectionStats {
     uint64_t total_latency_ms = 0;
     uint32_t min_latency_ms = UINT32_MAX;
     uint32_t max_latency_ms = 0;
     uint64_t message_count = 0;
+    uint64_t dropped_count = 0;
+    uint64_t delivered_count = 0;
   };
   std::map<ConnectionKey, ConnectionStats> stats_map_;      ///< Connection statistics
+  
+  // Burst mode state tracking
+  struct BurstState {
+    bool in_burst = false;
+    uint32_t remaining = 0;
+  };
+  std::map<ConnectionKey, BurstState> burst_state_map_;     ///< Burst state per connection
   
   // Random number generation
   std::mt19937 rng_;                                        ///< Random number generator
@@ -262,6 +331,15 @@ private:
    * @param latency_ms Latency in milliseconds
    */
   void recordStats(uint32_t from, uint32_t to, uint32_t latency_ms);
+  
+  /**
+   * @brief Records packet drop statistics for a connection
+   * 
+   * @param from Source node ID
+   * @param to Destination node ID
+   * @param dropped Whether the packet was dropped
+   */
+  void recordPacketStats(uint32_t from, uint32_t to, bool dropped);
 };
 
 /**

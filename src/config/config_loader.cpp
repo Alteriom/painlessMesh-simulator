@@ -204,7 +204,50 @@ NetworkConfig ConfigLoader::parseNetwork(const YAML::Node& node) {
     }
   }
   
-  config.packet_loss = getFloat(node, "packet_loss", 0.0f);
+  // Parse packet_loss configuration
+  if (hasKey(node, "packet_loss")) {
+    const auto& packet_loss_node = node["packet_loss"];
+    
+    if (packet_loss_node.IsMap()) {
+      // New structured format
+      
+      // Parse default packet loss
+      if (hasKey(packet_loss_node, "default")) {
+        const auto& default_node = packet_loss_node["default"];
+        config.default_packet_loss.probability = getFloat(default_node, "probability", 0.0f);
+        config.default_packet_loss.burst_mode = getBool(default_node, "burst_mode", false);
+        config.default_packet_loss.burst_length = getUInt32(default_node, "burst_length", 3);
+      }
+      
+      // Parse specific connections
+      if (hasKey(packet_loss_node, "specific_connections") && 
+          packet_loss_node["specific_connections"].IsSequence()) {
+        for (const auto& conn_node : packet_loss_node["specific_connections"]) {
+          ConnectionPacketLossConfig conn_config;
+          conn_config.from = getString(conn_node, "from");
+          conn_config.to = getString(conn_node, "to");
+          conn_config.config.probability = getFloat(conn_node, "probability", 
+                                                    config.default_packet_loss.probability);
+          conn_config.config.burst_mode = getBool(conn_node, "burst_mode", 
+                                                  config.default_packet_loss.burst_mode);
+          conn_config.config.burst_length = getUInt32(conn_node, "burst_length", 
+                                                      config.default_packet_loss.burst_length);
+          
+          config.specific_packet_losses.push_back(conn_config);
+        }
+      }
+    } else {
+      // Legacy format: simple float value
+      float legacy_loss = packet_loss_node.as<float>();
+      config.default_packet_loss.probability = legacy_loss;
+      config.packet_loss = legacy_loss;  // Keep for backward compatibility
+    }
+  } else {
+    // If no packet_loss key, check for legacy format at top level
+    config.packet_loss = getFloat(node, "packet_loss", 0.0f);
+    config.default_packet_loss.probability = config.packet_loss;
+  }
+  
   config.bandwidth = getUInt64(node, "bandwidth", 1000000);
   
   return config;
@@ -508,6 +551,46 @@ void ConfigLoader::validateNetwork(const NetworkConfig& config,
     }
   }
   
+  // Validate default packet loss
+  if (!config.default_packet_loss.isValid()) {
+    ValidationError err;
+    err.field = "network.packet_loss.default";
+    err.message = "Invalid packet loss configuration";
+    err.suggestion = "Probability must be 0.0-1.0, burst_length must be > 0";
+    errors.push_back(err);
+  }
+  
+  // Validate specific connection packet losses
+  for (size_t i = 0; i < config.specific_packet_losses.size(); ++i) {
+    const auto& conn = config.specific_packet_losses[i];
+    
+    if (conn.from.empty()) {
+      ValidationError err;
+      err.field = "network.packet_loss.specific_connections[" + std::to_string(i) + "].from";
+      err.message = "Source node ID cannot be empty";
+      err.suggestion = "Specify a valid node ID";
+      errors.push_back(err);
+    }
+    
+    if (conn.to.empty()) {
+      ValidationError err;
+      err.field = "network.packet_loss.specific_connections[" + std::to_string(i) + "].to";
+      err.message = "Destination node ID cannot be empty";
+      err.suggestion = "Specify a valid node ID";
+      errors.push_back(err);
+    }
+    
+    if (!conn.config.isValid()) {
+      ValidationError err;
+      err.field = "network.packet_loss.specific_connections[" + std::to_string(i) + "]";
+      err.message = "Invalid packet loss configuration for connection " + 
+                    conn.from + " -> " + conn.to;
+      err.suggestion = "Probability must be 0.0-1.0, burst_length must be > 0";
+      errors.push_back(err);
+    }
+  }
+  
+  // Legacy packet_loss validation
   if (config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
     ValidationError err;
     err.field = "network.packet_loss";
