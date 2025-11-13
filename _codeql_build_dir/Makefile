@@ -143,6 +143,19 @@ simulator_lib/fast:
 .PHONY : simulator_lib/fast
 
 #=============================================================================
+# Target rules for targets named painlessmesh-simulator
+
+# Build rule for target.
+painlessmesh-simulator: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 painlessmesh-simulator
+.PHONY : painlessmesh-simulator
+
+# fast build rule for target.
+painlessmesh-simulator/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/build
+.PHONY : painlessmesh-simulator/fast
+
+#=============================================================================
 # Target rules for targets named simulator_tests
 
 # Build rule for target.
@@ -204,6 +217,33 @@ external/painlessMesh/test/catch/fake_serial.s: external/painlessMesh/test/catch
 external/painlessMesh/test/catch/fake_serial.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/external/painlessMesh/test/catch/fake_serial.cpp.s
 .PHONY : external/painlessMesh/test/catch/fake_serial.cpp.s
+
+src/cli/cli_parser.o: src/cli/cli_parser.cpp.o
+.PHONY : src/cli/cli_parser.o
+
+# target to build an object file
+src/cli/cli_parser.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/cli/cli_parser.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/src/cli/cli_parser.cpp.o
+.PHONY : src/cli/cli_parser.cpp.o
+
+src/cli/cli_parser.i: src/cli/cli_parser.cpp.i
+.PHONY : src/cli/cli_parser.i
+
+# target to preprocess a source file
+src/cli/cli_parser.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/cli/cli_parser.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/src/cli/cli_parser.cpp.i
+.PHONY : src/cli/cli_parser.cpp.i
+
+src/cli/cli_parser.s: src/cli/cli_parser.cpp.s
+.PHONY : src/cli/cli_parser.s
+
+# target to generate assembly for a file
+src/cli/cli_parser.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/cli/cli_parser.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/src/cli/cli_parser.cpp.s
+.PHONY : src/cli/cli_parser.cpp.s
 
 src/config/config_loader.o: src/config/config_loader.cpp.o
 .PHONY : src/config/config_loader.o
@@ -301,6 +341,54 @@ src/core/virtual_node.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_lib.dir/build.make CMakeFiles/simulator_lib.dir/src/core/virtual_node.cpp.s
 .PHONY : src/core/virtual_node.cpp.s
 
+src/main.o: src/main.cpp.o
+.PHONY : src/main.o
+
+# target to build an object file
+src/main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/main.cpp.o
+.PHONY : src/main.cpp.o
+
+src/main.i: src/main.cpp.i
+.PHONY : src/main.i
+
+# target to preprocess a source file
+src/main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/main.cpp.i
+.PHONY : src/main.cpp.i
+
+src/main.s: src/main.cpp.s
+.PHONY : src/main.s
+
+# target to generate assembly for a file
+src/main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/painlessmesh-simulator.dir/build.make CMakeFiles/painlessmesh-simulator.dir/src/main.cpp.s
+.PHONY : src/main.cpp.s
+
+test/test_cli_parser.o: test/test_cli_parser.cpp.o
+.PHONY : test/test_cli_parser.o
+
+# target to build an object file
+test/test_cli_parser.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_cli_parser.cpp.o
+.PHONY : test/test_cli_parser.cpp.o
+
+test/test_cli_parser.i: test/test_cli_parser.cpp.i
+.PHONY : test/test_cli_parser.i
+
+# target to preprocess a source file
+test/test_cli_parser.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_cli_parser.cpp.i
+.PHONY : test/test_cli_parser.cpp.i
+
+test/test_cli_parser.s: test/test_cli_parser.cpp.s
+.PHONY : test/test_cli_parser.s
+
+# target to generate assembly for a file
+test/test_cli_parser.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/simulator_tests.dir/build.make CMakeFiles/simulator_tests.dir/test/test_cli_parser.cpp.s
+.PHONY : test/test_cli_parser.cpp.s
+
 test/test_config_loader.o: test/test_config_loader.cpp.o
 .PHONY : test/test_config_loader.o
 
@@ -384,11 +472,15 @@ help:
 	@echo "... test"
 	@echo "... Catch2"
 	@echo "... Catch2WithMain"
+	@echo "... painlessmesh-simulator"
 	@echo "... simulator_lib"
 	@echo "... simulator_tests"
 	@echo "... external/painlessMesh/test/catch/fake_serial.o"
 	@echo "... external/painlessMesh/test/catch/fake_serial.i"
 	@echo "... external/painlessMesh/test/catch/fake_serial.s"
+	@echo "... src/cli/cli_parser.o"
+	@echo "... src/cli/cli_parser.i"
+	@echo "... src/cli/cli_parser.s"
 	@echo "... src/config/config_loader.o"
 	@echo "... src/config/config_loader.i"
 	@echo "... src/config/config_loader.s"
@@ -401,6 +493,12 @@ help:
 	@echo "... src/core/virtual_node.o"
 	@echo "... src/core/virtual_node.i"
 	@echo "... src/core/virtual_node.s"
+	@echo "... src/main.o"
+	@echo "... src/main.i"
+	@echo "... src/main.s"
+	@echo "... test/test_cli_parser.o"
+	@echo "... test/test_cli_parser.i"
+	@echo "... test/test_cli_parser.s"
 	@echo "... test/test_config_loader.o"
 	@echo "... test/test_config_loader.i"
 	@echo "... test/test_config_loader.s"
