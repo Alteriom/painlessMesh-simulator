@@ -1,0 +1,86 @@
+---
+# Network Partition Test Scenario
+# Simple 2-partition test demonstrating network split and heal
+# Useful for testing basic partition functionality
+
+simulation:
+  name: "Network Partition Test"
+  description: "Test 2-partition network split and healing"
+  duration: 90  # 1.5 minutes
+  time_scale: 1.0
+
+nodes:
+  # Partition 1 (after split)
+  - id: "node-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+  
+  - id: "node-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+  
+  - id: "node-3"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+  
+  # Partition 2 (after split)
+  - id: "node-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+  
+  - id: "node-5"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+  
+  - id: "node-6"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "partition456"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"  # Fully connected mesh
+
+events:
+  # Start all nodes
+  - time: 0
+    action: start_all_nodes
+    description: "Initialize all nodes"
+  
+  # Create network partition at 30s
+  # Splits mesh into two isolated groups
+  - time: 30
+    action: network_partition
+    groups:
+      - [node-1, node-2, node-3]
+      - [node-4, node-5, node-6]
+    description: "Split network into 2 partitions"
+  
+  # Heal network at 60s
+  # Rejoins both partitions
+  - time: 60
+    action: network_heal
+    description: "Heal network partitions"
+
+metrics:
+  output: "results/partition_metrics.csv"
+  interval: 3
+  collect:
+    - "partition_state"
+    - "message_count"
+    - "connection_state"
+
+# Expected behavior:
+# 0-30s: Unified mesh, all nodes communicate
+# 30-60s: Two partitions, no inter-partition communication
+# 60-90s: Unified mesh restored, normal operation
