@@ -223,6 +223,23 @@ public:
    * in a real mesh network.
    */
   void connectTo(VirtualNode& other);
+  
+  /**
+   * @brief Sets the partition ID for this node
+   * 
+   * @param partitionId Partition identifier (0 = no partition)
+   * 
+   * Used to track which partition a node belongs to during network
+   * split scenarios. A partition ID of 0 indicates a single unified network.
+   */
+  void setPartitionId(uint32_t partitionId) { partition_id_ = partitionId; }
+  
+  /**
+   * @brief Gets the current partition ID
+   * 
+   * @return Partition identifier (0 = no partition)
+   */
+  uint32_t getPartitionId() const { return partition_id_; }
 
 private:
   uint32_t node_id_;                   ///< Unique node identifier
@@ -232,6 +249,7 @@ private:
   NodeMetrics metrics_;                ///< Performance metrics
   bool running_{false};                ///< Running state flag
   float network_quality_{1.0f};        ///< Network quality (0.0-1.0)
+  uint32_t partition_id_{0};           ///< Partition ID (0 = no partition)
   
   /**
    * @brief Callback for received messages
