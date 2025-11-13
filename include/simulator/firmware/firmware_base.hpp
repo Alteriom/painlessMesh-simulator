@@ -14,6 +14,7 @@
 
 #include <string>
 #include <map>
+#include <list>
 #include <cstdint>
 #include <memory>
 
@@ -95,7 +96,15 @@ public:
     scheduler_ = scheduler;
     node_id_ = nodeId;
     config_ = config;
+    initialized_ = true;
   }
+  
+  /**
+   * @brief Check if firmware has been initialized
+   * 
+   * @return true if initialize() has been called, false otherwise
+   */
+  bool isInitialized() const { return initialized_; }
   
   /**
    * @brief Setup firmware (called once after initialization)
@@ -177,6 +186,15 @@ public:
   std::string getName() const { return name_; }
   
   /**
+   * @brief Gets the firmware version
+   * 
+   * Override this method to provide a custom version string.
+   * 
+   * @return Firmware version (default: "1.0.0")
+   */
+  virtual String getVersion() const { return "1.0.0"; }
+  
+  /**
    * @brief Gets the node ID
    * 
    * @return Node ID assigned during initialization
@@ -209,11 +227,49 @@ public:
   }
 
 protected:
+  /**
+   * @brief Send a broadcast message to all nodes in the mesh
+   * 
+   * Helper method that wraps mesh_->sendBroadcast() with null check.
+   * 
+   * @param msg Message to broadcast
+   */
+  void sendBroadcast(const String& msg);
+  
+  /**
+   * @brief Send a message to a specific node
+   * 
+   * Helper method that wraps mesh_->sendSingle() with null check.
+   * 
+   * @param dest Destination node ID
+   * @param msg Message to send
+   */
+  void sendSingle(uint32_t dest, const String& msg);
+  
+  /**
+   * @brief Get the current mesh time
+   * 
+   * Helper method that wraps mesh_->getNodeTime() with null check.
+   * 
+   * @return Current mesh time in microseconds, or 0 if mesh not initialized
+   */
+  uint32_t getNodeTime() const;
+  
+  /**
+   * @brief Get list of all connected nodes
+   * 
+   * Helper method that wraps mesh_->getNodeList() with null check.
+   * 
+   * @return List of node IDs currently connected in the mesh, or empty list if mesh not initialized
+   */
+  std::list<uint32_t> getNodeList() const;
+
   std::string name_;                                      ///< Firmware name
   painlessmesh::Mesh<painlessmesh::Connection>* mesh_{nullptr};  ///< Mesh instance
   Scheduler* scheduler_{nullptr};                         ///< Task scheduler
   uint32_t node_id_{0};                                   ///< Node ID
   std::map<String, String> config_;                       ///< Configuration map
+  bool initialized_{false};                               ///< Initialization flag
 };
 
 } // namespace firmware
