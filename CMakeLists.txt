@@ -269,6 +269,7 @@ if(ENABLE_TESTING)
     test/test_node_lifecycle.cpp
     test/test_connection_events.cpp
     test/test_partition_events.cpp
+    test/test_firmware.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
