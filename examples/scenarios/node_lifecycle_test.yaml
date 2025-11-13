@@ -1,0 +1,111 @@
+---
+# Node Lifecycle Test Scenario
+# Demonstrates node lifecycle events: start, stop, crash, restart
+# Tests mesh resilience and recovery from node failures
+
+simulation:
+  name: "Node Lifecycle Test"
+  description: "Test node lifecycle events and mesh recovery"
+  duration: 120  # 2 minutes
+  time_scale: 1.0
+
+nodes:
+  - id: "node-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "lifecycle123"
+    mesh_port: 5555
+  
+  - id: "node-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "lifecycle123"
+    mesh_port: 5555
+  
+  - id: "node-3"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "lifecycle123"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"  # All nodes connected
+
+# Event timeline demonstrating lifecycle operations
+events:
+  # Initial phase: All nodes start
+  - time: 0
+    action: start_node
+    target: node-1
+    description: "Start node-1"
+  
+  - time: 0
+    action: start_node
+    target: node-2
+    description: "Start node-2"
+  
+  - time: 0
+    action: start_node
+    target: node-3
+    description: "Start node-3"
+  
+  # Crash scenario: Simulate node-1 hardware failure at 30s
+  - time: 30
+    action: crash_node
+    target: node-1
+    description: "Node-1 crashes (simulates power failure)"
+  
+  # Recovery: Node-1 restarts after 15 seconds downtime
+  - time: 45
+    action: start_node
+    target: node-1
+    description: "Node-1 recovers and rejoins mesh"
+  
+  # Graceful shutdown: Stop node-2 cleanly at 60s
+  - time: 60
+    action: stop_node
+    target: node-2
+    graceful: true
+    description: "Node-2 stops gracefully (maintenance)"
+  
+  # Restart: Node-3 performs controlled restart at 75s
+  - time: 75
+    action: restart_node
+    target: node-3
+    description: "Node-3 restarts (firmware update simulation)"
+  
+  # Multiple failures: Node-1 crashes again at 90s
+  - time: 90
+    action: crash_node
+    target: node-1
+    description: "Node-1 crashes again"
+  
+  # Final recovery: All nodes back online
+  - time: 105
+    action: start_node
+    target: node-1
+    description: "Node-1 recovers (second time)"
+  
+  - time: 105
+    action: start_node
+    target: node-2
+    description: "Node-2 back online after maintenance"
+
+metrics:
+  output: "results/node_lifecycle_metrics.csv"
+  interval: 5
+  collect:
+    - "node_count"
+    - "message_count"
+    - "uptime"
+    - "crash_count"
+
+# Expected behavior:
+# - All nodes start successfully
+# - Mesh forms with 3 nodes
+# - Node-1 crashes, mesh continues with 2 nodes
+# - Node-1 recovers, mesh reforms with 3 nodes (crash count = 1)
+# - Node-2 stops gracefully
+# - Node-3 restarts (uptime resets, crash count unchanged)
+# - Node-1 crashes again (crash count = 2)
+# - Final state: All 3 nodes running, node-1 has crash_count=2

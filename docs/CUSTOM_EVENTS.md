@@ -208,32 +208,101 @@ while (running) {
 
 ## Example Events
 
-### Node Crash Event
+### Node Lifecycle Events
 
-Simulates a node failure:
+The simulator provides built-in lifecycle events for controlling node states:
+
+#### NodeStartEvent
+
+Starts a stopped node, allowing it to rejoin the mesh:
 
 ```cpp
-class NodeCrashEvent : public Event {
-public:
-  explicit NodeCrashEvent(uint32_t nodeId) : nodeId_(nodeId) {}
-  
-  void execute(NodeManager& manager, NetworkSimulator& network) override {
-    auto node = manager.getNode(nodeId_);
-    if (node && node->isRunning()) {
-      node->stop();
-    }
-  }
-  
-  std::string getDescription() const override {
-    return "Node crash: " + std::to_string(nodeId_);
-  }
-
-private:
-  uint32_t nodeId_;
-};
+#include "simulator/events/node_start_event.hpp"
 
 // Usage:
+scheduler.scheduleEvent(std::make_unique<NodeStartEvent>(1001), 30);
+```
+
+#### NodeStopEvent
+
+Gracefully stops a running node:
+
+```cpp
+#include "simulator/events/node_stop_event.hpp"
+
+// Usage:
+scheduler.scheduleEvent(std::make_unique<NodeStopEvent>(1001, true), 45);
+// Parameters: nodeId, graceful (default: true)
+```
+
+#### NodeCrashEvent
+
+Simulates an ungraceful node failure (power loss, hardware failure):
+
+```cpp
+#include "simulator/events/node_crash_event.hpp"
+
+// Usage:
+scheduler.scheduleEvent(std::make_unique<NodeCrashEvent>(1001), 60);
+```
+
+Key differences between stop and crash:
+- **Stop**: Graceful shutdown, mesh cleanup, uptime tracked
+- **Crash**: Ungraceful shutdown, crash count incremented, simulates failure
+
+#### NodeRestartEvent
+
+Stops and immediately restarts a node:
+
+```cpp
+#include "simulator/events/node_restart_event.hpp"
+
+// Usage:
+scheduler.scheduleEvent(std::make_unique<NodeRestartEvent>(1001), 90);
+```
+
+#### Example: Simulating Node Failure Recovery
+
+```cpp
+EventScheduler scheduler;
+
+// Node runs normally
+scheduler.scheduleEvent(std::make_unique<NodeStartEvent>(1001), 0);
+
+// Node crashes after 30 seconds
 scheduler.scheduleEvent(std::make_unique<NodeCrashEvent>(1001), 30);
+
+// Node recovers after 15 seconds downtime
+scheduler.scheduleEvent(std::make_unique<NodeStartEvent>(1001), 45);
+
+// Node stops gracefully at end of test
+scheduler.scheduleEvent(std::make_unique<NodeStopEvent>(1001, true), 120);
+```
+
+#### YAML Configuration
+
+```yaml
+events:
+  - time: 0
+    action: start_node
+    target: node-1
+  
+  - time: 30
+    action: crash_node
+    target: node-1
+  
+  - time: 45
+    action: start_node
+    target: node-1
+  
+  - time: 60
+    action: stop_node
+    target: node-1
+    graceful: true
+  
+  - time: 75
+    action: restart_node
+    target: node-1
 ```
 
 ### Network Latency Event

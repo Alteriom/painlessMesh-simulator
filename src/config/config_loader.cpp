@@ -408,6 +408,12 @@ EventConfig ConfigLoader::parseEvent(const YAML::Node& node) {
   config.template_name = getString(node, "template");
   config.id_prefix = getString(node, "id_prefix");
   
+  // Parse lifecycle event parameters
+  if (hasKey(node, "graceful")) {
+    config.graceful = node["graceful"].as<bool>();
+  }
+  config.delay = getUInt32(node, "delay", 0);
+  
   // Parse targets array
   if (hasKey(node, "targets") && node["targets"].IsSequence()) {
     for (const auto& target : node["targets"]) {
@@ -821,6 +827,8 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "stop_node") return EventAction::STOP_NODE;
   if (lower == "start_node") return EventAction::START_NODE;
   if (lower == "restart_node") return EventAction::RESTART_NODE;
+  if (lower == "crash_node") return EventAction::CRASH_NODE;
+  if (lower == "node_crash") return EventAction::CRASH_NODE;  // Alternative name
   if (lower == "remove_node") return EventAction::REMOVE_NODE;
   if (lower == "add_nodes") return EventAction::ADD_NODES;
   if (lower == "partition_network") return EventAction::PARTITION_NETWORK;

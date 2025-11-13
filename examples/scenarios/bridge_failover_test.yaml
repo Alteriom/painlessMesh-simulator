@@ -1,0 +1,116 @@
+---
+# Bridge Failover Test Scenario
+# Tests mesh resilience when a bridge node fails
+# Critical for validating painlessMesh bridge failover capabilities
+
+simulation:
+  name: "Bridge Failover Test"
+  description: "Test mesh recovery when bridge node crashes"
+  duration: 90
+  time_scale: 1.0
+
+nodes:
+  # Bridge node - critical path between two groups
+  - id: "bridge-1"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "bridge123"
+    mesh_port: 5555
+  
+  # Group A nodes
+  - id: "sensor-a1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "bridge123"
+    mesh_port: 5555
+  
+  - id: "sensor-a2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "bridge123"
+    mesh_port: 5555
+  
+  # Group B nodes
+  - id: "sensor-b1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "bridge123"
+    mesh_port: 5555
+  
+  - id: "sensor-b2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "bridge123"
+    mesh_port: 5555
+
+topology:
+  type: "custom"
+  connections:
+    # Bridge connects both groups
+    - ["bridge-1", "sensor-a1"]
+    - ["bridge-1", "sensor-a2"]
+    - ["bridge-1", "sensor-b1"]
+    - ["bridge-1", "sensor-b2"]
+    # Intra-group connections
+    - ["sensor-a1", "sensor-a2"]
+    - ["sensor-b1", "sensor-b2"]
+
+events:
+  # Start all nodes
+  - time: 0
+    action: start_node
+    target: bridge-1
+  
+  - time: 0
+    action: start_node
+    target: sensor-a1
+  
+  - time: 0
+    action: start_node
+    target: sensor-a2
+  
+  - time: 0
+    action: start_node
+    target: sensor-b1
+  
+  - time: 0
+    action: start_node
+    target: sensor-b2
+  
+  # Simulate bridge failure
+  - time: 30
+    action: crash_node
+    target: bridge-1
+    description: "Bridge node crashes - test mesh resilience"
+  
+  # Bridge recovery
+  - time: 60
+    action: start_node
+    target: bridge-1
+    description: "Bridge recovers - verify mesh reformation"
+
+network:
+  latency:
+    min_ms: 10
+    max_ms: 50
+    distribution: normal
+  
+  packet_loss:
+    probability: 0.01  # 1% packet loss
+
+metrics:
+  output: "results/bridge_failover_metrics.csv"
+  interval: 3
+  collect:
+    - "node_count"
+    - "message_count"
+    - "latency"
+    - "topology_changes"
+    - "crash_count"
+
+# Test objectives:
+# 1. Verify mesh forms correctly with bridge
+# 2. Confirm communication between Group A and Group B via bridge
+# 3. Validate mesh continues when bridge fails (within groups)
+# 4. Verify mesh reforms when bridge recovers
+# 5. Check that bridge crash is properly tracked (crash_count = 1)
