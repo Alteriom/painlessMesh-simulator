@@ -12,6 +12,7 @@
 #include "simulator/config_loader.hpp"
 #include <yaml-cpp/yaml.h>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <functional>
@@ -328,14 +329,18 @@ MetricsConfig ConfigLoader::parseMetrics(const YAML::Node& node) {
 }
 
 void ConfigLoader::expandTemplates(ScenarioConfig& config) {
+  std::cout << "[DEBUG] Expanding templates. Initial node count: " << config.nodes.size() << std::endl;
   for (const auto& tmpl : config.templates) {
+    std::cout << "[DEBUG] Expanding template '" << tmpl.template_name << "' with count=" << tmpl.count << ", prefix='" << tmpl.id_prefix << "'" << std::endl;
     for (uint32_t i = 0; i < tmpl.count; ++i) {
       NodeConfigExtended node = tmpl.base_config;
       node.id = tmpl.id_prefix + std::to_string(i);
       node.nodeId = generateNodeId(node.id);
+      std::cout << "[DEBUG] Created node: id='" << node.id << "', nodeId=" << node.nodeId << std::endl;
       config.nodes.push_back(node);
     }
   }
+  std::cout << "[DEBUG] Template expansion complete. Final node count: " << config.nodes.size() << std::endl;
 }
 
 bool ConfigLoader::validate(const ScenarioConfig& config) {
