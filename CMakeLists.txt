@@ -163,6 +163,7 @@ set(SIMULATOR_SOURCES
   src/core/node_manager.cpp
   src/config/config_loader.cpp
   src/network/network_simulator.cpp
+  src/scenario/event_scheduler.cpp
   # src/scenario/scenario_engine.cpp
   # src/firmware/firmware_base.cpp
   # src/metrics/metrics_collector.cpp
@@ -173,6 +174,8 @@ set(SIMULATOR_HEADERS
   include/simulator/virtual_node.hpp
   include/simulator/node_manager.hpp
   include/simulator/config_loader.hpp
+  include/simulator/event.hpp
+  include/simulator/event_scheduler.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/firmware_base.hpp
@@ -240,6 +243,7 @@ if(ENABLE_TESTING)
     test/test_cli_parser.cpp
     test/test_network_simulator.cpp
     test/test_network_integration.cpp
+    test/test_event_scheduler.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
