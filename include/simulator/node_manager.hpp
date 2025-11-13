@@ -142,6 +142,17 @@ public:
    */
   void updateAll();
   
+  /**
+   * @brief Establish mesh connectivity between nodes
+   * 
+   * Creates a random mesh topology where each node connects to
+   * at least one other node, forming a connected graph.
+   * 
+   * This simulates the natural mesh formation that occurs in
+   * painlessMesh networks.
+   */
+  void establishConnectivity();
+  
   // Queries
   
   /**

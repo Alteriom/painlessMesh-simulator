@@ -124,8 +124,8 @@ boost::optional<ScenarioConfig> ConfigLoader::loadFromString(const std::string& 
       config.metrics = parseMetrics(root["metrics"]);
     }
     
-    // Expand templates into nodes
-    expandTemplates(config);
+    // Note: Template expansion is done later by caller to allow inspection
+    // Call expandTemplates(config) after loading if needed
     
     return config;
     

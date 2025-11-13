@@ -176,6 +176,19 @@ void VirtualNode::setNetworkQuality(float quality) {
   // TODO: Implement actual network quality simulation
 }
 
+void VirtualNode::connectTo(VirtualNode& other) {
+  if (!mesh_) {
+    throw std::runtime_error("Mesh instance not initialized");
+  }
+  
+  if (!other.mesh_) {
+    throw std::runtime_error("Target mesh instance not initialized");
+  }
+  
+  // Connect this node to the other node
+  mesh_->connect(*other.mesh_);
+}
+
 void VirtualNode::onReceive(uint32_t from, std::string& msg) {
   metrics_.messages_received++;
   metrics_.bytes_received += msg.size();

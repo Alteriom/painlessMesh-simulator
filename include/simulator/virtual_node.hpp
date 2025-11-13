@@ -178,6 +178,17 @@ public:
    * Implementation is currently a stub for future enhancement.
    */
   void setNetworkQuality(float quality);
+  
+  /**
+   * @brief Connect this node to another node
+   * 
+   * @param other The node to connect to
+   * 
+   * Creates a mesh connection from this node to the specified target node.
+   * This simulates the WiFi mesh connection that would occur naturally
+   * in a real mesh network.
+   */
+  void connectTo(VirtualNode& other);
 
 private:
   uint32_t node_id_;                   ///< Unique node identifier
