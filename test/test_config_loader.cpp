@@ -144,6 +144,11 @@ topology:
   auto config = loader.loadFromString(yaml);
   
   REQUIRE(config.has_value());
+  REQUIRE(config->templates.size() == 1);
+  
+  // Expand templates
+  loader.expandTemplates(*config);
+  
   REQUIRE(config->nodes.size() == 5);
   REQUIRE(config->nodes[0].id == "sensor-0");
   REQUIRE(config->nodes[1].id == "sensor-1");

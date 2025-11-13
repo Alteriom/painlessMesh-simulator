@@ -16,6 +16,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <map>
 #include <boost/asio.hpp>
 #include <csignal>
 
@@ -178,6 +179,11 @@ int main(int argc, char* argv[]) {
     manager.startAll();
     std::cout << "[INFO] All nodes started" << std::endl;
     
+    // Establish connectivity between nodes
+    std::cout << "[INFO] Establishing mesh connectivity..." << std::endl;
+    manager.establishConnectivity();
+    std::cout << "[INFO] Mesh connectivity established" << std::endl;
+    
     // Run simulation
     std::cout << "\n[INFO] Starting simulation...\n" << std::endl;
     
@@ -236,6 +242,25 @@ int main(int argc, char* argv[]) {
     std::cout << "Average update rate: " 
               << (total_duration > 0 ? update_count / total_duration : 0) 
               << " updates/sec" << std::endl;
+    
+    // Report metrics for each node
+    std::cout << "\nNode Metrics:" << std::endl;
+    uint64_t total_sent = 0, total_received = 0;
+    for (const auto& node_id : manager.getNodeIds()) {
+      auto node = manager.getNode(node_id);
+      if (node) {
+        auto metrics = node->getMetrics();
+        total_sent += metrics.messages_sent;
+        total_received += metrics.messages_received;
+        if (options.log_level == "DEBUG") {
+          std::cout << "  Node " << node_id 
+                    << ": sent=" << metrics.messages_sent
+                    << ", received=" << metrics.messages_received << std::endl;
+        }
+      }
+    }
+    std::cout << "Total messages sent: " << total_sent << std::endl;
+    std::cout << "Total messages received: " << total_received << std::endl;
     std::cout << "==========================" << std::endl;
     
     std::cout << "\n[INFO] Simulation completed successfully" << std::endl;
