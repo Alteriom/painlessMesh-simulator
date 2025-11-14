@@ -219,11 +219,16 @@ jobs:
 - **[Agent Session Template](.github/AGENT_SESSION_TEMPLATE.md)**: Workflow template for coding sessions
 - **[Copilot Instructions](.github/copilot-instructions.md)**: Coding standards and best practices
 
+### Library Validation & Firmware Development
+
+- **[Library Validation Summary](docs/LIBRARY_VALIDATION_SUMMARY.md)**: Two-tier firmware architecture explained
+- **[Library Validation Plan](docs/LIBRARY_VALIDATION_PLAN.md)**: Complete painlessMesh API validation strategy
+- **[Firmware Development Guide](docs/FIRMWARE_DEVELOPMENT_GUIDE.md)**: How to develop library validation and application firmware
+
 ### Architecture Documentation (Coming Soon)
 
 - `docs/ARCHITECTURE.md`: System design and components
 - `docs/CONFIGURATION_GUIDE.md`: Scenario configuration reference
-- `docs/FIRMWARE_DEVELOPMENT.md`: Creating custom firmware
 - `docs/API_REFERENCE.md`: API documentation
 
 ## Example Scenarios
@@ -240,6 +245,16 @@ jobs:
 ./painlessmesh-simulator --config examples/scenarios/stress_test.yaml \
   --log-level DEBUG \
   --output stress_test_results/
+```
+
+### Library Validation
+```bash
+# Run comprehensive painlessMesh library validation
+./painlessmesh-simulator --config examples/scenarios/library_validation.yaml
+
+# Validates all mesh APIs systematically
+# Generates detailed validation report
+# See docs/LIBRARY_VALIDATION_SUMMARY.md for details
 ```
 
 ### Network Partition Recovery
