@@ -1,0 +1,85 @@
+# Library Validation Scenario
+#
+# This scenario runs the LibraryValidationFirmware to systematically test
+# all painlessMesh library APIs. This is the baseline validation that must
+# pass before custom application firmware can be trusted.
+#
+# One node acts as the coordinator (runs tests), others are participants
+# (respond to test queries).
+
+simulation:
+  name: "painlessMesh Library Validation"
+  description: "Systematic validation of all painlessMesh library APIs"
+  duration: 180  # 3 minutes total (6 phases * 30 seconds each)
+  time_scale: 1.0  # Real-time for accurate timing tests
+
+nodes:
+  # Coordinator node - runs validation tests
+  - id: "validator"
+    nodeId: 10001
+    firmware: "library_validation"
+    firmware_config:
+      role: "coordinator"
+      test_duration: "30"  # 30 seconds per test phase
+      enable_detailed_logging: "true"
+    config:
+      mesh_prefix: "LibValidation"
+      mesh_password: "validationTest2025"
+      mesh_port: 5555
+
+  # Participant nodes - respond to validation tests
+  - template: "participant"
+    count: 9
+    firmware: "library_validation"
+    firmware_config:
+      role: "participant"
+      test_duration: "30"
+      enable_detailed_logging: "false"
+    config:
+      mesh_prefix: "LibValidation"
+      mesh_password: "validationTest2025"
+      mesh_port: 5555
+
+# Connect nodes to form a stable mesh
+topology:
+  type: "random"
+  seed: 42  # Reproducible topology
+  connection_probability: 0.4  # 40% connection probability
+
+# No network impairments for baseline validation
+network:
+  latency_ms: 0
+  jitter_ms: 0
+  packet_loss_percent: 0
+  bandwidth_kbps: 1000
+
+# Validation phases (automatically progressed by coordinator)
+events: []
+
+metrics:
+  enabled: true
+  interval_seconds: 5
+  output: "results/library_validation_metrics.csv"
+  
+  collect:
+    - node_count
+    - connection_count
+    - messages_sent
+    - messages_received
+    - topology_changes
+    - time_sync_events
+
+# Expected outcomes
+validation:
+  success_criteria:
+    - condition: "all_tests_passed == true"
+      description: "All API validation tests must pass"
+    
+    - condition: "message_loss_rate < 10.0"
+      description: "Message loss must be under 10%"
+    
+    - condition: "api_coverage > 80.0"
+      description: "At least 80% of APIs must be tested"
+    
+    - condition: "topology_stable == true"
+      description: "Mesh topology must remain stable"

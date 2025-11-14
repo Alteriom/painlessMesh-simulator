@@ -178,6 +178,7 @@ set(SIMULATOR_SOURCES
   src/firmware/simple_broadcast_firmware.cpp
   src/firmware/echo_server_firmware.cpp
   src/firmware/echo_client_firmware.cpp
+  src/firmware/library_validation_firmware.cpp
   # src/scenario/scenario_engine.cpp
   # src/metrics/metrics_collector.cpp
 )
@@ -204,6 +205,7 @@ set(SIMULATOR_HEADERS
   include/simulator/firmware/simple_broadcast_firmware.hpp
   include/simulator/firmware/echo_server_firmware.hpp
   include/simulator/firmware/echo_client_firmware.hpp
+  include/simulator/firmware/library_validation_firmware.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/metrics_collector.hpp
