@@ -15,6 +15,7 @@
 #include "simulator/node_manager.hpp"
 #include "simulator/firmware/firmware_factory.hpp"
 #include "simulator/firmware/simple_broadcast_firmware.hpp"
+#include "simulator/firmware/library_validation_firmware.hpp"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -71,6 +72,8 @@ int main(int argc, char* argv[]) {
     // Register built-in firmware
     firmware::FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
       []() { return std::make_unique<firmware::SimpleBroadcastFirmware>(); });
+    firmware::FirmwareFactory::instance().registerFirmware("library_validation",
+      []() { return std::make_unique<firmware::LibraryValidationFirmware>(); });
     
     // Parse command-line arguments
     CLIOptions options;
