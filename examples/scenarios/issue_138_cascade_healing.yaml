@@ -1,0 +1,295 @@
+---
+# Issue #138 Validation: Cascade Partition Healing
+# Tests progressive partition healing (heal partitions one by one)
+# Validates bridge re-election at each step and proper routing updates
+
+simulation:
+  name: "Issue #138 - Cascade Healing"
+  description: "Tests progressive partition healing rather than simultaneous healing"
+  duration: 180  # 3 minutes
+  time_scale: 1.0
+
+nodes:
+  # Group A: 4 nodes
+  - id: "bridge-a"
+    type: "bridge"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-a1"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-a2"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-a3"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  # Group B: 4 nodes
+  - id: "bridge-b"
+    type: "bridge"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-b1"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-b2"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-b3"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  # Group C: 4 nodes
+  - id: "bridge-c"
+    type: "bridge"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-c1"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-c2"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+  
+  - id: "sensor-c3"
+    type: "sensor"
+    mesh_prefix: "CascadeMesh"
+    mesh_password: "cascade138"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"
+
+events:
+  # === Phase 1: Create 3 partitions (30s) ===
+  
+  - time: 30
+    action: network_partition
+    groups:
+      - [bridge-a, sensor-a1, sensor-a2, sensor-a3]  # Group A: 4 nodes
+      - [bridge-b, sensor-b1, sensor-b2, sensor-b3]  # Group B: 4 nodes
+      - [bridge-c, sensor-c1, sensor-c2, sensor-c3]  # Group C: 4 nodes
+    description: "Create 3 isolated partitions"
+  
+  # === Phase 2: First healing - Merge A and B (70s) ===
+  # This should create a 2-partition state: (A+B) and C
+  # Group A+B will need to elect a new bridge (between bridge-a and bridge-b)
+  
+  - time: 70
+    action: partial_heal
+    groups_to_merge: [[bridge-a, sensor-a1, sensor-a2, sensor-a3],
+                       [bridge-b, sensor-b1, sensor-b2, sensor-b3]]
+    description: "Heal A+B together (C remains isolated)"
+  
+  # Alternative implementation if partial_heal not available:
+  # We would need to use connection_restore events for specific links
+  
+  # === Phase 3: Second healing - Merge (A+B) with C (120s) ===
+  # Now merge the A+B combined partition with C
+  # Final bridge election: choose from bridge elected in A+B vs bridge-c
+  
+  - time: 120
+    action: network_heal
+    description: "Final heal: merge (A+B) with C to form complete 12-node mesh"
+
+metrics:
+  output: "results/issue_138_cascade_healing.csv"
+  interval: 5
+  collect:
+    - "partition_state"
+    - "partition_count"
+    - "active_bridge_count"
+    - "bridge_identity"           # Track which bridge is active
+    - "bridge_election_events"    # Count election events
+    - "connection_count"
+    - "nodes_per_partition"
+    - "routing_table_updates"     # Track routing updates
+    - "message_delivery_rate"
+    - "topology_changes"          # Track topology change events
+
+# Expected Behavior (NO ISSUE #138):
+#
+# Phase 1 (0-30s): Unified 12-node mesh
+#   - All 12 nodes in single mesh
+#   - One bridge elected (bridge-a, bridge-b, or bridge-c)
+#   - active_bridge_count = 1
+#   - partition_count = 1
+#   - connection_count = high (full mesh)
+#
+# Phase 2 (30-70s): Three isolated partitions
+#   
+#   Partition A: [bridge-a, sensor-a1, sensor-a2, sensor-a3]
+#   - bridge-a elected as partition leader
+#   - 4 nodes, independent operation
+#   
+#   Partition B: [bridge-b, sensor-b1, sensor-b2, sensor-b3]
+#   - bridge-b elected as partition leader
+#   - 4 nodes, independent operation
+#   
+#   Partition C: [bridge-c, sensor-c1, sensor-c2, sensor-c3]
+#   - bridge-c elected as partition leader
+#   - 4 nodes, independent operation
+#   
+#   Overall:
+#   - partition_count = 3
+#   - active_bridge_count = 3 (one per partition)
+#   - No cross-partition communication
+#
+# Phase 3 (70-120s): Two partitions (A+B merged, C isolated)
+#   
+#   Partition A+B: 8 nodes merged
+#   - [bridge-a, sensor-a1,a2,a3, bridge-b, sensor-b1,b2,b3]
+#   - Bridge re-election: one of bridge-a or bridge-b becomes leader
+#   - Other bridge steps down
+#   - active_bridge_count in (A+B) = 1 ✓ CRITICAL!
+#   - 8-node mesh operates normally
+#   - New routing tables for 8-node topology
+#   
+#   Partition C: Still isolated
+#   - [bridge-c, sensor-c1, sensor-c2, sensor-c3]
+#   - bridge-c remains leader of this partition
+#   - 4 nodes, independent operation
+#   
+#   Overall:
+#   - partition_count = 2
+#   - active_bridge_count = 2 (one for A+B, one for C)
+#   - A+B nodes can communicate with each other ✓
+#   - C nodes still isolated from A+B
+#   - bridge_election_events += 1 (for A+B merger)
+#
+# Phase 4 (120-180s): Full mesh (all partitions healed)
+#   
+#   Unified mesh: All 12 nodes
+#   - [(A+B)+C] merged into single mesh
+#   - Final bridge election: winner from (A+B) bridge vs bridge-c
+#   - active_bridge_count = 1 ✓ CRITICAL!
+#   - All nodes can communicate
+#   - partition_count = 1
+#   - connection_count returns to full mesh levels
+#   - bridge_election_events += 1 (for final merger)
+#   - Stable for 60 seconds (120-180s)
+#
+# Bridge Election Timeline:
+# - t=0-30s: Initial election → 1 bridge
+# - t=30s: Partition creates 3 partitions → 3 bridges
+# - t=70s: A+B merge → re-election → 1 bridge for A+B, bridge-c for C → 2 total
+# - t=120s: Final merge → re-election → 1 bridge total ✓
+# 
+# Total bridge elections: 4-5 events throughout simulation
+#
+# FAILURE INDICATORS (ISSUE #138 PRESENT):
+#
+# 1. After first healing (t=70s):
+#    - active_bridge_count in A+B partition > 1
+#    - Both bridge-a and bridge-b claim leadership
+#    - A+B partition has split leadership
+#    - Nodes in A+B have different views of active bridge
+#
+# 2. After final healing (t=120s):
+#    - active_bridge_count > 1 in unified mesh
+#    - Multiple bridges remain active
+#    - Bridge election never completes
+#    - Nodes disagree on which bridge is active
+#
+# 3. Routing issues after cascade:
+#    - Nodes in A can't reach nodes in B (even after merge at t=70)
+#    - Nodes in A+B can't reach nodes in C (after final heal)
+#    - Routing tables not updated during cascade
+#    - Stale routes from partition phase persist
+#
+# 4. Connection state corruption:
+#    - Connections not properly established during cascade
+#    - Some node pairs can't communicate
+#    - Asymmetric connectivity (A→B works but B→A fails)
+#    - Connection flapping or instability
+#
+# 5. Progressive degradation:
+#    - First merge (A+B) works fine
+#    - Final merge (A+B+C) fails or is unstable
+#    - Each healing step accumulates issues
+#    - Performance degrades with each merge
+#
+# 6. Bridge election conflicts:
+#    - During A+B merge: bridge-a and bridge-b both refuse to step down
+#    - During final merge: (A+B) bridge conflicts with bridge-c
+#    - Election deadlock or very long duration
+#    - Inconsistent election results
+#
+# Cascade Healing Specific Concerns:
+#
+# 1. Stepwise bridge election:
+#    - Must have clean election at each merge step
+#    - Previous bridge must properly step down
+#    - New merged partition has exactly 1 bridge
+#
+# 2. Routing table cascade:
+#    - After A+B merge: nodes update for 8-node topology
+#    - After final merge: nodes update for 12-node topology
+#    - No stale routes from previous states
+#
+# 3. Connection management:
+#    - New connections established progressively
+#    - Old dropped connections properly removed
+#    - No connection state from partition phase
+#
+# 4. Topology consistency:
+#    - All nodes agree on current topology at each phase
+#    - No mixed views (some thinking 3 partitions, some thinking 2)
+#    - Clean state transitions
+#
+# 5. Performance during cascade:
+#    - Each merge completes in reasonable time
+#    - No exponential slowdown
+#    - Resource usage appropriate for current topology
+#
+# Critical Success Criteria:
+# - ✓ Clean 3-way partition (t=30-70s)
+# - ✓ A+B merge succeeds with 1 bridge (t=70-120s)
+# - ✓ partition_count = 2 after first heal
+# - ✓ A+B nodes can all communicate (t=70-120s)
+# - ✓ Final merge succeeds with 1 bridge (t=120-180s)
+# - ✓ partition_count = 1 after final heal
+# - ✓ All 12 nodes can communicate (t=120-180s)
+# - ✓ Stable for 60 seconds after final heal
+# - ✓ No bridge conflicts at any stage
+# - ✓ Proper routing at each stage
+#
+# This scenario specifically tests:
+# - Progressive (cascade) partition healing
+# - Multiple sequential bridge elections
+# - Stepwise routing table updates
+# - Bridge conflict resolution at each step
+# - Topology consistency during progressive healing
+# - State management through multiple merge events
+#
+# NOTE: This scenario assumes the simulator supports partial healing.
+# If only full network_heal is available, this may need to be implemented
+# using connection_restore events for specific node pairs.
