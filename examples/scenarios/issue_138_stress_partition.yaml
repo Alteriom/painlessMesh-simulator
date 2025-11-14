@@ -1,0 +1,242 @@
+---
+# Issue #138 Validation: Stress Test with Partitioning
+# Tests partition behavior with large number of nodes (50+)
+# Validates that bridge election and partition handling scale properly
+
+simulation:
+  name: "Issue #138 - Stress Test with Partitioning"
+  description: "Tests large-scale partition (50 nodes) to validate scalability and performance"
+  duration: 180  # 3 minutes
+  time_scale: 2.0  # Run at 2x speed to complete faster
+
+nodes:
+  # Create 50 nodes using template
+  # We'll split into 3 roughly equal partitions
+  
+  # Partition 1: 17 nodes (1 bridge + 16 sensors)
+  - id: "bridge-p1"
+    type: "bridge"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+  
+  - template: "sensor"
+    count: 16
+    id_prefix: "p1-sensor-"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+  
+  # Partition 2: 17 nodes (1 bridge + 16 sensors)
+  - id: "bridge-p2"
+    type: "bridge"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+  
+  - template: "sensor"
+    count: 16
+    id_prefix: "p2-sensor-"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+  
+  # Partition 3: 16 nodes (1 bridge + 15 sensors)
+  - id: "bridge-p3"
+    type: "bridge"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+  
+  - template: "sensor"
+    count: 15
+    id_prefix: "p3-sensor-"
+    mesh_prefix: "StressMesh"
+    mesh_password: "stress138"
+    mesh_port: 5555
+
+topology:
+  type: "random"  # Random topology for realistic large-scale mesh
+  density: 0.3    # 30% connection probability (not fully meshed)
+
+events:
+  # === Phase 1: Allow mesh to stabilize (40s) ===
+  # With 50 nodes, mesh formation takes longer
+  
+  # === Phase 2: Create 3-way partition (40s) ===
+  - time: 40
+    action: network_partition
+    groups:
+      # Partition 1: bridge-p1 + p1-sensor-0 through p1-sensor-15 (17 nodes)
+      - [bridge-p1, p1-sensor-0, p1-sensor-1, p1-sensor-2, p1-sensor-3, 
+         p1-sensor-4, p1-sensor-5, p1-sensor-6, p1-sensor-7,
+         p1-sensor-8, p1-sensor-9, p1-sensor-10, p1-sensor-11,
+         p1-sensor-12, p1-sensor-13, p1-sensor-14, p1-sensor-15]
+      
+      # Partition 2: bridge-p2 + p2-sensor-0 through p2-sensor-15 (17 nodes)
+      - [bridge-p2, p2-sensor-0, p2-sensor-1, p2-sensor-2, p2-sensor-3,
+         p2-sensor-4, p2-sensor-5, p2-sensor-6, p2-sensor-7,
+         p2-sensor-8, p2-sensor-9, p2-sensor-10, p2-sensor-11,
+         p2-sensor-12, p2-sensor-13, p2-sensor-14, p2-sensor-15]
+      
+      # Partition 3: bridge-p3 + p3-sensor-0 through p3-sensor-14 (16 nodes)
+      - [bridge-p3, p3-sensor-0, p3-sensor-1, p3-sensor-2, p3-sensor-3,
+         p3-sensor-4, p3-sensor-5, p3-sensor-6, p3-sensor-7,
+         p3-sensor-8, p3-sensor-9, p3-sensor-10, p3-sensor-11,
+         p3-sensor-12, p3-sensor-13, p3-sensor-14]
+    description: "Split 50-node mesh into 3 partitions"
+  
+  # === Phase 3: Heal partition (120s) ===
+  # Allow 80 seconds in partitioned state for observation
+  
+  - time: 120
+    action: network_heal
+    description: "Heal partitions and reform 50-node mesh"
+  
+  # === Phase 4: Final observation (120-180s) ===
+  # 60 seconds to verify stable healed state
+
+metrics:
+  output: "results/issue_138_stress_partition.csv"
+  interval: 10  # Sample every 10 seconds (less frequent due to scale)
+  collect:
+    - "partition_state"
+    - "partition_count"
+    - "active_bridge_count"       # CRITICAL: Should be 1 after heal
+    - "connection_count"           # Total active connections
+    - "message_delivery_rate"     # Overall delivery success
+    - "bridge_election_duration"  # Time to elect bridges
+    - "mesh_formation_time"       # Time to form complete mesh
+    - "node_count_per_partition"  # Verify partition sizes
+    - "cpu_usage"                 # Performance monitoring
+    - "memory_usage"              # Resource usage
+    - "routing_table_size"        # Average routing table size
+    - "convergence_time"          # Time to reach stable state
+
+# Expected Behavior (NO ISSUE #138):
+#
+# Phase 1 (0-40s): Large mesh formation
+#   - 50 nodes form single mesh
+#   - With random topology, formation may take 20-30s
+#   - One bridge elected from 3 bridge candidates
+#   - active_bridge_count = 1
+#   - connection_count = high (depends on topology density)
+#   - mesh_formation_time < 30s ✓
+#
+# Phase 2 (40-120s): Triple partition - 80 seconds
+#   
+#   Partition 1: 17 nodes
+#   - bridge-p1 elected as partition leader
+#   - Internal mesh operates normally
+#   - Reduced connection_count (only intra-partition)
+#   
+#   Partition 2: 17 nodes
+#   - bridge-p2 elected as partition leader
+#   - Independent operation
+#   
+#   Partition 3: 16 nodes
+#   - bridge-p3 elected as partition leader
+#   - Slightly smaller but functional
+#   
+#   Overall:
+#   - partition_count = 3
+#   - active_bridge_count = 3 (one per partition)
+#   - No cross-partition communication
+#   - Each partition stable and functional
+#   - bridge_election_duration < 15s per partition ✓
+#
+# Phase 3 (120-180s): Healed 50-node mesh
+#   - All 50 nodes rejoin into single mesh
+#   - Single bridge elected from 3 candidates
+#   - active_bridge_count = 1 ✓ CRITICAL!
+#   - Full mesh connectivity restored
+#   - connection_count returns to pre-partition levels
+#   - convergence_time < 30s ✓
+#   - Stable for 60 seconds
+#   - No performance degradation
+#
+# Performance Expectations (time_scale=2.0):
+# - Real time: 180s = 3 minutes
+# - Simulated time: 90s = 1.5 minutes
+# - Mesh formation: ~10-15s simulated
+# - Bridge election: ~5-10s per partition
+# - Healing convergence: ~15-20s simulated
+#
+# FAILURE INDICATORS (ISSUE #138 PRESENT):
+#
+# 1. Bridge election failures:
+#    - active_bridge_count > 1 after healing (t > 120s)
+#    - Bridge election never completes (timeout)
+#    - Multiple bridges claim leadership
+#    - bridge_election_duration > 30s
+#
+# 2. Incomplete mesh reformation:
+#    - connection_count doesn't recover after healing
+#    - Some nodes remain isolated
+#    - Partitions don't fully merge
+#    - partition_count = 2 or 3 (should be 1)
+#
+# 3. Performance degradation:
+#    - convergence_time > 60s
+#    - mesh_formation_time excessive
+#    - CPU/memory usage spikes
+#    - System becomes unresponsive
+#
+# 4. Scalability issues:
+#    - Bridge election conflicts with many candidates
+#    - Routing table updates fail with large node count
+#    - Connection management breaks down
+#    - Message flooding or routing loops
+#
+# 5. Timeout issues:
+#    - Nodes timeout during bridge election
+#    - Connection establishment timeouts
+#    - Mesh convergence never completes
+#    - Some nodes give up rejoining
+#
+# Stress Test Specific Concerns:
+#
+# 1. Bridge election with 3 candidates:
+#    - Must resolve to exactly 1 bridge
+#    - No split-brain with 3-way leadership
+#    - Election completes in reasonable time
+#
+# 2. Large routing tables:
+#    - Each node must track routes to 49 other nodes
+#    - Routing updates must propagate
+#    - No routing table corruption
+#
+# 3. Connection scaling:
+#    - With random topology, ~750 connections (50*30%)
+#    - All connections properly managed
+#    - No connection leaks or exhaustion
+#
+# 4. Resource usage:
+#    - Memory usage should be linear with node count
+#    - CPU usage reasonable during partition events
+#    - No resource exhaustion
+#
+# 5. Timing accuracy:
+#    - With 2x time scale, timing still accurate
+#    - Events trigger correctly
+#    - No timing-related race conditions
+#
+# Critical Success Criteria:
+# - ✓ 50 nodes form single mesh (0-40s)
+# - ✓ Clean partition into 3 groups (17+17+16)
+# - ✓ Each partition elects bridge (3 total during partition)
+# - ✓ All 50 nodes rejoin after healing
+# - ✓ Exactly 1 bridge after healing
+# - ✓ Convergence completes within 30s
+# - ✓ Stable for 60s after healing
+# - ✓ No performance issues or resource exhaustion
+# - ✓ All nodes reachable in final state
+#
+# This scenario tests:
+# - Scalability to 50+ nodes
+# - Bridge election with multiple candidates
+# - Large partition handling
+# - Performance under stress
+# - Resource management at scale
+# - Mesh reformation with many nodes
+# - Timing accuracy at accelerated speed

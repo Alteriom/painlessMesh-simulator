@@ -1,0 +1,234 @@
+---
+# Issue #138 Validation: Uneven Partition Sizes
+# Tests edge cases with very uneven partition distribution
+# Validates that isolated nodes and minority partitions can properly rejoin
+
+simulation:
+  name: "Issue #138 - Uneven Partition Sizes"
+  description: "Tests mesh behavior with uneven partitions including single isolated nodes"
+  duration: 120  # 2 minutes
+  time_scale: 1.0
+
+nodes:
+  # Large partition (will have 7 nodes)
+  - id: "bridge-main"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-3"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-5"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-6"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  # Small partition (will have 2 nodes)
+  - id: "bridge-small"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  - id: "sensor-7"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+  
+  # Isolated single node
+  - id: "sensor-isolated"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "uneven138"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"
+
+events:
+  # === Phase 1: Create uneven partitions (30s) ===
+  # Large: 7 nodes
+  # Small: 2 nodes  
+  # Isolated: 1 node
+  
+  - time: 30
+    action: network_partition
+    groups:
+      - [bridge-main, sensor-1, sensor-2, sensor-3, sensor-4, sensor-5, sensor-6]  # 7 nodes
+      - [bridge-small, sensor-7]                                                     # 2 nodes
+      - [sensor-isolated]                                                            # 1 node
+    description: "Create uneven partitions: 7:2:1 distribution"
+  
+  # === Phase 2: Heal all partitions (80s) ===
+  
+  - time: 80
+    action: network_heal
+    description: "Heal all partitions and rejoin into single mesh"
+
+metrics:
+  output: "results/issue_138_uneven_partitions.csv"
+  interval: 5
+  collect:
+    - "partition_state"
+    - "partition_sizes"           # Track size of each partition
+    - "nodes_per_partition"       # Distribution histogram
+    - "bridge_elections"          # Per-partition bridge election
+    - "active_bridge_count"       # Should be 1 after healing
+    - "isolated_node_count"       # Count of single-node partitions
+    - "message_delivery_rate"     # Per partition
+    - "connection_count"          # Total active connections
+    - "node_connectivity"         # Which nodes can reach which
+    - "minority_partition_state"  # Status of small partitions
+
+# Expected Behavior (NO ISSUE #138):
+#
+# Phase 1 (0-30s): Unified mesh
+#   - All 10 nodes in single mesh
+#   - One bridge elected (likely bridge-main or bridge-small)
+#   - active_bridge_count = 1
+#   - connection_count = high (full mesh)
+#   - isolated_node_count = 0
+#
+# Phase 2 (30-80s): Uneven partitions
+#   
+#   Partition 1 (Large - 7 nodes):
+#   - [bridge-main, sensor-1,2,3,4,5,6]
+#   - Has bridge node → bridge-main likely elected
+#   - Normal partition operation
+#   - Internal communication works
+#   - partition_size = 7
+#   
+#   Partition 2 (Small - 2 nodes):
+#   - [bridge-small, sensor-7]
+#   - Has bridge node → bridge-small elected
+#   - Minimal partition but functional
+#   - Two nodes can communicate
+#   - partition_size = 2
+#   
+#   Partition 3 (Isolated - 1 node):
+#   - [sensor-isolated]
+#   - No other nodes to communicate with
+#   - Cannot elect bridge (no bridge node)
+#   - isolated_node_count = 1 ✓
+#   - partition_size = 1
+#   
+#   Overall state:
+#   - partition_count = 3
+#   - active_bridge_count = 2 (P1 and P2, not P3)
+#   - No cross-partition communication
+#
+# Phase 3 (80-120s): Healed mesh
+#   - All 10 nodes rejoin
+#   - Single bridge re-elected globally
+#   - active_bridge_count = 1 ✓ CRITICAL!
+#   - Isolated node successfully rejoins ✓ CRITICAL!
+#   - Small partition successfully rejoins ✓
+#   - Full connectivity restored
+#   - connection_count = high (full mesh)
+#   - isolated_node_count = 0 ✓
+#   - No orphaned nodes
+#
+# FAILURE INDICATORS (ISSUE #138 PRESENT):
+#
+# 1. Isolated node fails to rejoin:
+#    - sensor-isolated remains disconnected after healing
+#    - isolated_node_count = 1 after t=80s
+#    - Node cannot reach any other nodes
+#    - Connection attempts fail
+#
+# 2. Small partition fails to rejoin:
+#    - bridge-small and sensor-7 remain isolated
+#    - Form separate 2-node mesh after "healing"
+#    - partition_count = 2 (should be 1)
+#    - active_bridge_count = 2 (should be 1)
+#
+# 3. Bridge election issues:
+#    - Multiple bridges remain active after healing
+#    - Large partition's bridge refuses to step down
+#    - Small partition's bridge conflicts with main bridge
+#    - Bridge election never completes
+#
+# 4. Partial rejoin:
+#    - Some nodes rejoin, others don't
+#    - Asymmetric connectivity
+#    - Nodes report different topology views
+#
+# 5. Isolated node specific issues:
+#    - Node panics or crashes when alone
+#    - Node cannot initiate connections after healing
+#    - Node stuck in "searching" state
+#    - Rejoin attempts timeout
+#
+# Edge Cases This Tests:
+#
+# 1. Single-node partition (no peers):
+#    - Can a node survive being completely isolated?
+#    - Can it rejoin when network heals?
+#    - Does it maintain mesh state correctly?
+#
+# 2. Minority partition (2 nodes vs 7):
+#    - Can small partition operate independently?
+#    - Can it elect bridge with limited nodes?
+#    - Does it properly defer to larger mesh on rejoin?
+#
+# 3. Uneven bridge election:
+#    - How do multiple bridges resolve conflict?
+#    - Does node count influence election?
+#    - Proper leader election after rejoin?
+#
+# 4. Resource constraints:
+#    - Large partition has most resources
+#    - Small partitions may timeout differently
+#    - Isolated node has minimal state to maintain
+#
+# 5. Rejoin timing:
+#    - Do all partitions heal simultaneously?
+#    - Does order matter (large first vs small first)?
+#    - Can isolated node reconnect quickly?
+#
+# Critical Success Criteria:
+# - ✓ All 10 nodes in single mesh after t=80s
+# - ✓ Exactly 1 active bridge after healing
+# - ✓ sensor-isolated successfully rejoins
+# - ✓ Full connectivity between all nodes
+# - ✓ No orphaned or stuck nodes
+# - ✓ Stable mesh for remainder of simulation (80-120s)
+#
+# This scenario specifically tests:
+# - Handling of single-node isolation
+# - Minority partition behavior
+# - Uneven partition size handling
+# - Bridge election with size disparity
+# - Complete mesh reformation from uneven split
+# - Edge case resilience

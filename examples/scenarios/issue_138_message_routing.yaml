@@ -1,0 +1,279 @@
+---
+# Issue #138 Validation: Message Routing After Partition
+# Explicitly tests message delivery before, during, and after partition healing
+# Validates that routing tables are properly updated and messages can reach all nodes
+
+simulation:
+  name: "Issue #138 - Message Routing Validation"
+  description: "Tests message delivery and routing correctness across partition events"
+  duration: 150  # 2.5 minutes
+  time_scale: 1.0
+
+nodes:
+  # Partition Group 1
+  - id: "node-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+  
+  - id: "node-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+  
+  - id: "node-3"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+  
+  # Partition Group 2
+  - id: "node-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+  
+  - id: "node-5"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+  
+  - id: "node-6"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "routing138"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"
+
+events:
+  # === Phase 1: Test baseline message delivery (0-30s) ===
+  
+  # Broadcast from node-1 to all nodes
+  - time: 10
+    action: inject_message
+    from: "node-1"
+    to: "broadcast"
+    payload: '{"test": "phase1-broadcast", "from": "node-1", "phase": "unified"}'
+    description: "Phase 1: Test broadcast in unified mesh"
+  
+  # Direct message from node-1 to node-6 (will be in different partition later)
+  - time: 15
+    action: inject_message
+    from: "node-1"
+    to: "node-6"
+    payload: '{"test": "phase1-direct", "from": "node-1", "to": "node-6", "phase": "unified"}'
+    description: "Phase 1: Test direct message across future partition boundary"
+  
+  # Direct message from node-6 to node-1
+  - time: 20
+    action: inject_message
+    from: "node-6"
+    to: "node-1"
+    payload: '{"test": "phase1-reverse", "from": "node-6", "to": "node-1", "phase": "unified"}'
+    description: "Phase 1: Test reverse direct message"
+  
+  # === Phase 2: Create partition (30s) ===
+  
+  - time: 30
+    action: network_partition
+    groups:
+      - [node-1, node-2, node-3]
+      - [node-4, node-5, node-6]
+    description: "Create network partition"
+  
+  # === Phase 3: Test intra-partition messaging (40-70s) ===
+  
+  # Message within partition 1 (should succeed)
+  - time: 40
+    action: inject_message
+    from: "node-1"
+    to: "node-2"
+    payload: '{"test": "phase3-intra-p1", "from": "node-1", "to": "node-2", "phase": "partition"}'
+    description: "Phase 3: Test intra-partition message (partition 1)"
+  
+  # Broadcast within partition 1 (should reach node-1,2,3 only)
+  - time: 45
+    action: inject_message
+    from: "node-3"
+    to: "broadcast"
+    payload: '{"test": "phase3-broadcast-p1", "from": "node-3", "phase": "partition"}'
+    description: "Phase 3: Test broadcast within partition 1"
+  
+  # Message within partition 2 (should succeed)
+  - time: 50
+    action: inject_message
+    from: "node-4"
+    to: "node-6"
+    payload: '{"test": "phase3-intra-p2", "from": "node-4", "to": "node-6", "phase": "partition"}'
+    description: "Phase 3: Test intra-partition message (partition 2)"
+  
+  # Broadcast within partition 2 (should reach node-4,5,6 only)
+  - time: 55
+    action: inject_message
+    from: "node-5"
+    to: "broadcast"
+    payload: '{"test": "phase3-broadcast-p2", "from": "node-5", "phase": "partition"}'
+    description: "Phase 3: Test broadcast within partition 2"
+  
+  # === Phase 4: Test cross-partition messaging (should fail) (60-70s) ===
+  
+  # Message from partition 1 to partition 2 (should fail/drop)
+  - time: 60
+    action: inject_message
+    from: "node-1"
+    to: "node-6"
+    payload: '{"test": "phase4-cross-p1-to-p2", "from": "node-1", "to": "node-6", "phase": "partition"}'
+    description: "Phase 4: Test cross-partition message (should fail)"
+  
+  # Message from partition 2 to partition 1 (should fail/drop)
+  - time: 65
+    action: inject_message
+    from: "node-6"
+    to: "node-1"
+    payload: '{"test": "phase4-cross-p2-to-p1", "from": "node-6", "to": "node-1", "phase": "partition"}'
+    description: "Phase 4: Test reverse cross-partition message (should fail)"
+  
+  # === Phase 5: Heal partition (90s) ===
+  
+  - time: 90
+    action: network_heal
+    description: "Heal network partition"
+  
+  # === Phase 6: Test post-healing messaging (100-145s) ===
+  
+  # Direct message from node-1 to node-6 (should succeed now)
+  - time: 100
+    action: inject_message
+    from: "node-1"
+    to: "node-6"
+    payload: '{"test": "phase6-direct-healed", "from": "node-1", "to": "node-6", "phase": "healed"}'
+    description: "Phase 6: Test direct message after healing (CRITICAL TEST)"
+  
+  # Reverse message from node-6 to node-1 (should succeed)
+  - time: 105
+    action: inject_message
+    from: "node-6"
+    to: "node-1"
+    payload: '{"test": "phase6-reverse-healed", "from": "node-6", "to": "node-1", "phase": "healed"}'
+    description: "Phase 6: Test reverse message after healing"
+  
+  # Broadcast should reach all 6 nodes
+  - time: 110
+    action: inject_message
+    from: "node-1"
+    to: "broadcast"
+    payload: '{"test": "phase6-broadcast-healed", "from": "node-1", "phase": "healed"}'
+    description: "Phase 6: Test broadcast after healing (should reach all nodes)"
+  
+  # Test messages from all nodes to verify full connectivity
+  - time: 115
+    action: inject_message
+    from: "node-2"
+    to: "node-5"
+    payload: '{"test": "phase6-cross-check-1", "from": "node-2", "to": "node-5", "phase": "healed"}'
+    description: "Phase 6: Cross-check message 1"
+  
+  - time: 120
+    action: inject_message
+    from: "node-3"
+    to: "node-4"
+    payload: '{"test": "phase6-cross-check-2", "from": "node-3", "to": "node-4", "phase": "healed"}'
+    description: "Phase 6: Cross-check message 2"
+  
+  - time: 125
+    action: inject_message
+    from: "node-5"
+    to: "node-2"
+    payload: '{"test": "phase6-cross-check-3", "from": "node-5", "to": "node-2", "phase": "healed"}'
+    description: "Phase 6: Cross-check message 3"
+  
+  # Final broadcast test
+  - time: 140
+    action: inject_message
+    from: "node-6"
+    to: "broadcast"
+    payload: '{"test": "phase6-final-broadcast", "from": "node-6", "phase": "healed"}'
+    description: "Phase 6: Final broadcast verification"
+
+metrics:
+  output: "results/issue_138_message_routing.csv"
+  interval: 5
+  collect:
+    - "partition_state"
+    - "message_delivery_rate"     # CRITICAL: Track per phase
+    - "message_success_count"     # Count successful deliveries
+    - "message_failure_count"     # Count failed deliveries
+    - "message_latency"           # Delivery latency
+    - "routing_table_size"        # Size of routing tables
+    - "unreachable_nodes"         # Nodes marked as unreachable
+    - "bridge_state"              # Active bridge per phase
+    - "connection_state"          # Connection status between nodes
+    - "dropped_message_count"     # Messages dropped due to partition
+
+# Expected Message Delivery Results (NO ISSUE #138):
+#
+# Phase 1 (0-30s): Unified mesh - ALL MESSAGES SUCCEED
+#   - time=10: Broadcast from node-1 → reaches all 6 nodes ✓
+#   - time=15: node-1 → node-6 direct → SUCCESS ✓
+#   - time=20: node-6 → node-1 direct → SUCCESS ✓
+#   - message_delivery_rate = 100%
+#
+# Phase 3 (40-70s): During partition - INTRA-PARTITION SUCCEEDS
+#   - time=40: node-1 → node-2 (both in P1) → SUCCESS ✓
+#   - time=45: Broadcast from node-3 → reaches node-1,2,3 only ✓
+#   - time=50: node-4 → node-6 (both in P2) → SUCCESS ✓
+#   - time=55: Broadcast from node-5 → reaches node-4,5,6 only ✓
+#   - message_delivery_rate = 100% within partitions
+#
+# Phase 4 (60-70s): Cross-partition - MUST FAIL
+#   - time=60: node-1 → node-6 (P1 to P2) → DROPPED ✗
+#   - time=65: node-6 → node-1 (P2 to P1) → DROPPED ✗
+#   - dropped_message_count = 2
+#   - This validates partition isolation
+#
+# Phase 6 (100-145s): After healing - ALL MESSAGES SUCCEED AGAIN
+#   - time=100: node-1 → node-6 → SUCCESS ✓ CRITICAL!
+#   - time=105: node-6 → node-1 → SUCCESS ✓ CRITICAL!
+#   - time=110: Broadcast → reaches all 6 nodes ✓
+#   - time=115: node-2 → node-5 → SUCCESS ✓
+#   - time=120: node-3 → node-4 → SUCCESS ✓
+#   - time=125: node-5 → node-2 → SUCCESS ✓
+#   - time=140: Broadcast → reaches all 6 nodes ✓
+#   - message_delivery_rate = 100%
+#   - unreachable_nodes = 0
+#
+# FAILURE INDICATORS (ISSUE #138 PRESENT):
+#
+# 1. Phase 6 messages fail:
+#    - node-1 → node-6 fails (routing not updated)
+#    - node-6 → node-1 fails (stale routing table)
+#    - Broadcast doesn't reach all nodes
+#    - unreachable_nodes > 0 after healing
+#
+# 2. Routing table issues:
+#    - routing_table_size doesn't increase after healing
+#    - Nodes still marked as "unreachable"
+#    - Routing tables show stale partition information
+#
+# 3. Performance issues:
+#    - message_latency significantly higher after healing
+#    - Messages take indirect routes
+#    - Delivery timeouts increase
+#
+# 4. Partial connectivity:
+#    - Some previously partitioned pairs work, others don't
+#    - Asymmetric routing (A→B works but B→A fails)
+#    - Intermittent failures
+#
+# This scenario explicitly validates:
+# - Routing table updates after partition healing
+# - Message delivery correctness in all phases
+# - Complete mesh connectivity restoration
+# - No stale routing information
+# - Proper handling of cross-partition boundaries

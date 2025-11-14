@@ -1,0 +1,210 @@
+---
+# Issue #138 Validation: Rapid Partition-Heal Cycles
+# Tests mesh behavior under multiple rapid partition/heal events
+# This scenario validates that the mesh can handle repeated split-brain scenarios
+# without accumulating state corruption or failing to re-elect a single bridge
+
+simulation:
+  name: "Issue #138 - Rapid Partition Cycles"
+  description: "Tests multiple rapid partition/heal cycles to validate bridge re-election and state management"
+  duration: 180  # 3 minutes
+  time_scale: 1.0
+
+nodes:
+  # Group 1: Bridge + 2 sensors
+  - id: "bridge-1"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+  
+  - id: "sensor-1"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+  
+  - id: "sensor-2"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+  
+  # Group 2: Bridge + 2 sensors
+  - id: "bridge-2"
+    type: "bridge"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+  
+  - id: "sensor-3"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+  
+  - id: "sensor-4"
+    type: "sensor"
+    mesh_prefix: "TestMesh"
+    mesh_password: "rapid138"
+    mesh_port: 5555
+
+topology:
+  type: "mesh"  # Start fully connected
+
+# Event timeline - 3 complete partition/heal cycles
+events:
+  # === CYCLE 1 ===
+  # Partition at 20s
+  - time: 20
+    action: network_partition
+    groups:
+      - [bridge-1, sensor-1, sensor-2]
+      - [bridge-2, sensor-3, sensor-4]
+    description: "Cycle 1: Split into 2 partitions"
+  
+  # Heal at 40s (20 second partition duration)
+  - time: 40
+    action: network_heal
+    description: "Cycle 1: Heal and rejoin mesh"
+  
+  # === CYCLE 2 ===
+  # Partition at 55s (15 second unified period)
+  - time: 55
+    action: network_partition
+    groups:
+      - [bridge-1, sensor-1, sensor-2]
+      - [bridge-2, sensor-3, sensor-4]
+    description: "Cycle 2: Split into 2 partitions again"
+  
+  # Heal at 75s (20 second partition duration)
+  - time: 75
+    action: network_heal
+    description: "Cycle 2: Heal and rejoin mesh"
+  
+  # === CYCLE 3 ===
+  # Partition at 90s (15 second unified period)
+  - time: 90
+    action: network_partition
+    groups:
+      - [bridge-1, sensor-1, sensor-2]
+      - [bridge-2, sensor-3, sensor-4]
+    description: "Cycle 3: Split into 2 partitions again"
+  
+  # Heal at 110s (20 second partition duration)
+  - time: 110
+    action: network_heal
+    description: "Cycle 3: Heal and rejoin mesh"
+  
+  # === CYCLE 4 - Quick cycle ===
+  # Partition at 120s (10 second unified period - stress test)
+  - time: 120
+    action: network_partition
+    groups:
+      - [bridge-1, sensor-1, sensor-2]
+      - [bridge-2, sensor-3, sensor-4]
+    description: "Cycle 4: Quick partition (stress test)"
+  
+  # Heal at 135s (15 second partition - shorter duration)
+  - time: 135
+    action: network_heal
+    description: "Cycle 4: Quick heal"
+  
+  # Final observation period: 135s - 180s (45 seconds)
+  # Should have single bridge and full connectivity
+
+metrics:
+  output: "results/issue_138_rapid_cycles.csv"
+  interval: 3  # Sample every 3 seconds for detailed tracking
+  collect:
+    - "partition_state"         # Which partition each node is in
+    - "bridge_elections"        # Bridge election events
+    - "active_bridge_count"     # CRITICAL: Should be 1 after each heal
+    - "message_delivery_rate"   # Should be high within partitions, 0 across
+    - "connection_count"        # Should decrease during partition, increase after heal
+    - "partition_count"         # Should match event timeline
+    - "node_connectivity"       # Track which nodes can reach which
+    - "bridge_changes"          # Track bridge leadership changes
+    - "routing_table_updates"   # Frequency of routing updates
+
+# Expected Behavior (NO ISSUE #138):
+# 
+# Phase 0 (0-20s): Initial unified mesh
+#   - All 6 nodes form single mesh
+#   - Single bridge elected (e.g., bridge-1)
+#   - active_bridge_count = 1
+#
+# Phase 1 (20-40s): Cycle 1 partition
+#   - Network splits into 2 groups
+#   - Each partition elects its own bridge
+#   - partition_count = 2
+#   - No cross-partition communication
+#
+# Phase 2 (40-55s): Cycle 1 healed
+#   - All nodes rejoin
+#   - Single bridge re-elected
+#   - active_bridge_count = 1 ✓ CRITICAL CHECK
+#   - Full mesh connectivity restored
+#
+# Phase 3 (55-75s): Cycle 2 partition
+#   - Split again (same as cycle 1)
+#   - Each partition elects bridge
+#   - partition_count = 2
+#
+# Phase 4 (75-90s): Cycle 2 healed
+#   - Rejoin mesh
+#   - Single bridge re-elected
+#   - active_bridge_count = 1 ✓ CRITICAL CHECK
+#   - No state corruption from previous cycle
+#
+# Phase 5 (90-110s): Cycle 3 partition
+#   - Split again
+#   - Each partition elects bridge
+#   - partition_count = 2
+#
+# Phase 6 (110-120s): Cycle 3 healed
+#   - Rejoin mesh
+#   - Single bridge re-elected
+#   - active_bridge_count = 1 ✓ CRITICAL CHECK
+#   - Mesh still healthy after 3 cycles
+#
+# Phase 7 (120-135s): Cycle 4 partition (quick)
+#   - Rapid partition after short unified period
+#   - Each partition elects bridge
+#   - Tests quick succession handling
+#
+# Phase 8 (135-180s): Final healed state
+#   - Rejoin mesh
+#   - Single bridge re-elected
+#   - active_bridge_count = 1 ✓ CRITICAL CHECK
+#   - Stable for 45 seconds
+#   - No degradation over time
+#
+# FAILURE INDICATORS (ISSUE #138 PRESENT):
+# 
+# 1. After any heal event:
+#    - active_bridge_count > 1 (multiple bridges remain)
+#    - Some nodes report different bridges
+#    - Bridge election never completes
+#
+# 2. After 2nd or 3rd cycle:
+#    - Mesh fails to fully rejoin
+#    - Some nodes remain isolated
+#    - Message delivery rate < 100%
+#
+# 3. During final phase (135-180s):
+#    - Mesh unstable (connection flapping)
+#    - Bridge changes frequently
+#    - Routing errors increase
+#
+# 4. Performance degradation:
+#    - Each cycle takes longer to stabilize
+#    - Bridge election timeouts increase
+#    - Connection establishment delays
+#
+# This scenario is specifically designed to catch:
+# - State accumulation bugs
+# - Bridge re-election failures
+# - Connection state corruption
+# - Routing table inconsistencies
+# - Memory leaks or resource exhaustion over multiple cycles
