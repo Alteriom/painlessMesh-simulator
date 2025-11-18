@@ -2,6 +2,10 @@
 
 This directory contains example firmware implementations for the painlessMesh simulator.
 
+## For Existing Firmware Projects
+
+**Have your own ESP32/ESP8266 firmware?** See the [Integrating into Your Project Guide](../../docs/INTEGRATING_INTO_YOUR_PROJECT.md) for step-by-step instructions on testing your firmware with the simulator.
+
 ## Available Examples
 
 ### SimpleBroadcastFirmware

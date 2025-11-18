@@ -50,6 +50,16 @@ The painlessMesh Device Simulator lets you test mesh network firmware with **100
 - ✅ **Reproducible scenarios** - YAML configuration for consistent testing
 - ✅ **Cost effective** - Test without buying hundreds of ESP32s
 
+## I have existing firmware - how do I test it?
+
+**→ [Integrating into Your Project Guide](docs/INTEGRATING_INTO_YOUR_PROJECT.md)**
+
+If you already have ESP32/ESP8266 firmware using painlessMesh, this guide shows you how to:
+- Organize your code for testability
+- Create a simulator test harness
+- Run your firmware with 100+ virtual nodes
+- Add automated testing to your CI/CD pipeline
+
 ## Platform Choice
 
 ### Option 1: Docker (Recommended for Quick Start)

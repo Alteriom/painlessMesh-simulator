@@ -6,6 +6,15 @@ This is the complete planning documentation for the painlessMesh device simulato
 
 ## 🎯 Quick Navigation
 
+### For Firmware Developers (Start Here!)
+**→ [INTEGRATING_INTO_YOUR_PROJECT.md](INTEGRATING_INTO_YOUR_PROJECT.md)** (NEW!)
+- Test your existing ESP32/ESP8266 firmware
+- Step-by-step integration guide
+- Project structure examples
+- CMake integration
+- CI/CD pipeline setup
+- **Read this if you have firmware to test**
+
 ### For Decision Makers
 **→ [SIMULATOR_SUMMARY.md](SIMULATOR_SUMMARY.md)** (10KB)
 - Executive overview

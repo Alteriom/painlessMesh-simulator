@@ -2,7 +2,13 @@
 
 ## Overview
 
-The painlessMesh simulator now supports custom firmware loading, enabling you to test mesh-aware applications without physical hardware. This document explains how to use and develop firmware for the simulator.
+The painlessMesh simulator supports custom firmware loading, enabling you to test mesh-aware applications without physical hardware. This document explains how to use and develop firmware for the simulator.
+
+## Quick Links
+
+- **Have existing firmware?** → [Integrating into Your Project](INTEGRATING_INTO_YOUR_PROJECT.md) - Complete guide for testing your ESP32/ESP8266 firmware
+- **New to the simulator?** → This guide covers simulator-specific firmware features
+- **Need examples?** → See [examples/firmware/](../examples/firmware/)
 
 ## Architecture
 
