@@ -7,13 +7,21 @@ This is the complete planning documentation for the painlessMesh device simulato
 ## 🎯 Quick Navigation
 
 ### For Firmware Developers (Start Here!)
-**→ [INTEGRATING_INTO_YOUR_PROJECT.md](INTEGRATING_INTO_YOUR_PROJECT.md)** (NEW!)
+
+**→ [FIRMWARE_INTEGRATION_SUMMARY.md](FIRMWARE_INTEGRATION_SUMMARY.md)** (QUICK START!)
+- Quick links to all integration resources
+- Working example
+- Common patterns
+- Migration checklist
+- **Read this first for overview**
+
+**→ [INTEGRATING_INTO_YOUR_PROJECT.md](INTEGRATING_INTO_YOUR_PROJECT.md)** (COMPLETE GUIDE)
 - Test your existing ESP32/ESP8266 firmware
 - Step-by-step integration guide
 - Project structure examples
 - CMake integration
 - CI/CD pipeline setup
-- **Read this if you have firmware to test**
+- **Read this for detailed instructions**
 
 ### For Decision Makers
 **→ [SIMULATOR_SUMMARY.md](SIMULATOR_SUMMARY.md)** (10KB)
@@ -125,8 +133,9 @@ Use the quick reference below to jump directly to what you need.
 → [SIMULATOR_PLAN.md - Technical Specifications](SIMULATOR_PLAN.md#technical-specifications)
 
 **"How do I integrate my firmware?"**
-→ [SIMULATOR_QUICKSTART.md - Integration](SIMULATOR_QUICKSTART.md#integration-with-your-firmware)  
-→ [SIMULATOR_PLAN.md - Firmware Integration](SIMULATOR_PLAN.md#example-firmware-implementation)
+→ [FIRMWARE_INTEGRATION_SUMMARY.md](FIRMWARE_INTEGRATION_SUMMARY.md) - Quick overview  
+→ [INTEGRATING_INTO_YOUR_PROJECT.md](INTEGRATING_INTO_YOUR_PROJECT.md) - Complete guide  
+→ [PlatformIO Example](../examples/integration/platformio-example/) - Working example
 
 **"What are the phases?"**
 → [SIMULATOR_PLAN.md - Implementation Roadmap](SIMULATOR_PLAN.md#implementation-roadmap)
