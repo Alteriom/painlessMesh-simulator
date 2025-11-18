@@ -905,6 +905,52 @@ void MyFirmware::onReceive(uint32_t from, String& msg) {
 }
 ```
 
+### Issue: CMake can't find painlessMesh
+
+**Symptom**: CMake error: "Could not find painlessMesh"
+
+**Cause**: PAINLESSMESH_PATH not set or incorrect
+
+**Solution**: Set the path explicitly:
+
+```bash
+cmake -DPAINLESSMESH_PATH=/path/to/painlessMesh ..
+```
+
+Or in CMakeLists.txt:
+```cmake
+set(PAINLESSMESH_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../external/painlessMesh" CACHE PATH "Path to painlessMesh")
+```
+
+### Issue: Multiple definition errors
+
+**Symptom**: Linker errors about multiple definitions
+
+**Cause**: Including .cpp files or missing include guards
+
+**Solution**:
+1. Only include .h files, not .cpp
+2. Ensure all headers have include guards
+3. Check for duplicate REGISTER_FIRMWARE calls
+
+### Issue: Task scheduler doesn't work
+
+**Symptom**: Periodic tasks don't execute
+
+**Cause**: Not calling scheduler->execute() or mesh->update()
+
+**Solution**: In simulator, the framework handles this automatically, but ensure your loop() doesn't block:
+
+```cpp
+void loop() override {
+  // Don't do this:
+  // delay(1000);
+  
+  // Use scheduler instead:
+  // task_.set(1000, TASK_ONCE, []() { /* do work */ });
+}
+```
+
 ## Migration Checklist
 
 - [ ] Organize firmware into reusable library classes
@@ -938,31 +984,26 @@ void MyFirmware::onReceive(uint32_t from, String& msg) {
 
 ### PlatformIO Integration Example
 
-Complete example at `examples/platformio-integration/`:
+**→ [Complete working example](../examples/integration/platformio-example/)**
 
-```
-examples/platformio-integration/
-├── lib/
-│   └── MyMeshApp/
-├── src/
-│   └── main.cpp
-├── test/
-│   └── simulator/
-└── platformio.ini
-```
+This example includes:
+- Platform-agnostic application code (`MyMeshApp`)
+- ESP32 firmware (`src/main.cpp`)
+- Simulator test harness
+- Multiple test scenarios
+- Ready to copy and adapt
 
-### Arduino IDE Integration Example
+See the example's README for build instructions.
 
-Complete example at `examples/arduino-integration/`:
+### Project Structure Examples
 
-```
-examples/arduino-integration/
-├── MyMeshApp/
-│   └── MyMeshApp.ino
-├── test/
-│   └── simulator/
-└── README.md
-```
+**→ [More examples and patterns](../examples/PROJECT_STRUCTURE_EXAMPLES.md)**
+
+Includes examples for:
+- PlatformIO projects
+- Arduino IDE projects
+- Multi-node type systems
+- Minimal integration
 
 ## Community Examples
 

@@ -236,6 +236,12 @@ jobs:
 - `docs/CONFIGURATION_GUIDE.md`: Scenario configuration reference
 - `docs/API_REFERENCE.md`: API documentation
 
+## Integration Examples
+
+**Testing your own firmware?** See [examples/integration/](examples/integration/) for complete working examples:
+- **[PlatformIO Integration](examples/integration/platformio-example/)** - Full example with ESP32 firmware and simulator tests
+- **[Project Structure Examples](examples/PROJECT_STRUCTURE_EXAMPLES.md)** - Multiple integration patterns
+
 ## Example Scenarios
 
 ### Simple Mesh Formation

@@ -1,0 +1,57 @@
+simulation:
+  name: "MyMeshApp Stress Test"
+  description: "Test with 20 nodes to validate scalability"
+  duration: 120
+  time_scale: 10.0  # Run 10x faster
+  seed: 54321
+
+network:
+  default_latency:
+    min_ms: 5
+    max_ms: 50
+  default_packet_loss:
+    rate: 0.01  # 1% packet loss
+  default_bandwidth:
+    bits_per_second: 500000
+
+nodes:
+  # Template approach: create 20 nodes with same config
+  - template: "mesh_node"
+    count: 20
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+topology:
+  type: "mesh"  # Full mesh connectivity
+  density: 0.4  # 40% connection density
+
+events:
+  # Test node failure at 30 seconds
+  - time: 30
+    action: "stop_node"
+    nodes: ["node_0", "node_1"]
+  
+  # Test node recovery at 60 seconds
+  - time: 60
+    action: "start_node"
+    nodes: ["node_0", "node_1"]
+  
+  # Test partition at 90 seconds
+  - time: 90
+    action: "partition_network"
+    groups:
+      - ["node_0", "node_1", "node_2", "node_3", "node_4"]
+      - ["node_5", "node_6", "node_7", "node_8", "node_9"]
+
+metrics:
+  output: "stress_test_metrics.csv"
+  interval: 5
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "message_delivery_rate"
+    - "average_latency"
+    - "active_nodes"
