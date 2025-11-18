@@ -1,0 +1,64 @@
+simulation:
+  name: "MyMeshApp Basic Functionality Test"
+  description: "Test basic message sending and receiving with 5 nodes"
+  duration: 60  # Run for 60 seconds
+  time_scale: 5.0  # Run 5x faster (60 seconds in 12 real seconds)
+  seed: 12345  # For reproducible results
+
+network:
+  default_latency:
+    min_ms: 10
+    max_ms: 30
+  default_packet_loss:
+    rate: 0.0
+  default_bandwidth:
+    bits_per_second: 1000000
+
+nodes:
+  # Create 5 nodes all running MyMeshApp firmware
+  - id: "node1"
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+  - id: "node2"
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+  - id: "node3"
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+  - id: "node4"
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+  - id: "node5"
+    firmware: "MyMeshApp"
+    config:
+      mesh_prefix: "MyMeshNetwork"
+      mesh_password: "password123"
+      mesh_port: 5555
+
+topology:
+  type: "random"  # Random connections between nodes
+
+metrics:
+  output: "basic_test_metrics.csv"
+  interval: 5
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "bytes_sent"
+    - "bytes_received"

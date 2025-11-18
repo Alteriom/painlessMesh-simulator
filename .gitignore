@@ -5,6 +5,8 @@ cmake-build-*/
 out/
 bin/
 lib/
+# Exception: Keep example lib directories (source code, not build artifacts)
+!examples/**/lib/
 
 # IDE and editor files
 .vscode/

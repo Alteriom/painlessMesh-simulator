@@ -4,6 +4,16 @@
 
 This guide explains the two-tier firmware architecture in the painlessMesh simulator and how to develop firmware for each tier.
 
+## Quick Start
+
+**Testing your own firmware?** → See [Integrating into Your Project](INTEGRATING_INTO_YOUR_PROJECT.md) for practical integration steps.
+
+**This guide covers**:
+- Two-tier firmware architecture (library validation vs application)
+- When to use each tier
+- Firmware development patterns
+- API validation status
+
 ## Two-Tier Architecture
 
 ### Tier 1: Library Validation Firmware (Foundation)

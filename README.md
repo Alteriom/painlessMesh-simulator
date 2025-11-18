@@ -195,12 +195,17 @@ jobs:
 
 ## Documentation
 
+### Getting Started
+
+- **[Getting Started](GETTING_STARTED.md)**: 🚀 Platform setup and first steps
+- **[Integrating into Your Project](docs/INTEGRATING_INTO_YOUR_PROJECT.md)**: 🔧 **Test your existing ESP32/ESP8266 firmware**
+- **[Quick Start Guide](docs/SIMULATOR_QUICKSTART.md)**: Usage examples and CLI reference
+- **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
+
 ### User Documentation
 
-- **[Quick Start Guide](docs/SIMULATOR_QUICKSTART.md)**: Get started in 5 minutes
 - **[Complete Plan](docs/SIMULATOR_PLAN.md)**: Full technical specification
 - **[Executive Summary](docs/SIMULATOR_SUMMARY.md)**: Overview and benefits
-- **[Documentation Index](docs/SIMULATOR_INDEX.md)**: Navigate all docs
 - **[Network Latency Simulation](docs/NETWORK_LATENCY.md)**: Configure realistic network delays
 - **[Bandwidth Limiting](docs/BANDWIDTH_LIMITING.md)**: Rate limiting with token bucket algorithm
 - **[Packet Loss Simulation](docs/PACKET_LOSS.md)**: Configure and test with packet loss
@@ -230,6 +235,12 @@ jobs:
 - `docs/ARCHITECTURE.md`: System design and components
 - `docs/CONFIGURATION_GUIDE.md`: Scenario configuration reference
 - `docs/API_REFERENCE.md`: API documentation
+
+## Integration Examples
+
+**Testing your own firmware?** See [examples/integration/](examples/integration/) for complete working examples:
+- **[PlatformIO Integration](examples/integration/platformio-example/)** - Full example with ESP32 firmware and simulator tests
+- **[Project Structure Examples](examples/PROJECT_STRUCTURE_EXAMPLES.md)** - Multiple integration patterns
 
 ## Example Scenarios
 
