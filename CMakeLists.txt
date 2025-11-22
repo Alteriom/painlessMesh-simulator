@@ -179,6 +179,9 @@ set(SIMULATOR_SOURCES
   src/firmware/echo_server_firmware.cpp
   src/firmware/echo_client_firmware.cpp
   src/firmware/library_validation_firmware.cpp
+  # .ino firmware wrappers
+  src/firmware/bridge_ino_firmware.cpp
+  src/firmware/basic_ino_firmware.cpp
   # src/scenario/scenario_engine.cpp
   # src/metrics/metrics_collector.cpp
 )
@@ -206,6 +209,7 @@ set(SIMULATOR_HEADERS
   include/simulator/firmware/echo_server_firmware.hpp
   include/simulator/firmware/echo_client_firmware.hpp
   include/simulator/firmware/library_validation_firmware.hpp
+  include/simulator/firmware/ino_firmware_wrapper.hpp
   # include/simulator/scenario_engine.hpp
   # include/simulator/network_simulator.hpp
   # include/simulator/metrics_collector.hpp
@@ -277,6 +281,7 @@ if(ENABLE_TESTING)
     test/test_connection_events.cpp
     test/test_partition_events.cpp
     test/test_firmware.cpp
+    test/test_bridge_internet_detection.cpp
     src/cli/cli_parser.cpp
     # test/test_scenario_engine.cpp
   )
