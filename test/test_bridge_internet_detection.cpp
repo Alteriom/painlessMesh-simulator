@@ -269,7 +269,6 @@ TEST_CASE("Multiple bridges internet detection", "[bridge][internet][multiple]")
     bridge1_config.meshPrefix = "TestMesh";
     bridge1_config.meshPassword = "password";
     bridge1_config.meshPort = 5555;
-    bridge1_config.isBridge = true;
     
     auto bridge1 = manager.createNode(bridge1_config);
     REQUIRE(bridge1 != nullptr);
@@ -280,7 +279,6 @@ TEST_CASE("Multiple bridges internet detection", "[bridge][internet][multiple]")
     bridge2_config.meshPrefix = "TestMesh";
     bridge2_config.meshPassword = "password";
     bridge2_config.meshPort = 5555;
-    bridge2_config.isBridge = true;
     
     auto bridge2 = manager.createNode(bridge2_config);
     REQUIRE(bridge2 != nullptr);
