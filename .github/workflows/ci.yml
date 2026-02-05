@@ -246,12 +246,12 @@ jobs:
       
       - name: Run benchmarks
         run: |
-          # Run stress test scenario at 5x speed
+          # Run stress test scenario at 10x speed (uses config duration of 300s = 30s real time)
           docker run --rm \
             -v ${{ github.workspace }}:/build \
             -w /build \
             painlessmesh-simulator:builder \
-            bash -c "./build/bin/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --duration 60 --time-scale 5.0 --log-level WARN"
+            bash -c "./build/bin/painlessmesh-simulator --config examples/scenarios/stress_test.yaml --time-scale 10.0 --log-level WARN"
           
           echo "Benchmark completed - check results directory for metrics"
       
