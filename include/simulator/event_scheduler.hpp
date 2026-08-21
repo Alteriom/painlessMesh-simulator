@@ -95,12 +95,24 @@ public:
    * @param manager Node manager for event execution
    * @param network Network simulator for event execution
    * 
-   * @return Number of events executed
+   * @return Number of events executed successfully
    * 
-   * @note If an event throws an exception during execution, the exception
-   *       is logged and the scheduler continues processing remaining events.
+   * @note If an event throws during execution, the exception is logged, the
+   *       scheduler continues with the remaining events, and the throw is
+   *       counted -- see getFailedCount(). Callers running a timeline as a
+   *       gate must check that count: a start/restart event that cannot rebuild
+   *       its transport otherwise leaves the run printing "completed
+   *       successfully" and exiting 0 over a timeline that did not execute.
    */
   uint32_t processEvents(uint32_t currentTime, NodeManager& manager, NetworkSimulator& network);
+
+  /**
+   * @brief Number of events that threw during execution across this run
+   *
+   * Accumulates across every processEvents() call; never reset except by
+   * clear(). Non-zero means the timeline did not fully execute.
+   */
+  size_t getFailedCount() const { return failedCount_; }
   
   /**
    * @brief Check if there are pending events
@@ -162,6 +174,9 @@ private:
   /// Stamped onto each event as it is queued; never reset, so ordering holds
   /// across a clear() and re-fill too.
   uint64_t nextSequence_ = 0;
+
+  /// Events that threw during execution; read by the run's exit path.
+  size_t failedCount_ = 0;
 };
 
 } // namespace simulator

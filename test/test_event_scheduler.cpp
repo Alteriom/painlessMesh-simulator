@@ -285,6 +285,28 @@ TEST_CASE("EventScheduler event processing", "[event_scheduler]") {
     uint32_t executed = scheduler.processEvents(40, manager, network);
     REQUIRE(executed == 2);  // Only 2 succeeded
     REQUIRE(counter == 2);   // Both counter events executed
+    // ...and the failure is visible, so the run's exit path can be non-zero
+    // rather than printing "completed successfully" over a broken timeline.
+    REQUIRE(scheduler.getFailedCount() == 1);
+  }
+
+  SECTION("a clean run reports no failures") {
+    EventScheduler scheduler;
+    int counter = 0;
+    scheduler.scheduleEvent(std::make_unique<CounterEvent>(counter), 10);
+    scheduler.processEvents(20, manager, network);
+    REQUIRE(scheduler.getFailedCount() == 0);
+  }
+
+  SECTION("failure count accumulates across calls and clears with clear()") {
+    EventScheduler scheduler;
+    scheduler.scheduleEvent(std::make_unique<FailingEvent>(), 10);
+    scheduler.scheduleEvent(std::make_unique<FailingEvent>(), 20);
+    scheduler.processEvents(10, manager, network);
+    scheduler.processEvents(20, manager, network);
+    REQUIRE(scheduler.getFailedCount() == 2);
+    scheduler.clear();
+    REQUIRE(scheduler.getFailedCount() == 0);
   }
   
   SECTION("does not execute future events") {

@@ -50,8 +50,11 @@ uint32_t EventScheduler::processEvents(uint32_t currentTime, NodeManager& manage
       event->execute(manager, network);
       executedCount++;
     } catch (const std::exception& e) {
-      // Log error but continue processing other events
+      // Log error and continue with the remaining events, but count the
+      // failure: a caller gating on this timeline must not read "run finished"
+      // as "timeline executed".
       std::cerr << "[ERROR] Event execution failed: " << e.what() << std::endl;
+      ++failedCount_;
     }
   }
   
@@ -79,6 +82,7 @@ void EventScheduler::clear() {
                       std::vector<std::unique_ptr<Event>>, 
                       EventComparator> emptyQueue;
   eventQueue_ = std::move(emptyQueue);
+  failedCount_ = 0;
 }
 
 } // namespace simulator

@@ -157,12 +157,17 @@ size_t NodeManager::establishConnectivity(
   return wired;
 }
 
-void NodeManager::settleLink(uint32_t a, uint32_t b) {
+bool NodeManager::settleLink(uint32_t a, uint32_t b) {
   // A loopback handshake completes in a millisecond or two, so this returns
   // almost immediately for a link the mesh accepts. The budget is only spent
   // on a link painlessMesh declines to hold -- a redundant edge -- and 100ms
   // of that at startup beats the alternative, which was a mesh with no live
   // links at all.
+  //
+  // Returns whether both endpoints actually came up. A timeout is a real
+  // failure: reporting a link "wired" or "re-established" when the handshake
+  // never completed is exactly the false assurance settlement exists to
+  // remove, so the caller must see it.
   constexpr int kSettleBudgetMs = 100;
   auto nodeA = getNode(a);
   auto nodeB = getNode(b);
@@ -171,10 +176,11 @@ void NodeManager::settleLink(uint32_t a, uint32_t b) {
   while (std::chrono::steady_clock::now() < deadline) {
     updateAll();
     if (nodeA && nodeB && nodeA->isConnectedTo(b) && nodeB->isConnectedTo(a)) {
-      return;
+      return true;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
+  return false;
 }
 
 bool NodeManager::connectNodes(uint32_t fromNode, uint32_t toNode) {
@@ -194,9 +200,13 @@ bool NodeManager::connectNodes(uint32_t fromNode, uint32_t toNode) {
   // -- startup wiring, a heal, a restore, a node rejoining -- has a next step
   // that assumes the link exists, and a same-second dependent event got a
   // refusal because it ran before the handshake completed. Settle here so no
-  // caller has to remember.
-  settleLink(fromNode, toNode);
-  return true;
+  // caller has to remember, and report the truth: if the link never came up,
+  // this is not a connection, and returning true would let startup count it
+  // wired and a heal report it restored while dependent traffic is still
+  // refused. The topology edge stays recorded -- the scenario still intends
+  // it, and a later heal or reconnect may bring it up -- but the count does
+  // not lie about now.
+  return settleLink(fromNode, toNode);
 }
 
 size_t NodeManager::dropLink(uint32_t a, uint32_t b) {

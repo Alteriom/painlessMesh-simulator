@@ -616,6 +616,37 @@ TEST_CASE("connectNodes leaves the link live, not merely requested",
   manager.stopAll();
 }
 
+TEST_CASE("settleLink reports whether the link actually came up",
+          "[node_manager][topology]") {
+  // settleLink returning true unconditionally let a timed-out handshake be
+  // counted as a wired link and a re-established heal, which is the false
+  // assurance settlement exists to remove. A pair that was never connected is
+  // the clean deterministic timeout: it must return false.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig a;
+  a.nodeId = 8901;
+  a.meshPrefix = "TestMesh";
+  a.meshPassword = "password";
+  a.meshPort = 19901;
+  NodeConfig b = a;
+  b.nodeId = 8902;
+
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.startAll();
+
+  // Never connected: settlement must time out and report failure.
+  REQUIRE_FALSE(manager.settleLink(8901, 8902));
+
+  // Connected: connectNodes settles internally and returns the live result.
+  REQUIRE(manager.connectNodes(8901, 8902));
+  REQUIRE(manager.settleLink(8901, 8902));
+
+  manager.stopAll();
+}
+
 TEST_CASE("A healed link carries traffic before the next event runs",
           "[node_manager][heal]") {
   boost::asio::io_context io;

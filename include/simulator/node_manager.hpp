@@ -178,8 +178,11 @@ public:
    * whole mesh down: measured on a 4-node full mesh, 6 links wired, 0 live and
    * not one message delivered in 20s. Given a moment between connects it
    * instead prunes the redundant edges and keeps a working spanning tree.
+   *
+   * @return true if both endpoints report the connection within the budget;
+   *         false on timeout -- a real failure the caller must not paper over.
    */
-  void settleLink(uint32_t a, uint32_t b);
+  bool settleLink(uint32_t a, uint32_t b);
   
   // Queries
   

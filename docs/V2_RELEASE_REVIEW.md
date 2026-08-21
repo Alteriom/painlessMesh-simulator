@@ -34,8 +34,9 @@ itself; 9-16 came out of review of the resulting PR and are the deeper half --
 a fired event is not the same thing as an event that did something, a node the
 simulator calls stopped is not necessarily a node that stopped, a topology the
 scenario declares was not the topology it ran on, a link the simulator says it
-restored was not yet carrying traffic when the next event needed it, and a
-probe meant to measure the mesh was quietly reshaping it.
+restored was not yet carrying traffic when the next event needed it, a probe
+meant to measure the mesh was quietly reshaping it, and a run that dropped an
+event still called itself a success.
 
 ## Findings
 
@@ -470,6 +471,51 @@ the same pair forces it into the tree while the injection does not.
 the plan -- would have been seed-dependent, since a random tree may include it
 anyway. The test asserts "no influence" instead, which holds for every seed.)
 
+### 20. `settleLink()` reported success even on timeout (medium)
+
+Raised by `chatgpt-codex-connector` on the sixth review pass, against finding
+17's fix. Correct.
+
+`settleLink()` (finding 17) pumped the mesh until both endpoints reported the
+connection, then returned -- but it returned `void`, and `connectNodes()`
+returned `true` unconditionally after calling it. So a handshake that did not
+complete within the 100 ms budget was still counted: startup reported the link
+"wired", and heal/restore/reconnect reported it "re-established", while
+dependent traffic could still be refused -- the exact false assurance
+settlement exists to remove.
+
+`settleLink()` now returns whether both endpoints actually came up, and
+`connectNodes()` returns that. On loopback a real link settles in a millisecond
+or two, so every genuine connection still returns true; only a link that never
+comes live returns false, and its caller's count reflects that. The topology
+edge stays recorded either way -- the scenario still intends it, and a later
+heal may bring it up -- so the intent map is unchanged; only the success count
+stops lying about the present. A unit test pins it: a never-connected pair
+settles false, a connected pair settles true.
+
+### 21. A thrown scheduled event did not fail the run (medium)
+
+`EventScheduler::processEvents()` caught an exception from an event, logged
+`[ERROR] Event execution failed`, dropped the event and carried on -- correct
+for keeping the rest of the timeline moving, but it returned only the
+*executed* count, and the run's main loop ignored even that. So a timeline with
+a failed event still printed `Simulation completed successfully` and exited 0.
+A gate or experiment would accept a run whose timeline did not execute.
+
+`processEvents()` now counts throws in `getFailedCount()` (accumulated across
+calls, cleared by `clear()`), and the run's exit path fails with a non-zero
+status and a clear message when that count is non-zero. Unit tests cover the
+counting: a `FailingEvent` yields `getFailedCount() == 1`, a clean run yields
+0, and the count accumulates and clears.
+
+No *shipped* scenario can currently reach this: every event that could throw
+does so on an unknown node, and those are caught at schedule time -- by config
+validation for `target`, and by the event factory for `from`/`to` -- both of
+which already fail the run. So this hardens the execution path against future
+events (and the "cannot rebuild its transport" class the reviewer named) rather
+than fixing an observable failure today, which is why its coverage is the
+scheduler unit tests, not a gate scenario that cannot legitimately be built.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -511,9 +557,10 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 126 test cases, 1465 assertions, all passing (was 107/1333 before
+- Unit tests: 127 test cases, 1472 assertions, all passing (was 107/1333 before
   this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
-  122/1454 before findings 17-18; 124/1462 before finding 19).
+  122/1454 before findings 17-18; 124/1462 before finding 19; 126/1465 before
+  findings 20-21).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -542,6 +589,11 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   `eventPairs()`, both injection-bias tests fail -- an injection once again
   changes the planned tree. All 9 gate steps still pass, since no shipped
   scenario's assertions depended on the bias.
+- Findings 20 and 21 at the unit level. With `settleLink()` forced to return
+  true, the never-connected pair test fails; with the failure counter removed,
+  the scheduler's `getFailedCount()` assertions fail. Both are unit-covered
+  rather than gated: a settlement timeout does not occur on loopback, and no
+  shipped event throws at execution time.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

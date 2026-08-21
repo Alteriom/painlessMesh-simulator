@@ -373,7 +373,20 @@ int main(int argc, char* argv[]) {
     std::cout << "Total messages sent: " << total_sent << std::endl;
     std::cout << "Total messages received: " << total_received << std::endl;
     std::cout << "==========================" << std::endl;
-    
+
+    // A scheduled event that threw was logged and skipped, not fatal in the
+    // moment -- but the timeline did not fully execute, so the run did not
+    // succeed. Without this a start/restart event that cannot rebuild its
+    // transport still exits 0 under "completed successfully", and a gate or
+    // experiment accepts a timeline that never ran.
+    const size_t event_failures = event_scheduler.getFailedCount();
+    if (event_failures > 0) {
+      std::cerr << "\n[ERROR] " << event_failures
+                << " scheduled event(s) failed to execute; the timeline did not "
+                << "run to completion" << std::endl;
+      return 1;
+    }
+
     std::cout << "\n[INFO] Simulation completed successfully" << std::endl;
     return 0;
     
