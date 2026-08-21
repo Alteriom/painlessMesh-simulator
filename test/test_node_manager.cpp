@@ -583,3 +583,64 @@ TEST_CASE("NodeManager reattaches a restarted node", "[node_manager][topology]")
   REQUIRE(manager.reconnectNode(34001) == 1);
   REQUIRE_FALSE(manager.isLinkSevered(34001, 34002));
 }
+
+TEST_CASE("connectNodes leaves the link live, not merely requested",
+          "[node_manager][topology]") {
+  // MeshTest::connect() only starts an asynchronous TCP connect. Every caller
+  // -- startup wiring, heal, restore, a node rejoining -- has a next step that
+  // assumes the link exists, and EventScheduler runs same-time events back to
+  // back with no pump between them: a heal reported "1 mesh link(s) restored"
+  // and the injection declared for the same second was refused.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig a;
+  a.nodeId = 8801;
+  a.meshPrefix = "TestMesh";
+  a.meshPassword = "password";
+  a.meshPort = 19801;
+  NodeConfig b = a;
+  b.nodeId = 8802;
+
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.startAll();
+
+  REQUIRE(manager.connectNodes(8801, 8802));
+
+  // No pumping by the test: if connectNodes() returned before the handshake
+  // completed, this is false and every same-tick caller is broken.
+  REQUIRE(manager.getNode(8801)->isConnectedTo(8802));
+  REQUIRE(manager.getNode(8802)->isConnectedTo(8801));
+
+  manager.stopAll();
+}
+
+TEST_CASE("A healed link carries traffic before the next event runs",
+          "[node_manager][heal]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19811;
+
+  for (uint32_t id : {8811u, 8812u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8811, 8812));
+
+  manager.partitionNetwork({{8811}, {8812}});
+  REQUIRE_FALSE(manager.getNode(8811)->isConnectedTo(8812));
+
+  REQUIRE(manager.healNetwork() == 1);
+  // Immediately after the heal returns, as a same-second event would see it.
+  REQUIRE(manager.getNode(8811)->isConnectedTo(8812));
+  REQUIRE(manager.getNode(8811)->injectMessage(8812, "same second"));
+
+  manager.stopAll();
+}

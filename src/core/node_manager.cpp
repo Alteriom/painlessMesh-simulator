@@ -153,7 +153,6 @@ size_t NodeManager::establishConnectivity(
     if (connectNodes(link.first, link.second)) {
       ++wired;
     }
-    settleLink(link.first, link.second);
   }
   return wired;
 }
@@ -191,6 +190,12 @@ bool NodeManager::connectNodes(uint32_t fromNode, uint32_t toNode) {
   from->connectTo(*to);
   topology_[fromNode].insert(toNode);
   topology_[toNode].insert(fromNode);
+  // MeshTest::connect() only *starts* an asynchronous TCP connect. Every caller
+  // -- startup wiring, a heal, a restore, a node rejoining -- has a next step
+  // that assumes the link exists, and a same-second dependent event got a
+  // refusal because it ran before the handshake completed. Settle here so no
+  // caller has to remember.
+  settleLink(fromNode, toNode);
   return true;
 }
 
@@ -279,7 +284,12 @@ size_t NodeManager::reconnectNode(uint32_t nodeId) {
     if (isLinkSevered(nodeId, peer_id)) continue;
     auto peer = getNode(peer_id);
     if (!peer || !peer->isRunning()) continue;
-    if (node->isConnectedTo(peer_id) || peer->isConnectedTo(nodeId)) continue;
+    // Judge on the restarted node's own view only. The peer can still be
+    // holding a connection object for the socket this node closed on its way
+    // down -- it learns otherwise on its next poll -- and treating that stale
+    // view as "already connected" leaves the node permanently detached. If the
+    // link really is live, the node's own view says so.
+    if (node->isConnectedTo(peer_id)) continue;
     if (connectNodes(nodeId, peer_id)) ++reconnected;
   }
   return reconnected;

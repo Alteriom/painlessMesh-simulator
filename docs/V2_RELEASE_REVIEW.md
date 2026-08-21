@@ -32,8 +32,9 @@ lines of CMake.
 The real finding is what the port exposed. Findings 1-8 came out of the port
 itself; 9-16 came out of review of the resulting PR and are the deeper half --
 a fired event is not the same thing as an event that did something, a node the
-simulator calls stopped is not necessarily a node that stopped, and a topology
-the scenario declares was not the topology it ran on.
+simulator calls stopped is not necessarily a node that stopped, a topology the
+scenario declares was not the topology it ran on, and a link the simulator says
+it restored was not yet carrying traffic when the next event needed it.
 
 ## Findings
 
@@ -383,6 +384,64 @@ Events are now stamped with a monotonic sequence at schedule time and the
 comparator breaks ties on it. Two tests cover it, and both fail on the old
 comparator with the scramble above.
 
+### 17. A restored link was not live when the next event ran (medium)
+
+Raised by `chatgpt-codex-connector` on the fourth review pass. Confirmed.
+
+`NodeManager::connectNodes()` calls `MeshTest::connect()`, which only *starts*
+an asynchronous TCP connect. `EventScheduler::processEvents()` runs every event
+due at a timestamp back to back with no pump between them. So a `heal_partition`
+followed by an `inject_message` at the same second -- now that finding 16
+guarantees they run in that order -- healed the link and then refused the
+injection, because the handshake had not completed. On `heal_then_inject_test`
+(a 4-node line, split in half, healed at t=20, `n1 -> n4` injected at t=20):
+
+```
+[EVENT] t=20s: Heal network partitions
+[EVENT] Network partitions healed (1 mesh link(s) restored)
+[EVENT] t=20s: Inject message: 158454472 -> 1772092626
+[EVENT] Message injected from 158454472 to 1772092626 -- REFUSED
+```
+
+The link only showed live at the next progress tick, five seconds later.
+
+The fix is one line, in the right place. `connectNodes()` now calls
+`settleLink()` before returning, so *every* caller -- startup wiring, heal,
+restore, a node rejoining -- hands back a link that is actually carrying
+traffic, and no caller has to remember to pump. (The startup path called
+`settleLink()` itself before; that call moved down into `connectNodes()` rather
+than being duplicated.) The injection above is now delivered, and gate step 9
+asserts it: a same-second injection after a heal must not be refused.
+
+Fixing this surfaced a second-order bug in `reconnectNode()`. It skipped any
+peer that "already" reported connected -- but a peer can still be holding a
+`Connection` object for the socket the restarted node closed on its way down,
+learning otherwise only on its next poll. Judging on that stale peer view left
+the node permanently detached. It now judges on the restarted node's own view
+alone, which is authoritative.
+
+### 18. `.ino` wrapper firmware bypassed send accounting (medium)
+
+`BasicInoFirmware::sendMessage()` calls `mesh->sendBroadcast()` directly -- a
+faithful transcription of `basic.ino` -- and so never reached the accounting
+hook `VirtualNode` installs on the base helper. A three-node run of it reported
+`Total messages sent: 0` while its peers received 44: traffic moving, invisible
+to every metric and to the gate. This is the same class as finding 15, in the
+one firmware the earlier fix did not touch.
+
+`sendMessage()` now sends through `FirmwareBase::sendBroadcast()` and honours
+the result, so the send is counted (and a refused broadcast is not). The two
+`LibraryValidationFirmware` sites that called `recordMessage(true)`
+unconditionally after a send were fixed the same way -- with care, because
+`recordMessage`'s argument is a *direction*, not a verdict, so a false there
+would have incremented the receive counter.
+
+The unit suite cannot reach `BasicInoFirmware`: its `REGISTER_FIRMWARE` static
+registration does not link into the test binary and the class has no header to
+re-register from. So the coverage is a scenario, `ino_firmware_test.yaml`,
+folded into gate step 2 -- which now runs both a SimpleBroadcast and an .ino
+scenario and requires each to report a non-zero, peer-confirmed send count.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -424,8 +483,9 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 122 test cases, 1454 assertions, all passing (was 107/1333 before
-  this work; 117/1406 before finding 13; 118/1419 before findings 14-16).
+- Unit tests: 124 test cases, 1462 assertions, all passing (was 107/1333 before
+  this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
+  122/1454 before findings 17-18).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -444,8 +504,12 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   one"*, exit 1; the naive alternative -- wiring the declared mesh as-is -- was
   measured at 0 live links and 0 messages before it was rejected. With the
   sequence tie-break removed, the ordering tests fail on
-  `{a, c, f, e, b, d} == {a, b, c, d, e, f}`. All 8 gate steps pass on the
-  fixed build.
+  `{a, c, f, e, b, d} == {a, b, c, d, e, f}`.
+- Findings 17 and 18 the same way. With `settleLink()` removed from
+  `connectNodes()`, gate step 9's injection is refused --
+  *"Message injected ... -- REFUSED"*; with `BasicInoFirmware` sending through
+  `mesh->` directly again, its scenario reports `Total messages sent: 0` while
+  peers receive 44. All 9 gate steps pass on the fixed build.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

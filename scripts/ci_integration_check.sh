@@ -55,20 +55,26 @@ for scenario in "$SCENARIO_DIR"/*.yaml; do
 done
 
 echo
-echo "== 2. a broadcast scenario must actually move messages =="
-out=$("$SIM" --config "$SCENARIO_DIR/firmware_broadcast.yaml" --duration 20 2>&1)
-rc=$?
-sent=$(echo "$out" | sed -n 's/^Total messages sent: //p')
-received=$(echo "$out" | sed -n 's/^Total messages received: //p')
-if [ $rc -ne 0 ]; then
-  fail "firmware_broadcast exited $rc"
-elif [ -z "${sent:-}" ] || [ "$sent" -lt 10 ]; then
-  fail "firmware_broadcast sent ${sent:-0} messages, expected >= 10"
-elif [ -z "${received:-}" ] || [ "$received" -lt "$sent" ]; then
-  fail "firmware_broadcast received ${received:-0} for $sent sent -- broadcast is not reaching peers"
-else
-  pass "sent=$sent received=$received"
-fi
+echo "== 2. broadcast scenarios must actually move messages, and be seen doing it =="
+# ino_firmware_test covers the .ino wrapper, which sent through mesh-> directly
+# and bypassed the accounting hook: it reported 0 sent while its peers received
+# 44. The unit suite cannot reach that firmware (REGISTER_FIRMWARE's static
+# registration does not reach the test binary), so it is asserted here.
+for broadcast_scenario in firmware_broadcast ino_firmware_test; do
+  out=$("$SIM" --config "$SCENARIO_DIR/$broadcast_scenario.yaml" --duration 20 2>&1)
+  rc=$?
+  sent=$(echo "$out" | sed -n 's/^Total messages sent: //p')
+  received=$(echo "$out" | sed -n 's/^Total messages received: //p')
+  if [ $rc -ne 0 ]; then
+    fail "$broadcast_scenario exited $rc"
+  elif [ -z "${sent:-}" ] || [ "$sent" -lt 10 ]; then
+    fail "$broadcast_scenario sent ${sent:-0} messages, expected >= 10"
+  elif [ -z "${received:-}" ] || [ "$received" -lt "$sent" ]; then
+    fail "$broadcast_scenario received ${received:-0} for $sent sent -- broadcast is not reaching peers"
+  else
+    pass "$broadcast_scenario: sent=$sent received=$received"
+  fi
+done
 
 echo
 echo "== 3. a lifecycle scenario must actually fire its events =="
@@ -237,6 +243,33 @@ elif [ -z "${declared_drop:-}" ] || [ "$declared_drop" -lt 1 ]; then
   fail "a declared connection_drop closed ${declared_drop:-0} live endpoint(s) -- the named pair was never wired"
 else
   pass "mesh wired, $live_before_drop live link(s), declared drop closed $declared_drop endpoint(s)"
+fi
+
+echo
+echo "== 9. an event must find the links the event before it restored =="
+# connectNodes() only starts an asynchronous TCP connect, and EventScheduler
+# runs same-time events back to back with no pump between them. So a heal
+# reported "1 mesh link(s) restored" and the injection declared for the same
+# second was REFUSED -- the route did not exist yet, and the link only showed
+# live at the next progress tick. Ordering the events correctly (step: finding
+# 16) is not enough on its own; the link has to be carrying traffic.
+heal_out=$("$SIM" --config "$SCENARIO_DIR/heal_then_inject_test.yaml" 2>&1)
+heal_rc=$?
+restored=$(printf '%s\n' "$heal_out" \
+  | sed -n 's/.*Network partitions healed (\([0-9]*\) mesh link(s) restored).*/\1/p' | head -1)
+refused=$(printf '%s\n' "$heal_out" | grep -c 'Message injected.*REFUSED')
+delivered=$(printf '%s\n' "$heal_out" | grep -c '^\[EVENT\] Message injected from')
+
+if [ $heal_rc -ne 0 ]; then
+  fail "heal_then_inject_test exited $heal_rc"
+elif [ -z "${restored:-}" ] || [ "$restored" -lt 1 ]; then
+  fail "the heal restored ${restored:-0} mesh link(s), so the injection proves nothing"
+elif [ "$delivered" -lt 1 ]; then
+  fail "the same-second injection never ran"
+elif [ "$refused" -gt 0 ]; then
+  fail "the injection declared in the same second as the heal was refused -- the restored link was not live yet"
+else
+  pass "heal restored $restored link(s) and the same-second injection was delivered"
 fi
 
 echo

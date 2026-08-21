@@ -75,14 +75,19 @@ private:
    *   taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
    */
   void sendMessage() {
-    auto* mesh = getMesh();
-    if (!mesh) return;
+    if (!getMesh()) return;
     
     std::ostringstream msg_stream;
     msg_stream << "Hello from node " << getNodeId();
     String msg = msg_stream.str();
     
-    mesh->sendBroadcast(msg);
+    // basic.ino calls mesh.sendBroadcast() directly. Going through the base
+    // helper instead keeps the transcription honest -- same call underneath --
+    // while letting the owning VirtualNode see the send: a scenario running
+    // this firmware otherwise reported messages_sent = 0 while moving traffic.
+    if (!sendBroadcast(msg)) {
+      return;
+    }
     messages_sent++;
     
     // Set random interval between 1-5 seconds (simulating basic.ino behavior)
