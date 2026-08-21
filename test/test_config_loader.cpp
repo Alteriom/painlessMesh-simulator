@@ -623,6 +623,18 @@ events:
     REQUIRE(hasGroupError(errors, "more than one partition group"));
   }
 
+  SECTION("an empty group is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2, node-3]
+      - []
+)");
+    REQUIRE(hasGroupError(errors, "empty group"));
+  }
+
   SECTION("a full partition validates") {
     const auto errors = errorsFor(nodes + R"(
 events:

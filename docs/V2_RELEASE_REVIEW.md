@@ -733,6 +733,34 @@ would keep bridging the split"`. All nine shipped partition scenarios already
 satisfy this; a unit test covers omission, double-listing, and a valid full
 partition.
 
+### 33. A random topology dropped an edge it never wired (medium)
+
+Raised by `chatgpt-codex-connector` on the fifteenth review pass, against the
+preferred-edge logic. Correct.
+
+`spanningSubset()` prefers event-named pairs, but it can only *reorder* edges
+already in the candidate set -- it cannot add one. For a `random` topology the
+candidate set is drawn at random, so a `connection_drop` pair may simply be
+absent, and the drop then ran against no live link ("0 live endpoint(s)
+closed") despite the planner's stated preferred-edge guarantee.
+
+`planTopology()` now merges the event-named pairs (valid node pairs) into the
+candidate graph *before* reduction, so `spanningSubset()` has them to prefer.
+The guarantee is now real for every topology type, not only the ones whose
+declared set happens to contain the pair. A unit test drops `n1<->n5` in a
+zero-density random topology across six seeds -- the pair is in the plan every
+time, and the graph stays connected. `plan.declared` still counts only the
+topology's own links, so the surplus-links warning is unchanged.
+
+### 34. An empty partition group reported a split it did not make (medium)
+
+Finding 32's coverage check accepts `groups: [[n1, n2], []]` -- every node
+appears exactly once, and an empty group adds nobody. But `partitionNetwork()`
+cuts only cross-group pairs, and an empty side has no members to cross to, so no
+edge is cut while the event still reports a two-way partition.
+
+Validation now rejects any empty partition group. A unit test covers it.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -774,8 +802,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 135 test cases, 1544 assertions, all passing. Findings 14-24 and
-  26-32 each added coverage (30 is gate-script only); finding 25 is a
+- Unit tests: 136 test cases, 1558 assertions, all passing. Findings 14-24 and
+  26-34 each added coverage (30 is gate-script only); finding 25 is a
   seed-resolution change in the entry point, verified by running two seedless
   scenarios and observing different drawn seeds, with the gate scenarios pinned
   so CI stays deterministic.

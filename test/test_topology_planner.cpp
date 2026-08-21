@@ -253,6 +253,32 @@ TEST_CASE("a link event's targets:[a,b] syntax is a preferred edge too",
   REQUIRE(hasLink(viaTargets.links, 1001, 1004));
 }
 
+TEST_CASE("a random topology still wires an event-named pair it did not draw",
+          "[topology][events]") {
+  // random draws its edges at random, so a connection_drop pair may be absent
+  // from the generated graph. spanningSubset() can only reorder edges already
+  // present, so without adding the event pair as a candidate the drop runs
+  // against no live link. The pair must end up in the plan regardless of the
+  // draw.
+  const auto nodes = makeNodes(5);
+  TopologyConfig topology;
+  topology.type = TopologyType::RANDOM;
+  topology.density = 0.0f;  // a bare spanning tree -- most pairs are absent
+
+  EventConfig drop;
+  drop.action = EventAction::CONNECTION_DROP;
+  drop.from = "n1";
+  drop.to = "n5";
+
+  // Try several seeds: for at least one, n1<->n5 is not in the random tree, and
+  // the guarantee must hold for every one of them.
+  for (uint32_t seed : {1u, 2u, 3u, 7u, 42u, 100u}) {
+    const auto plan = planTopology(topology, nodes, {drop}, seed);
+    REQUIRE(hasLink(plan.links, 1001, 1005));
+    REQUIRE(isConnected(plan.links, nodes.size()));
+  }
+}
+
 TEST_CASE("Topology planner keeps the links a scenario's events name",
           "[topology][events]") {
   const auto nodes = makeNodes(4);

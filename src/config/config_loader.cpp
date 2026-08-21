@@ -851,6 +851,16 @@ void ConfigLoader::validateEvent(const EventConfig& config,
   if (config.action == EventAction::PARTITION_NETWORK) {
     std::set<std::string> seen;
     for (const auto& group : config.groups) {
+      if (group.empty()) {
+        // An empty group cuts nothing -- partitionNetwork() only severs pairs
+        // that cross a boundary, and an empty side has no members to cross to.
+        // The event would report a split it did not make.
+        ValidationError err;
+        err.field = "event.groups";
+        err.message = "Partition contains an empty group";
+        err.suggestion = "Every partition group needs at least one node";
+        errors.push_back(err);
+      }
       for (const auto& id : group) {
         bool exists = false;
         for (const auto& node : all_nodes) {

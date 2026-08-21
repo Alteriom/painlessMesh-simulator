@@ -310,7 +310,27 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   }
 
   plan.declared = declared.size();
-  plan.links = spanningSubset(declared, eventPairs(events, nodes), plan.warnings);
+
+  // Guarantee that a pair a link event names is actually a candidate to wire.
+  // A `random` topology draws its edges at random, so a connection_drop pair
+  // may simply be absent from `declared` -- and spanningSubset() only reorders
+  // edges already present, it cannot invent one. Without this the drop would
+  // run against no live link and report "0 live endpoint(s) closed", the very
+  // silence the preferred-edge logic exists to remove. Adding the event pairs
+  // as candidates (they are valid node pairs) makes the guarantee real for
+  // every topology type; spanningSubset() still prefers them into the tree.
+  const auto preferred = eventPairs(events, nodes);
+  std::vector<PlannedLink> candidates = declared;
+  for (const auto& want : preferred) {
+    const bool present = std::any_of(
+        candidates.begin(), candidates.end(),
+        [&](const PlannedLink& l) { return samePair(l, want); });
+    if (!present) {
+      candidates.push_back(want);
+    }
+  }
+
+  plan.links = spanningSubset(candidates, preferred, plan.warnings);
   if (plan.links.size() < declared.size()) {
     plan.warnings.push_back(
         topologyTypeName(topology.type) + " declares " +
