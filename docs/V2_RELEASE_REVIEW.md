@@ -1000,6 +1000,33 @@ The job now sets `GH_REPO: ${{ github.repository }}`, which all three `gh`
 commands read. A workflow-only fix, on the job whose entire purpose -- surfacing
 drift no one is watching for -- was silently defeated by the missing context.
 
+### 50. A partition could fragment a group into extra components (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-fifth review pass. Correct,
+and it needed the harder of the two fixes.
+
+`network_partition` cuts only cross-group links. But `planTopology()`'s
+spanning-tree reduction did not know about partition groups, so a group that was
+not already a connected subtree fragmented: a 4-node mesh reduced to a star
+around n1, partitioned `[[n1,n2],[n3,n4]]`, left n3 and n4 with no edge between
+them -- three components, not two -- and the event only *warned* while the run
+exited 0. Four of the shipped partition scenarios already tripped this.
+
+Both halves of the reviewer's suggestion, because one alone was not enough.
+`planTopology()` now feeds each partition group's internal edges to
+`spanningSubset()` as *soft-preferred* links -- prioritised into the tree where
+the topology allows (kept for `mesh`; merged into candidates for `random`), but
+not flagged unwireable when they cannot fit, since a group need not be a
+subtree. All six shipped partition scenarios now realise their groups exactly,
+with zero mismatch. And where a topology genuinely cannot -- a `star` whose
+group excludes the hub -- `NetworkPartitionEvent` now *fails* rather than warns,
+guarded on having actually cut a wired mesh so it never fires on a
+NetworkSimulator-only unit test.
+
+A unit test asserts both intra-group edges survive the mesh reduction and the
+plan stays a connected tree; an infeasible star partition exits non-zero
+end-to-end.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1041,8 +1068,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 146 test cases, 1591 assertions, all passing. Findings 14-24 and
-  26-48 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 147 test cases, 1594 assertions, all passing. Findings 14-24 and
+  26-50 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

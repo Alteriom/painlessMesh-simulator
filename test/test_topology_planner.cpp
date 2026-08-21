@@ -331,6 +331,28 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner keeps partition groups internally connected",
+          "[topology][events]") {
+  // A network_partition cuts only cross-group links, so each group must be a
+  // connected subtree of the plan or the partition fragments it into extra
+  // components. Reducing a 4-node mesh to a star around n1 and partitioning
+  // [[n1,n2],[n3,n4]] would otherwise leave n3,n4 with no edge between them.
+  const auto nodes = makeNodes(4);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig part;
+  part.action = EventAction::PARTITION_NETWORK;
+  part.groups = {{"n1", "n2"}, {"n3", "n4"}};
+
+  const auto plan = planTopology(topology, nodes, {part}, 42);
+
+  // Both intra-group edges are in the plan, so each group is connected.
+  REQUIRE(hasLink(plan.links, 1001, 1002));
+  REQUIRE(hasLink(plan.links, 1003, 1004));
+  REQUIRE(isConnected(plan.links, nodes.size()));  // and the whole is a tree
+}
+
 TEST_CASE("Topology planner keeps the links a scenario's events name",
           "[topology][events]") {
   const auto nodes = makeNodes(4);

@@ -118,6 +118,41 @@ uint32_t findRoot(std::map<uint32_t, uint32_t>& parent, uint32_t x) {
   return x;
 }
 
+/// Edges that keep each partition group internally connected. A network_partition
+/// cuts only cross-group links, so if the spanning tree does not already connect
+/// a group internally, partitioning it fragments that group into extra
+/// components -- e.g. a 4-node mesh reduced to a star around n1, partitioned
+/// [[n1,n2],[n3,n4]], leaves n3 and n4 with no edge between them and yields
+/// three components, not two. Emitting a spanning path within each group as a
+/// preference makes the reduction keep those edges, so the partition produces
+/// exactly the requested components.
+std::vector<PlannedLink> partitionGroupEdges(
+    const std::vector<EventConfig>& events,
+    const std::vector<NodeConfigExtended>& nodes) {
+  std::vector<PlannedLink> edges;
+  for (const auto& event : events) {
+    if (event.action != EventAction::PARTITION_NETWORK) {
+      continue;
+    }
+    for (const auto& group : event.groups) {
+      uint32_t prev = 0;
+      bool have_prev = false;
+      for (const auto& id : group) {
+        uint32_t resolved = 0;
+        if (!resolveId(nodes, id, resolved)) {
+          continue;  // an unknown node -- validation flags it separately
+        }
+        if (have_prev && prev != resolved) {
+          edges.emplace_back(prev, resolved);
+        }
+        prev = resolved;
+        have_prev = true;
+      }
+    }
+  }
+  return edges;
+}
+
 /// Reduce a declared graph to a spanning forest, preferring @p preferred edges
 ///
 /// painlessMesh converges to a spanning tree whatever it is handed, so this
@@ -125,6 +160,7 @@ uint32_t findRoot(std::map<uint32_t, uint32_t>& parent, uint32_t x) {
 /// overlapping handshakes.
 std::vector<PlannedLink> spanningSubset(const std::vector<PlannedLink>& declared,
                                         const std::vector<PlannedLink>& preferred,
+                                        const std::vector<PlannedLink>& softPreferred,
                                         std::vector<std::string>& warnings,
                                         std::vector<PlannedLink>& unwireablePreferred) {
   std::map<uint32_t, uint32_t> parent;
@@ -133,19 +169,26 @@ std::vector<PlannedLink> spanningSubset(const std::vector<PlannedLink>& declared
     parent[link.second] = link.second;
   }
 
-  // Preferred edges first, in the order the events named them, then the rest
-  // in declared order. Stable either way.
+  // Ordering priority: hard-preferred edges first (a link event names them, and
+  // one dropped to a cycle is a hard error), then soft-preferred edges
+  // (intra-partition-group links -- kept when they fit, but silently skipped
+  // when they cannot, since a group need not be a subtree), then the rest in
+  // declared order. Stable throughout.
   std::vector<PlannedLink> ordered;
   ordered.reserve(declared.size());
-  for (const auto& want : preferred) {
-    for (const auto& link : declared) {
-      if (samePair(link, want) &&
-          std::none_of(ordered.begin(), ordered.end(),
-                       [&](const PlannedLink& l) { return samePair(l, link); })) {
-        ordered.push_back(link);
+  auto push_matching = [&](const std::vector<PlannedLink>& wants) {
+    for (const auto& want : wants) {
+      for (const auto& link : declared) {
+        if (samePair(link, want) &&
+            std::none_of(ordered.begin(), ordered.end(),
+                         [&](const PlannedLink& l) { return samePair(l, link); })) {
+          ordered.push_back(link);
+        }
       }
     }
-  }
+  };
+  push_matching(preferred);
+  push_matching(softPreferred);
   for (const auto& link : declared) {
     if (std::none_of(ordered.begin(), ordered.end(),
                      [&](const PlannedLink& l) { return samePair(l, link); })) {
@@ -322,23 +365,29 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   // as candidates (they are valid node pairs) makes the guarantee real for
   // every topology type; spanningSubset() still prefers them into the tree.
   const auto preferred = eventPairs(events, nodes);
+  const auto groupEdges = partitionGroupEdges(events, nodes);
   std::vector<PlannedLink> candidates = declared;
 
   // For a `random` topology only, add an event-named pair the random draw did
-  // not include, so a connection_drop has a live link to cut. The other modes
-  // declare an explicit, intentional graph: inserting an event's pair there
-  // would change the topology and slip an undeclared edge past restoreLink()'s
-  // guard. An event naming a non-edge of an explicit topology is a config error
-  // left to fail at runtime, not papered over here.
+  // not include, so a connection_drop has a live link to cut, and add
+  // intra-partition-group edges so each group stays internally connected. The
+  // other modes declare an explicit, intentional graph: inserting an event's
+  // pair there would change the topology and slip an undeclared edge past
+  // restoreLink()'s guard. An event naming a non-edge of an explicit topology is
+  // a config error left to fail at runtime, not papered over here.
   if (topology.type == TopologyType::RANDOM) {
-    for (const auto& want : preferred) {
-      const bool present = std::any_of(
-          candidates.begin(), candidates.end(),
-          [&](const PlannedLink& l) { return samePair(l, want); });
-      if (!present) {
-        candidates.push_back(want);
+    auto add_missing = [&](const std::vector<PlannedLink>& wants) {
+      for (const auto& want : wants) {
+        const bool present = std::any_of(
+            candidates.begin(), candidates.end(),
+            [&](const PlannedLink& l) { return samePair(l, want); });
+        if (!present) {
+          candidates.push_back(want);
+        }
       }
-    }
+    };
+    add_missing(preferred);
+    add_missing(groupEdges);
   } else {
     // An explicit topology (mesh/star/ring/custom) is wired exactly as declared.
     // A link event naming a pair that is not one of its edges has nothing to act
@@ -362,7 +411,7 @@ TopologyPlan planTopology(const TopologyConfig& topology,
     }
   }
 
-  plan.links = spanningSubset(candidates, preferred, plan.warnings,
+  plan.links = spanningSubset(candidates, preferred, groupEdges, plan.warnings,
                               plan.unwireable_preferred);
   if (plan.links.size() < declared.size()) {
     plan.warnings.push_back(

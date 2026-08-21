@@ -48,15 +48,23 @@ void NetworkPartitionEvent::execute(NodeManager& manager, NetworkSimulator& netw
   std::cout << "[EVENT] Network partitioned into " << partition_groups_.size()
             << " groups (" << cut << " mesh link(s) cut)" << std::endl;
 
-  // A partition is only what the topology allows: the groups an author names
-  // need not each be internally connected once the cross links are gone. Say so
-  // rather than letting the scenario silently test something else.
+  // A partition must produce exactly the requested groups. planTopology() keeps
+  // each group internally connected where the topology allows it (mesh/random),
+  // so a remaining mismatch means the declared topology genuinely cannot realise
+  // this split -- a star whose group excludes the hub, say. That is a scenario
+  // that would silently test something other than what it asks, so fail rather
+  // than warn.
+  // Only meaningful when this partition actually cut a wired mesh. A test (or a
+  // scenario) that never established connectivity leaves every node its own
+  // component regardless, and cuts nothing -- there is no fragmentation to
+  // diagnose.
   const auto components = manager.getConnectedComponents();
-  if (components.size() != partition_groups_.size()) {
-    std::cerr << "[WARN] Requested " << partition_groups_.size()
-              << " partitions but the topology now has " << components.size()
-              << " connected component(s); groups are not subtrees of the mesh."
-              << std::endl;
+  if (cut > 0 && components.size() != partition_groups_.size()) {
+    throw std::runtime_error(
+        "network_partition requested " + std::to_string(partition_groups_.size()) +
+        " groups but the topology fragmented into " +
+        std::to_string(components.size()) +
+        " components; a group is not internally connected in this topology");
   }
   
   // Mark partition state for metrics
