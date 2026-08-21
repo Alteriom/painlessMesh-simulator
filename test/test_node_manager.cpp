@@ -647,6 +647,96 @@ TEST_CASE("settleLink reports whether the link actually came up",
   manager.stopAll();
 }
 
+TEST_CASE("an explicit drop on a partition-crossing edge survives the heal",
+          "[node_manager][heal]") {
+  // Overlapping edge: the same link is both explicitly dropped and crosses a
+  // partition boundary. It must be treated as the persistent explicit failure,
+  // not restored by the heal -- whichever order the two events arrive in.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19871;
+  for (uint32_t id : {8871u, 8872u, 8873u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  // Line 8871 -- 8872 -- 8873.
+  REQUIRE(manager.connectNodes(8871, 8872));
+  REQUIRE(manager.connectNodes(8872, 8873));
+
+  auto healSurvives = [&]() {
+    // 8872 <-> 8873 is both dropped and a partition boundary.
+    manager.partitionNetwork({{8871, 8872}, {8873}});
+    REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
+    REQUIRE(manager.healNetwork() >= 0);
+    // Explicit drop wins: the edge stays down and stays severed after the heal.
+    REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
+    REQUIRE(manager.isLinkSevered(8872, 8873));
+    // And only its own restore brings it back.
+    REQUIRE(manager.restoreLink(8872, 8873));
+    REQUIRE(manager.getNode(8872)->isConnectedTo(8873));
+  };
+
+  SECTION("drop before partition") {
+    REQUIRE(manager.dropLink(8872, 8873) >= 1);
+    healSurvives();
+  }
+
+  SECTION("partition before drop") {
+    manager.partitionNetwork({{8871, 8872}, {8873}});
+    REQUIRE(manager.dropLink(8872, 8873) >= 0);  // now an explicit drop
+    // A heal must not restore it now that it is an explicit drop.
+    manager.healNetwork();
+    REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
+    REQUIRE(manager.isLinkSevered(8872, 8873));
+    REQUIRE(manager.restoreLink(8872, 8873));
+    REQUIRE(manager.getNode(8872)->isConnectedTo(8873));
+  }
+
+  manager.stopAll();
+}
+
+TEST_CASE("a heal keeps a cut it could not restore pending",
+          "[node_manager][heal]") {
+  // If a node on a partition edge is down when the heal runs, the cut cannot be
+  // rebuilt now. It must stay pending so a later heal retries it, rather than
+  // being discarded and leaving the mesh permanently partitioned.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19881;
+  for (uint32_t id : {8881u, 8882u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8881, 8882));
+
+  manager.partitionNetwork({{8881}, {8882}});
+  REQUIRE_FALSE(manager.getNode(8881)->isConnectedTo(8882));
+
+  // 8882 is down when the heal runs: it cannot reconnect, and the cut must be
+  // retained (still severed), not silently dropped.
+  manager.getNode(8882)->stop();
+  REQUIRE(manager.healNetwork() == 0);
+  REQUIRE(manager.isLinkSevered(8881, 8882));
+
+  // With the node back, a second heal completes the restore.
+  manager.getNode(8882)->start();
+  REQUIRE(manager.healNetwork() == 1);
+  REQUIRE(manager.getNode(8881)->isConnectedTo(8882));
+  REQUIRE_FALSE(manager.isLinkSevered(8881, 8882));
+
+  manager.stopAll();
+}
+
 TEST_CASE("healNetwork does not restore an explicitly dropped link",
           "[node_manager][heal]") {
   // connection_drop and partitionNetwork both mark links severed. A heal must

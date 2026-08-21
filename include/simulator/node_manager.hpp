@@ -374,10 +374,14 @@ private:
   size_t firmware_load_failures_ = 0;                             ///< Nodes whose firmware failed to load
   uint32_t next_node_id_{1000};                                   ///< Next auto-assigned node ID
   std::map<uint32_t, std::set<uint32_t>> topology_;               ///< Recorded mesh edges, both directions
-  std::set<std::pair<uint32_t, uint32_t>> severed_;               ///< Links cut by any scenario event, (low, high)
-  std::set<std::pair<uint32_t, uint32_t>> partition_cuts_;        ///< Subset of severed_ cut by partitionNetwork(); only these heal
+  std::set<std::pair<uint32_t, uint32_t>> explicit_drops_;        ///< Cut by connection_drop; persist until connection_restore, (low, high)
+  std::set<std::pair<uint32_t, uint32_t>> partition_cuts_;        ///< Cut by partitionNetwork(); healed by healNetwork(), (low, high)
 
-  /// Normalises a node pair so severed_ keys are direction-independent.
+  /// Closes the live connection between a pair without recording why. dropLink()
+  /// and partitionNetwork() add the appropriate marker around it.
+  size_t severConnection(uint32_t a, uint32_t b);
+
+  /// Normalises a node pair so severance keys are direction-independent.
   static std::pair<uint32_t, uint32_t> linkKey(uint32_t a, uint32_t b) {
     return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
   }

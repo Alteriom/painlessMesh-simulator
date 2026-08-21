@@ -38,8 +38,9 @@ restored was not yet carrying traffic when the next event needed it, a probe
 meant to measure the mesh was quietly reshaping it, a run that dropped an event
 still called itself a success, the same link event meant two different things
 depending on how it was spelled, a declared-but-empty topology quietly ran a
-random mesh instead, a "random" seed produced the same graph every time, and a
-partition heal undid a deliberately dropped link.
+random mesh instead, a "random" seed produced the same graph every time, a
+partition heal undid a deliberately dropped link, and a heal that could not
+reach a node threw the repair away.
 
 ## Findings
 
@@ -624,6 +625,40 @@ the heal reconnects the partitioned edge and leaves the dropped one down and
 severed, and the drop still restores on its own afterward. Removing the
 separation restores the dropped link in the heal and fails the test.
 
+### 27. An explicit drop overlapping a partition still healed (medium)
+
+Raised by `chatgpt-codex-connector` on the eleventh review pass, against finding
+26's fix. Correct -- the fix handled two *different* edges but not the same edge
+cut two ways.
+
+Finding 26 recorded every partition cross-pair in `partition_cuts_`
+unconditionally. So when an edge was both explicitly dropped *and* crossed a
+partition boundary, it landed in `partition_cuts_` anyway, and the heal restored
+it -- the persistent explicit failure undone after all.
+
+The severance model now records *why* a link is down: `explicit_drops_` (from
+`connection_drop`, persistent until `connection_restore`) and `partition_cuts_`
+(from `partitionNetwork()`, healed by `healNetwork()`). An explicit drop clears
+any partition marker on its edge; a partition marks an edge cut only when it is
+not already an explicit drop. Both orders resolve to "explicit wins": the edge
+stays down through a heal and comes back only on its own restore.
+`isLinkSevered()` is the union of the two. A unit test covers both orderings.
+
+### 28. A heal discarded a cut it could not restore (medium)
+
+Finding 26's `healNetwork()` cleared `partition_cuts_` up front and erased each
+link from the severed set before trying to reconnect. If the reconnect could not
+happen -- a node still down, or (after finding 20) a handshake that did not
+settle -- the cut's state was already gone: no retry, and the run still exited 0
+with the mesh partitioned.
+
+`healNetwork()` now keeps an unhealed cut *pending* -- a node down, or a
+`connectNodes()` that returned false -- instead of discarding it, so a later
+heal retries it. A cut on a non-edge (a partition marks pairs that were never
+wired) is simply spent, as before. A unit test partitions a pair, stops one
+endpoint so the first heal restores nothing and the link stays severed, then
+restarts it and heals again to complete the restore.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -665,8 +700,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 130 test cases, 1494 assertions, all passing. Findings 14-24 and
-  26 each added coverage; finding 25 is a seed-resolution change in the entry
+- Unit tests: 132 test cases, 1517 assertions, all passing. Findings 14-24 and
+  26-28 each added coverage; finding 25 is a seed-resolution change in the entry
   point, verified by running two seedless scenarios and observing different
   drawn seeds, with the gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.

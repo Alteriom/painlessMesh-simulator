@@ -89,7 +89,7 @@ bool NodeManager::removeNode(uint32_t nodeId) {
   // that no longer exists.
   for (uint32_t peer : topology_[nodeId]) {
     topology_[peer].erase(nodeId);
-    severed_.erase(linkKey(nodeId, peer));
+    explicit_drops_.erase(linkKey(nodeId, peer));
     partition_cuts_.erase(linkKey(nodeId, peer));
   }
   topology_.erase(nodeId);
@@ -210,9 +210,7 @@ bool NodeManager::connectNodes(uint32_t fromNode, uint32_t toNode) {
   return settleLink(fromNode, toNode);
 }
 
-size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
-  severed_.insert(linkKey(a, b));
-
+size_t NodeManager::severConnection(uint32_t a, uint32_t b) {
   size_t closed = 0;
   auto nodeA = getNode(a);
   auto nodeB = getNode(b);
@@ -221,6 +219,16 @@ size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
   if (nodeA && nodeA->disconnectFrom(b)) ++closed;
   if (nodeB && nodeB->disconnectFrom(a)) ++closed;
   return closed;
+}
+
+size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
+  // An explicit connection_drop is a deliberate, persistent failure. Record it
+  // as such and clear any partition marker on the same edge, so a later
+  // healNetwork() cannot restore it -- only its own connection_restore can.
+  // This holds whichever order a drop and an overlapping partition arrive in.
+  explicit_drops_.insert(linkKey(a, b));
+  partition_cuts_.erase(linkKey(a, b));
+  return severConnection(a, b);
 }
 
 bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
@@ -232,7 +240,7 @@ bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
   if (!topology_.count(a) || !topology_.at(a).count(b)) {
     return false;
   }
-  severed_.erase(linkKey(a, b));
+  explicit_drops_.erase(linkKey(a, b));
   partition_cuts_.erase(linkKey(a, b));
 
   auto nodeA = getNode(a);
@@ -257,13 +265,15 @@ size_t NodeManager::partitionNetwork(
           // wired today: otherwise a later reconnectNode() would quietly bridge
           // the partition back together.
           const bool wired = topology_.count(x) && topology_.at(x).count(y);
-          dropLink(x, y);
-          // Track partition-origin cuts separately from explicit connection_drop
-          // links (which also live in severed_): only these should heal. Without
-          // this, healNetwork() restores a deliberately dropped link before its
-          // matching connection_restore, conflating persistent link failures
-          // with a temporary partition.
-          partition_cuts_.insert(linkKey(x, y));
+          const auto key = linkKey(x, y);
+          severConnection(x, y);
+          // Mark as a partition cut only when it is not already a deliberate
+          // explicit drop. Otherwise a heal would restore an edge the scenario
+          // dropped on purpose, ahead of its own connection_restore -- the same
+          // whether the drop came before this partition or is on the same edge.
+          if (!explicit_drops_.count(key)) {
+            partition_cuts_.insert(key);
+          }
           if (wired) ++cut;
         }
       }
@@ -273,28 +283,39 @@ size_t NodeManager::partitionNetwork(
 }
 
 size_t NodeManager::healNetwork() {
-  // Heal only the links a partition cut. An explicit connection_drop lives in
-  // severed_ too, but it is a deliberate, persistent failure with its own
-  // connection_restore event -- healing it here would restore it early and
-  // change the experiment. Those entries stay severed.
-  const auto cuts = partition_cuts_;
-  partition_cuts_.clear();
-
+  // Heal only the links a partition cut. An explicit connection_drop is a
+  // deliberate, persistent failure with its own connection_restore -- it is
+  // never in partition_cuts_, so it is never touched here.
+  //
+  // A cut that cannot be rebuilt now -- a node still down, or a handshake that
+  // does not settle -- is kept pending rather than discarded, so a later heal
+  // can retry it instead of leaving the mesh partitioned with no state to act
+  // on.
+  std::set<std::pair<uint32_t, uint32_t>> pending;
   size_t restored = 0;
-  for (const auto& link : cuts) {
-    // This partition no longer severs the pair, whether or not it is rewired.
-    severed_.erase(link);
+  for (const auto& link : partition_cuts_) {
     // Only edges the topology actually had are worth rebuilding; a partition
-    // marks every cross pair cut, most of which were never wired.
+    // marks every cross pair cut, most of which were never wired. A marker on a
+    // non-edge is simply spent.
     if (!topology_.count(link.first) || !topology_.at(link.first).count(link.second)) {
       continue;
     }
     auto a = getNode(link.first);
     auto b = getNode(link.second);
-    if (!a || !b || !a->isRunning() || !b->isRunning()) continue;
-    if (a->isConnectedTo(link.second) || b->isConnectedTo(link.first)) continue;
-    if (connectNodes(link.first, link.second)) ++restored;
+    if (!a || !b || !a->isRunning() || !b->isRunning()) {
+      pending.insert(link);  // a node is down; a later heal can retry
+      continue;
+    }
+    if (a->isConnectedTo(link.second) || b->isConnectedTo(link.first)) {
+      continue;  // already live
+    }
+    if (connectNodes(link.first, link.second)) {
+      ++restored;
+    } else {
+      pending.insert(link);  // handshake did not settle; retain for retry
+    }
   }
+  partition_cuts_ = pending;
   return restored;
 }
 
@@ -328,7 +349,8 @@ size_t NodeManager::reconnectNode(uint32_t nodeId) {
 }
 
 bool NodeManager::isLinkSevered(uint32_t a, uint32_t b) const {
-  return severed_.count(linkKey(a, b)) > 0;
+  const auto key = linkKey(a, b);
+  return explicit_drops_.count(key) > 0 || partition_cuts_.count(key) > 0;
 }
 
 std::vector<uint32_t> NodeManager::getRecordedPeers(uint32_t nodeId) const {
