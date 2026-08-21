@@ -652,12 +652,11 @@ happen -- a node still down, or (after finding 20) a handshake that did not
 settle -- the cut's state was already gone: no retry, and the run still exited 0
 with the mesh partitioned.
 
-`healNetwork()` now keeps an unhealed cut *pending* -- a node down, or a
-`connectNodes()` that returned false -- instead of discarding it, so a later
-heal retries it. A cut on a non-edge (a partition marks pairs that were never
-wired) is simply spent, as before. A unit test partitions a pair, stops one
-endpoint so the first heal restores nothing and the link stays severed, then
-restarts it and heals again to complete the restore.
+`healNetwork()` no longer discards a cut it could not immediately rebuild. The
+exact retention rule was refined by finding 31: a cut whose endpoint is *down*
+is released (the partition has ended; `reconnectNode()` restores it when the
+node returns), while a cut where both endpoints are *up* but the handshake did
+not settle is retained for a later heal to retry.
 
 ### 29. A restore bridged an edge an active partition still cut (medium)
 
@@ -698,6 +697,41 @@ not.
 
 Step 5 now captures each probe's exit code and fails if any is non-zero, before
 reading their counts. Verified the whole gate still passes on the fixed build.
+
+### 31. A node starting after a heal stayed detached (medium)
+
+Raised by `chatgpt-codex-connector` on the fourteenth review pass, against
+finding 28's retention. Correct -- and it exposed that "retain every unhealed
+cut" was too broad.
+
+Finding 28 held a partition cut in `partition_cuts_` when a node was down at
+heal time. But `reconnectNode()` -- called when that node later `start`s --
+skips any edge still marked severed. So `partition -> stop node -> heal -> start
+node` left the node permanently detached: the heal could not reconnect it (down),
+and the start could not either (still severed), short of a second heal the
+scenario had no reason to include.
+
+The rule is now split by *why* the heal could not act. `heal_partition` ends the
+partition regardless, so a cut whose endpoint is down is *released* -- the edge
+is no longer severed, and `reconnectNode()` re-establishes it when the node
+returns. Only a genuine transient -- both endpoints up but the handshake did not
+settle -- is retained for a later heal, where `reconnectNode()` cannot help
+because nothing is restarting. Unit tests cover both: a node that starts after a
+heal rejoins with no second heal, and a both-up heal still completes in place.
+
+### 32. A partition that omitted a node reported a split it did not make (medium)
+
+`partitionNetwork()` cuts only pairs that cross a group boundary. A node in no
+group is invisible to that loop, so it keeps bridging: `A--X--B` with
+`groups: [[A], [B]]` cuts the (unwired) A-B pair, reports a split, and X carries
+the traffic across regardless. The event claimed a partition it did not make.
+
+Validation now requires a `network_partition`'s groups to cover every scenario
+node exactly once -- each node in some group, none named twice, none unknown.
+The omitted-bridge case fails at load with `"Partition omits node 'X', which
+would keep bridging the split"`. All nine shipped partition scenarios already
+satisfy this; a unit test covers omission, double-listing, and a valid full
+partition.
 
 ## Remaining gaps
 
@@ -740,10 +774,11 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 133 test cases, 1535 assertions, all passing. Findings 14-24 and
-  26-29 each added coverage; finding 25 is a seed-resolution change in the entry
-  point, verified by running two seedless scenarios and observing different
-  drawn seeds, with the gate scenarios pinned so CI stays deterministic.
+- Unit tests: 135 test cases, 1544 assertions, all passing. Findings 14-24 and
+  26-32 each added coverage (30 is gate-script only); finding 25 is a
+  seed-resolution change in the entry point, verified by running two seedless
+  scenarios and observing different drawn seeds, with the gate scenarios pinned
+  so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.

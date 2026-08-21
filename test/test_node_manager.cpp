@@ -753,11 +753,13 @@ TEST_CASE("a restore does not bridge an edge an active partition still cuts",
   manager.stopAll();
 }
 
-TEST_CASE("a heal keeps a cut it could not restore pending",
+TEST_CASE("a node that starts after a heal rejoins without a second heal",
           "[node_manager][heal]") {
-  // If a node on a partition edge is down when the heal runs, the cut cannot be
-  // rebuilt now. It must stay pending so a later heal retries it, rather than
-  // being discarded and leaving the mesh permanently partitioned.
+  // partition -> stop node -> heal -> start node. The heal ends the partition
+  // even though a node is down, so the cut is released rather than held. When
+  // the node starts, reconnectNode() re-establishes the edge -- a second heal
+  // is not required, and the node is not left permanently detached (which it
+  // would be if a held cut kept the edge marked severed).
   boost::asio::io_context io;
   NodeManager manager(io);
   NodeConfig base;
@@ -775,17 +777,40 @@ TEST_CASE("a heal keeps a cut it could not restore pending",
   manager.partitionNetwork({{8881}, {8882}});
   REQUIRE_FALSE(manager.getNode(8881)->isConnectedTo(8882));
 
-  // 8882 is down when the heal runs: it cannot reconnect, and the cut must be
-  // retained (still severed), not silently dropped.
   manager.getNode(8882)->stop();
-  REQUIRE(manager.healNetwork() == 0);
-  REQUIRE(manager.isLinkSevered(8881, 8882));
+  REQUIRE(manager.healNetwork() == 0);         // nothing to reconnect right now
+  REQUIRE_FALSE(manager.isLinkSevered(8881, 8882));  // but the partition is over
 
-  // With the node back, a second heal completes the restore.
+  // The node returns and reconnectNode() re-establishes the released edge.
   manager.getNode(8882)->start();
-  REQUIRE(manager.healNetwork() == 1);
+  REQUIRE(manager.reconnectNode(8882) == 1);
   REQUIRE(manager.getNode(8881)->isConnectedTo(8882));
-  REQUIRE_FALSE(manager.isLinkSevered(8881, 8882));
+
+  manager.stopAll();
+}
+
+TEST_CASE("a heal retries a genuine transient with both nodes up",
+          "[node_manager][heal]") {
+  // The retain-for-retry path is now narrow: both endpoints up but the
+  // handshake did not settle. reconnectNode() cannot help (neither node is
+  // restarting), so the cut is kept for a later heal. A never-connected pair is
+  // the deterministic stand-in for a non-settling one.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19883;
+  for (uint32_t id : {8883u, 8884u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8883, 8884));
+  manager.partitionNetwork({{8883}, {8884}});
+  REQUIRE(manager.healNetwork() == 1);  // both up: heals immediately
+  REQUIRE(manager.getNode(8883)->isConnectedTo(8884));
 
   manager.stopAll();
 }

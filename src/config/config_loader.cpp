@@ -16,6 +16,7 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
+#include <set>
 
 namespace simulator {
 
@@ -839,6 +840,46 @@ void ConfigLoader::validateEvent(const EventConfig& config,
       err.message = "Network quality must be between 0.0 and 1.0";
       err.suggestion = "Use 0.0 for worst, 1.0 for best quality";
       errors.push_back(err);
+    }
+  }
+
+  // Validate partition groups partition the WHOLE mesh. partitionNetwork() only
+  // cuts pairs that cross group boundaries, so a node left out of every group
+  // keeps bridging the two sides -- e.g. A--X--B with groups [[A],[B]] cuts no
+  // live edge, yet the event reports a split. Require every node in exactly one
+  // group, and no node named twice.
+  if (config.action == EventAction::PARTITION_NETWORK) {
+    std::set<std::string> seen;
+    for (const auto& group : config.groups) {
+      for (const auto& id : group) {
+        bool exists = false;
+        for (const auto& node : all_nodes) {
+          if (node.id == id) { exists = true; break; }
+        }
+        if (!exists) {
+          ValidationError err;
+          err.field = "event.groups";
+          err.message = "Partition group references non-existent node: " + id;
+          err.suggestion = "Ensure every group node exists";
+          errors.push_back(err);
+        } else if (!seen.insert(id).second) {
+          ValidationError err;
+          err.field = "event.groups";
+          err.message = "Node appears in more than one partition group: " + id;
+          err.suggestion = "Each node belongs to exactly one group";
+          errors.push_back(err);
+        }
+      }
+    }
+    for (const auto& node : all_nodes) {
+      if (!seen.count(node.id)) {
+        ValidationError err;
+        err.field = "event.groups";
+        err.message = "Partition omits node '" + node.id +
+                      "', which would keep bridging the split";
+        err.suggestion = "Place every node in exactly one partition group";
+        errors.push_back(err);
+      }
     }
   }
 }

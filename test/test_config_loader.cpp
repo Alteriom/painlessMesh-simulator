@@ -565,6 +565,78 @@ events:
   REQUIRE(config->events[1].action == EventAction::START_NODE);
 }
 
+TEST_CASE("ConfigLoader validates partition groups cover every node",
+          "[config_loader]") {
+  // partitionNetwork() only cuts pairs crossing group boundaries, so a node
+  // omitted from every group keeps bridging the split -- the event would report
+  // success while traffic still crosses. Every node must be in exactly one
+  // group.
+  const std::string nodes = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-3"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+)";
+
+  auto errorsFor = [](const std::string& yaml) {
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    REQUIRE(config.has_value());
+    return loader.getValidationErrors(*config);
+  };
+  auto hasGroupError = [](const std::vector<ValidationError>& errors,
+                          const std::string& needle) {
+    for (const auto& e : errors) {
+      if (e.message.find(needle) != std::string::npos) return true;
+    }
+    return false;
+  };
+
+  SECTION("omitting a node is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1]
+      - [node-2]
+)");
+    REQUIRE(hasGroupError(errors, "omits node 'node-3'"));
+  }
+
+  SECTION("a node in two groups is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2]
+      - [node-2, node-3]
+)");
+    REQUIRE(hasGroupError(errors, "more than one partition group"));
+  }
+
+  SECTION("a full partition validates") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2]
+      - [node-3]
+)");
+    REQUIRE_FALSE(hasGroupError(errors, "omits node"));
+    REQUIRE_FALSE(hasGroupError(errors, "more than one"));
+  }
+}
+
 TEST_CASE("ConfigLoader validates event timing", "[config_loader]") {
   std::string yaml = R"(
 simulation:

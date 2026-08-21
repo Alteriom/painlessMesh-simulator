@@ -303,16 +303,20 @@ size_t NodeManager::healNetwork() {
     if (!topology_.count(link.first) || !topology_.at(link.first).count(link.second)) {
       continue;
     }
-    // The partition reason is resolved for this edge either way. But if the
-    // edge is also an explicit drop, it stays down under that reason -- do not
-    // reconnect it, and do not keep it pending as a partition cut.
+    // The partition reason is resolved for this edge either way. If the edge is
+    // also an explicit drop, it stays down under that reason -- do not reconnect
+    // it, and do not keep it as a partition cut.
     if (explicit_drops_.count(link)) {
       continue;
     }
     auto a = getNode(link.first);
     auto b = getNode(link.second);
     if (!a || !b || !a->isRunning() || !b->isRunning()) {
-      pending.insert(link);  // a node is down; a later heal can retry
+      // A node is down: the partition has still ended, so release the cut
+      // rather than holding it. The edge is no longer severed, so when that
+      // node starts again reconnectNode() re-establishes it -- a second heal
+      // is not required. Holding it here instead would leave the node
+      // permanently detached, since reconnectNode() skips severed edges.
       continue;
     }
     if (a->isConnectedTo(link.second) || b->isConnectedTo(link.first)) {
@@ -321,7 +325,10 @@ size_t NodeManager::healNetwork() {
     if (connectNodes(link.first, link.second)) {
       ++restored;
     } else {
-      pending.insert(link);  // handshake did not settle; retain for retry
+      // Both endpoints are up but the handshake did not settle -- a genuine
+      // transient. Retain it so a later heal retries; reconnectNode() will not
+      // help here because neither node is restarting.
+      pending.insert(link);
     }
   }
   partition_cuts_ = pending;
