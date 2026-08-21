@@ -61,7 +61,7 @@ public:
     
     // Send response back to sender
     if (mesh_) {
-      mesh_->sendSingle(from, response);
+      sendSingle(from, response);  // via FirmwareBase so the send is counted
       echo_count_++;
       
       std::cout << "[INFO] Node " << node_id_ << " echoed to " << from 

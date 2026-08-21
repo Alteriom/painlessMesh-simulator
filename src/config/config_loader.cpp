@@ -856,7 +856,9 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "remove_node") return EventAction::REMOVE_NODE;
   if (lower == "add_nodes") return EventAction::ADD_NODES;
   if (lower == "partition_network") return EventAction::PARTITION_NETWORK;
+  if (lower == "network_partition") return EventAction::PARTITION_NETWORK;  // Alternative name
   if (lower == "heal_partition") return EventAction::HEAL_PARTITION;
+  if (lower == "network_heal") return EventAction::HEAL_PARTITION;  // Alternative name
   if (lower == "break_link") return EventAction::BREAK_LINK;
   if (lower == "restore_link") return EventAction::RESTORE_LINK;
   if (lower == "inject_message") return EventAction::INJECT_MESSAGE;

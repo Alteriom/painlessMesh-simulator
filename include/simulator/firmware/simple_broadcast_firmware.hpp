@@ -121,7 +121,7 @@ private:
     String msg = broadcast_message_ + " " + std::to_string(node_id_);
     
     // Broadcast to all nodes
-    mesh_->sendBroadcast(msg);
+    sendBroadcast(msg);  // via FirmwareBase so the send is counted
     messages_sent_++;
     
     std::cout << "[INFO] Node " << node_id_ << " broadcasting: " 

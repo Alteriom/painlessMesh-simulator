@@ -13,35 +13,40 @@ nodes:
   # Bridge node - critical path between two groups
   - id: "bridge-1"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "bridge123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "bridge123"
+      mesh_port: 5555
   
   # Group A nodes
   - id: "sensor-a1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "bridge123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "bridge123"
+      mesh_port: 5555
   
   - id: "sensor-a2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "bridge123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "bridge123"
+      mesh_port: 5555
   
   # Group B nodes
   - id: "sensor-b1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "bridge123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "bridge123"
+      mesh_port: 5555
   
   - id: "sensor-b2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "bridge123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "bridge123"
+      mesh_port: 5555
 
 topology:
   type: "custom"

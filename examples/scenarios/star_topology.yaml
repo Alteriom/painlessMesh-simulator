@@ -20,7 +20,7 @@ nodes:
   # Central MQTT bridge node (hub)
   - id: "bridge-1"
     type: "mqtt_bridge"
-    firmware: "examples/firmware/mqtt_bridge"
+    firmware: "BridgeInoFirmware"
     position: [0, 0]  # Center position
     config:
       mesh_prefix: "StarMesh"
@@ -34,7 +34,7 @@ nodes:
   - template: "sensor"
     count: 20
     id_prefix: "sensor-"
-    firmware: "examples/firmware/sensor_node"
+    firmware: "SimpleBroadcast"
     config:
       mesh_prefix: "StarMesh"
       mesh_password: "bridge_pass_123"

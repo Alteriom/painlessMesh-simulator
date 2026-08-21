@@ -161,6 +161,32 @@ public:
    * @return Count of nodes currently managed
    */
   size_t getNodeCount() const { return nodes_.size(); }
+
+  /**
+   * @brief Number of nodes whose configured firmware failed to load
+   *
+   * createNode() deliberately keeps a node alive when its firmware cannot be
+   * resolved, so that an interactive run still shows the rest of the mesh.
+   * That is the wrong default for CI, where a scenario naming firmware which
+   * never loads must not report success. Callers acting as a test gate should
+   * treat any non-zero value here as a failed run.
+   */
+  size_t getFirmwareLoadFailureCount() const { return firmware_load_failures_; }
+
+  /**
+   * @brief Number of nodes currently running
+   *
+   * Distinct from getNodeCount(): a crashed or stopped node is still managed.
+   * Progress output used to report the total here, so a scenario that crashed
+   * half the mesh still printed the full node count as "running".
+   */
+  size_t getRunningCount() const {
+    size_t running = 0;
+    for (const auto& pair : nodes_) {
+      if (pair.second && pair.second->isRunning()) ++running;
+    }
+    return running;
+  }
   
   /**
    * @brief Get a specific node by ID
@@ -214,6 +240,7 @@ private:
   boost::asio::io_context& io_;                                   ///< IO context reference
   std::unique_ptr<Scheduler> scheduler_;                          ///< Shared scheduler instance
   std::map<uint32_t, std::shared_ptr<VirtualNode>> nodes_;        ///< Map of node ID to node
+  size_t firmware_load_failures_ = 0;                             ///< Nodes whose firmware failed to load
   uint32_t next_node_id_{1000};                                   ///< Next auto-assigned node ID
 };
 

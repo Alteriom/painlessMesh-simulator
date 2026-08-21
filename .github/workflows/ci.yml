@@ -7,9 +7,10 @@ on:
     branches: [ master, main, develop, 'feature/**' ]
   pull_request:
     branches: [ master, main, develop ]
-  # schedule:
-    # Run nightly stress tests at 2 AM UTC
-    #- cron: '0 2 * * *'
+  schedule:
+    # Nightly: upstream drift check against painlessMesh HEAD, plus benchmarks.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
@@ -187,22 +188,17 @@ jobs:
               cmake -G Ninja .. && \
               ninja"
       
-      - name: Run basic validation
+      # Asserts on what the simulator did, not merely that it exited 0. The previous
+      # step ran one scenario and tested $? *after* an echo, so its exit check was
+      # dead code -- and the scenario it ran passed even when every node failed to
+      # load firmware and no message was ever sent.
+      - name: Run behavioural integration checks
         run: |
-          # Run simple mesh scenario
           docker run --rm \
             -v ${{ github.workspace }}:/build \
             -w /build \
             painlessmesh-simulator:builder \
-            bash -c "./build/bin/painlessmesh-simulator --config examples/scenarios/simple_mesh.yaml --duration 30 --log-level INFO"
-          
-          # Verify the simulator ran successfully
-          if [ $? -eq 0 ]; then
-            echo "✓ Simple mesh scenario completed successfully"
-          else
-            echo "✗ Simple mesh scenario failed"
-            exit 1
-          fi
+            bash -c "./scripts/ci_integration_check.sh ./build/bin/painlessmesh-simulator"
       
       - name: Upload test results
         uses: actions/upload-artifact@v6
@@ -329,15 +325,18 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint, build-docker, test]
+    needs: [lint, build-docker, test, integration-test]
     if: always()
     
     steps:
       - name: Check all jobs
         run: |
+          # integration-test is gated here too. It used to be omitted, so a failing
+          # integration run still reported CI success.
           if [[ "${{ needs.lint.result }}" != "success" ]] || \
              [[ "${{ needs.build-docker.result }}" != "success" ]] || \
-             [[ "${{ needs.test.result }}" != "success" ]]; then
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.integration-test.result }}" != "success" ]]; then
             echo "One or more CI jobs failed"
             exit 1
           fi

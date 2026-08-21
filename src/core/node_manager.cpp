@@ -56,7 +56,9 @@ std::shared_ptr<VirtualNode> NodeManager::createNode(const NodeConfig& config) {
   if (!config.firmware.empty()) {
     if (!node->loadFirmware(config.firmware)) {
       std::cerr << "[ERROR] Failed to load firmware for node " << config.nodeId << std::endl;
-      // Continue without firmware rather than failing node creation
+      // Keep the node so an interactive run still shows the rest of the mesh, but
+      // record the failure -- callers gating CI on this run must be able to see it.
+      ++firmware_load_failures_;
     }
   }
   

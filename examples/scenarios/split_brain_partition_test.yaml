@@ -13,77 +13,89 @@ nodes:
   # Group 1: Bridge + 3 sensors
   - id: "bridge-1"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-3"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   # Group 2: Bridge + 3 sensors
   - id: "bridge-2"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-4"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-5"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-6"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   # Group 3: Bridge + 3 sensors
   - id: "bridge-3"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-7"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-8"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
   
   - id: "sensor-9"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "partition123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "partition123"
+      mesh_port: 5555
 
 topology:
   type: "mesh"  # All nodes fully connected initially

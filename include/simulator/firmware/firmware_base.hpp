@@ -17,6 +17,7 @@
 #include <list>
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 // Forward declarations
 class Scheduler;
@@ -200,6 +201,19 @@ public:
    * @return Node ID assigned during initialization
    */
   uint32_t getNodeId() const { return node_id_; }
+
+  /**
+   * @brief Installs a hook invoked for every message this firmware sends
+   *
+   * Firmware sends straight through mesh_, so the owning VirtualNode has no way
+   * to observe a send and its messages_sent metric was permanently zero. The
+   * node installs this hook when it loads the firmware.
+   *
+   * @param cb Receives the payload size in bytes
+   */
+  void setMessageSentCallback(std::function<void(size_t)> cb) {
+    on_message_sent_ = std::move(cb);
+  }
   
   /**
    * @brief Gets a configuration value
@@ -270,6 +284,7 @@ protected:
   uint32_t node_id_{0};                                   ///< Node ID
   std::map<String, String> config_;                       ///< Configuration map
   bool initialized_{false};                               ///< Initialization flag
+  std::function<void(size_t)> on_message_sent_;           ///< Send accounting hook
 };
 
 } // namespace firmware

@@ -290,6 +290,12 @@ bool VirtualNode::loadFirmware(const std::string& firmwareName) {
     return false;
   }
   
+  // Account sends against this node's metrics -- firmware talks straight to
+  // mesh_, so without this hook messages_sent can never leave zero.
+  firmware_->setMessageSentCallback([this](size_t bytes) {
+    metrics_.messages_sent++;
+    metrics_.bytes_sent += bytes;
+  });
   std::cout << "[INFO] Loaded firmware '" << firmware_->getName() 
             << "' for node " << node_id_ << std::endl;
   return true;
@@ -298,6 +304,10 @@ bool VirtualNode::loadFirmware(const std::string& firmwareName) {
 void VirtualNode::loadFirmware(std::unique_ptr<firmware::FirmwareBase> firmware) {
   firmware_ = std::move(firmware);
   if (firmware_) {
+    firmware_->setMessageSentCallback([this](size_t bytes) {
+      metrics_.messages_sent++;
+      metrics_.bytes_sent += bytes;
+    });
     std::cout << "[INFO] Loaded firmware '" << firmware_->getName() 
               << "' for node " << node_id_ << std::endl;
   }

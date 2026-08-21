@@ -13,6 +13,9 @@
 #include "simulator/cli_options.hpp"
 #include "simulator/config_loader.hpp"
 #include "simulator/node_manager.hpp"
+#include "simulator/event_factory.hpp"
+#include "simulator/event_scheduler.hpp"
+#include "simulator/network_simulator.hpp"
 #include "simulator/firmware/firmware_factory.hpp"
 #include "simulator/firmware/simple_broadcast_firmware.hpp"
 #include "simulator/firmware/library_validation_firmware.hpp"
@@ -69,9 +72,9 @@ void applyCliOverrides(ScenarioConfig& config, const CLIOptions& options) {
  */
 int main(int argc, char* argv[]) {
   try {
-    // Register built-in firmware
-    firmware::FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
-      []() { return std::make_unique<firmware::SimpleBroadcastFirmware>(); });
+    // Most built-in firmware self-registers via REGISTER_FIRMWARE() at static-init time
+    // (see the whole-archive link in CMakeLists.txt, without which none of it arrives).
+    // LibraryValidationFirmware does not use the macro, so register it by hand.
     firmware::FirmwareFactory::instance().registerFirmware("library_validation",
       []() { return std::make_unique<firmware::LibraryValidationFirmware>(); });
     
@@ -184,6 +187,22 @@ int main(int argc, char* argv[]) {
     }
     
     std::cout << "[INFO] Successfully created " << manager.getNodeCount() << " nodes" << std::endl;
+
+    // A scenario that names firmware which never loads produced a run in which no node
+    // did anything -- and, before this check, still exited 0. That made the simulator
+    // useless as a CI gate, so fail the run instead of reporting a hollow success.
+    if (manager.getFirmwareLoadFailureCount() > 0) {
+      std::cerr << "[ERROR] " << manager.getFirmwareLoadFailureCount()
+                << " of " << manager.getNodeCount()
+                << " nodes could not load their configured firmware." << std::endl;
+      std::cerr << "[ERROR] Available firmware: ";
+      const auto available = firmware::FirmwareFactory::instance().getRegisteredNames();
+      for (size_t i = 0; i < available.size(); ++i) {
+        std::cerr << (i ? ", " : "") << available[i];
+      }
+      std::cerr << std::endl;
+      return 1;
+    }
     
     // Start all nodes
     std::cout << "[INFO] Starting all nodes..." << std::endl;
@@ -195,6 +214,35 @@ int main(int argc, char* argv[]) {
     manager.establishConnectivity();
     std::cout << "[INFO] Mesh connectivity established" << std::endl;
     
+    // Build the scenario timeline. The config loader has parsed and validated
+    // config.events all along; until now nothing turned those records into Event
+    // objects, so every scenario ran as a static mesh for its duration.
+    EventScheduler event_scheduler;
+    NetworkSimulator network(config.simulation.seed);
+    {
+      std::map<std::string, uint32_t> id_to_node_id;
+      for (const auto& node_config : config.nodes) {
+        id_to_node_id[node_config.id] = node_config.nodeId;
+      }
+      std::vector<std::string> skipped;
+      const size_t scheduled = EventFactory::scheduleAll(
+          config.events, id_to_node_id, event_scheduler, skipped);
+      if (!config.events.empty()) {
+        std::cout << "[INFO] Scheduled " << scheduled << " of "
+                  << config.events.size() << " scenario events" << std::endl;
+      }
+      for (const auto& s : skipped) {
+        std::cerr << "[WARN] Skipped event: " << s << std::endl;
+      }
+      // A scenario whose timeline cannot be built is not the scenario the author
+      // wrote. Fail rather than run a silently different test.
+      if (!skipped.empty()) {
+        std::cerr << "[ERROR] " << skipped.size()
+                  << " scenario event(s) could not be scheduled." << std::endl;
+        return 1;
+      }
+    }
+
     // Run simulation
     std::cout << "\n[INFO] Starting simulation...\n" << std::endl;
     
@@ -210,11 +258,17 @@ int main(int argc, char* argv[]) {
       // Calculate elapsed time
       auto now = std::chrono::steady_clock::now();
       auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
+
+      // Fire any scenario events that have come due
+      if (event_scheduler.hasPendingEvents()) {
+        event_scheduler.processEvents(static_cast<uint32_t>(elapsed), manager, network);
+      }
       
       // Progress reporting every 5 seconds
       if (elapsed > 0 && elapsed % 5 == 0 && elapsed != last_report) {
         std::cout << "[" << elapsed << "s] " 
-                  << manager.getNodeCount() << " nodes running, "
+                  << manager.getRunningCount() << "/" << manager.getNodeCount()
+                  << " nodes running, "
                   << update_count << " updates performed" << std::endl;
         last_report = elapsed;
       }

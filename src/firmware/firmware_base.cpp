@@ -18,6 +18,7 @@ void FirmwareBase::sendBroadcast(const String& msg) {
   if (mesh_) {
     String msg_copy = msg;  // painlessMesh modifies the message
     mesh_->sendBroadcast(msg_copy);
+    if (on_message_sent_) on_message_sent_(msg.length());
   }
 }
 
@@ -25,6 +26,7 @@ void FirmwareBase::sendSingle(uint32_t dest, const String& msg) {
   if (mesh_) {
     String msg_copy = msg;  // painlessMesh modifies the message
     mesh_->sendSingle(dest, msg_copy);
+    if (on_message_sent_) on_message_sent_(msg.length());
   }
 }
 

@@ -16,44 +16,50 @@ nodes:
   # Partition 1: 17 nodes (1 bridge + 16 sensors)
   - id: "bridge-p1"
     type: "bridge"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
   
   - template: "sensor"
     count: 16
     id_prefix: "p1-sensor-"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
   
   # Partition 2: 17 nodes (1 bridge + 16 sensors)
   - id: "bridge-p2"
     type: "bridge"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
   
   - template: "sensor"
     count: 16
     id_prefix: "p2-sensor-"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
   
   # Partition 3: 16 nodes (1 bridge + 15 sensors)
   - id: "bridge-p3"
     type: "bridge"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
   
   - template: "sensor"
     count: 15
     id_prefix: "p3-sensor-"
-    mesh_prefix: "StressMesh"
-    mesh_password: "stress138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "StressMesh"
+      mesh_password: "stress138"
+      mesh_port: 5555
 
 topology:
   type: "random"  # Random topology for realistic large-scale mesh

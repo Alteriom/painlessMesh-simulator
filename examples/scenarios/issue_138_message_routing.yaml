@@ -13,40 +13,46 @@ nodes:
   # Partition Group 1
   - id: "node-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
   
   - id: "node-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
   
   - id: "node-3"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
   
   # Partition Group 2
   - id: "node-4"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
   
   - id: "node-5"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
   
   - id: "node-6"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "routing138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "routing138"
+      mesh_port: 5555
 
 topology:
   type: "mesh"

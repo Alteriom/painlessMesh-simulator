@@ -116,12 +116,12 @@ private:
     
     if (server_node_id_ == 0) {
       // Broadcast mode - send to all nodes
-      mesh_->sendBroadcast(msg);
+      sendBroadcast(msg);  // via FirmwareBase so the send is counted
       std::cout << "[INFO] Node " << node_id_ << " broadcasting request: " 
                 << msg << std::endl;
     } else {
       // Send to specific server
-      mesh_->sendSingle(server_node_id_, msg);
+      sendSingle(server_node_id_, msg);  // via FirmwareBase so the send is counted
       std::cout << "[INFO] Node " << node_id_ << " sending request to " 
                 << server_node_id_ << ": " << msg << std::endl;
     }
