@@ -222,12 +222,13 @@ size_t NodeManager::severConnection(uint32_t a, uint32_t b) {
 }
 
 size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
-  // An explicit connection_drop is a deliberate, persistent failure. Record it
-  // as such and clear any partition marker on the same edge, so a later
-  // healNetwork() cannot restore it -- only its own connection_restore can.
-  // This holds whichever order a drop and an overlapping partition arrive in.
+  // A link can be down for more than one reason at once -- an explicit
+  // connection_drop AND an active partition crossing the same edge. Each reason
+  // is tracked independently, and the link comes back only when *every* reason
+  // is cleared: connection_restore clears the explicit drop, heal_partition
+  // clears the partition cut. So this records the explicit reason and leaves
+  // any partition reason untouched.
   explicit_drops_.insert(linkKey(a, b));
-  partition_cuts_.erase(linkKey(a, b));
   return severConnection(a, b);
 }
 
@@ -240,8 +241,14 @@ bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
   if (!topology_.count(a) || !topology_.at(a).count(b)) {
     return false;
   }
+  // connection_restore is the counterpart of connection_drop: it clears the
+  // explicit reason only. If an active partition still cuts this edge, the link
+  // stays down until heal_partition -- reconnecting it here would bridge the
+  // two groups early. Leave the partition cut in place and defer.
   explicit_drops_.erase(linkKey(a, b));
-  partition_cuts_.erase(linkKey(a, b));
+  if (partition_cuts_.count(linkKey(a, b))) {
+    return false;  // still partitioned; the heal will bring it back
+  }
 
   auto nodeA = getNode(a);
   auto nodeB = getNode(b);
@@ -265,15 +272,11 @@ size_t NodeManager::partitionNetwork(
           // wired today: otherwise a later reconnectNode() would quietly bridge
           // the partition back together.
           const bool wired = topology_.count(x) && topology_.at(x).count(y);
-          const auto key = linkKey(x, y);
           severConnection(x, y);
-          // Mark as a partition cut only when it is not already a deliberate
-          // explicit drop. Otherwise a heal would restore an edge the scenario
-          // dropped on purpose, ahead of its own connection_restore -- the same
-          // whether the drop came before this partition or is on the same edge.
-          if (!explicit_drops_.count(key)) {
-            partition_cuts_.insert(key);
-          }
+          // Record the partition reason. It coexists with any explicit drop on
+          // the same edge: a heal clears only this reason, so an edge that is
+          // also explicitly dropped stays down until its own restore.
+          partition_cuts_.insert(linkKey(x, y));
           if (wired) ++cut;
         }
       }
@@ -298,6 +301,12 @@ size_t NodeManager::healNetwork() {
     // marks every cross pair cut, most of which were never wired. A marker on a
     // non-edge is simply spent.
     if (!topology_.count(link.first) || !topology_.at(link.first).count(link.second)) {
+      continue;
+    }
+    // The partition reason is resolved for this edge either way. But if the
+    // edge is also an explicit drop, it stays down under that reason -- do not
+    // reconnect it, and do not keep it pending as a partition cut.
+    if (explicit_drops_.count(link)) {
       continue;
     }
     auto a = getNode(link.first);

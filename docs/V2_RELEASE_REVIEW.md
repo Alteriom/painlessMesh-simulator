@@ -659,6 +659,31 @@ wired) is simply spent, as before. A unit test partitions a pair, stops one
 endpoint so the first heal restores nothing and the link stays severed, then
 restarts it and heals again to complete the restore.
 
+### 29. A restore bridged an edge an active partition still cut (medium)
+
+Raised by `chatgpt-codex-connector` on the twelfth review pass, against finding
+27's fix -- and it showed that "explicit wins" was the wrong model.
+
+Finding 27 made an explicit drop *replace* a partition marker on the same edge.
+So `connection_restore` on that edge, while the partition was still unhealed,
+cleared the only remaining reason and reconnected -- bridging the two partition
+groups ahead of `heal_partition`. The same happened for an edge cut only by a
+partition if a `connection_restore` named it.
+
+The model is now: **a link can be down for several reasons at once, and comes
+back only when every reason clears.** `explicit_drops_` and `partition_cuts_`
+coexist per edge. `connection_drop` adds the explicit reason and leaves any
+partition reason; `partitionNetwork()` adds the partition reason and leaves any
+explicit one. `connection_restore` clears only the explicit reason and defers if
+a partition still cuts the edge; `healNetwork()` clears only the partition
+reason and leaves an edge down if it is also explicitly dropped. `isLinkSevered`
+is the union. A reconnect happens only at the moment the last reason is removed.
+
+This subsumes findings 26-28 into one coherent rule instead of a special case
+per pair of events. Unit tests cover a restore deferring to a heal, both for a
+purely partitioned edge and for one that is both dropped and partitioned; the
+overlapping-edge and pending-cut tests from 27/28 still hold.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -700,8 +725,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 132 test cases, 1517 assertions, all passing. Findings 14-24 and
-  26-28 each added coverage; finding 25 is a seed-resolution change in the entry
+- Unit tests: 133 test cases, 1535 assertions, all passing. Findings 14-24 and
+  26-29 each added coverage; finding 25 is a seed-resolution change in the entry
   point, verified by running two seedless scenarios and observing different
   drawn seeds, with the gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.

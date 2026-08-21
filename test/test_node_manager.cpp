@@ -700,6 +700,59 @@ TEST_CASE("an explicit drop on a partition-crossing edge survives the heal",
   manager.stopAll();
 }
 
+TEST_CASE("a restore does not bridge an edge an active partition still cuts",
+          "[node_manager][heal]") {
+  // connection_restore clears only the explicit reason. If a partition still
+  // cuts the edge, the link must stay down until heal_partition -- reconnecting
+  // it early bridges the two groups.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19891;
+  for (uint32_t id : {8891u, 8892u, 8893u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8891, 8892));
+  REQUIRE(manager.connectNodes(8892, 8893));
+
+  SECTION("pure partition edge: a restore call defers to the heal") {
+    manager.partitionNetwork({{8891, 8892}, {8893}});  // cuts 8892 <-> 8893
+    REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
+
+    // A restore while the partition is active must not bridge it.
+    REQUIRE_FALSE(manager.restoreLink(8892, 8893));
+    REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
+    REQUIRE(manager.isLinkSevered(8892, 8893));
+
+    // The heal is what brings it back.
+    REQUIRE(manager.healNetwork() == 1);
+    REQUIRE(manager.getNode(8892)->isConnectedTo(8893));
+  }
+
+  SECTION("edge both dropped and partitioned: restore defers, heal completes") {
+    manager.partitionNetwork({{8891, 8892}, {8893}});  // partition reason
+    REQUIRE(manager.dropLink(8892, 8893) >= 0);         // explicit reason too
+    REQUIRE(manager.isLinkSevered(8892, 8893));
+
+    // Restore clears the explicit reason but the partition still cuts it.
+    REQUIRE_FALSE(manager.restoreLink(8892, 8893));
+    REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
+    REQUIRE(manager.isLinkSevered(8892, 8893));
+
+    // Now that only the partition reason remains, the heal reconnects it.
+    REQUIRE(manager.healNetwork() == 1);
+    REQUIRE(manager.getNode(8892)->isConnectedTo(8893));
+    REQUIRE_FALSE(manager.isLinkSevered(8892, 8893));
+  }
+
+  manager.stopAll();
+}
+
 TEST_CASE("a heal keeps a cut it could not restore pending",
           "[node_manager][heal]") {
   // If a node on a partition edge is down when the heal runs, the cut cannot be
