@@ -339,6 +339,27 @@ TopologyPlan planTopology(const TopologyConfig& topology,
         candidates.push_back(want);
       }
     }
+  } else {
+    // An explicit topology (mesh/star/ring/custom) is wired exactly as declared.
+    // A link event naming a pair that is not one of its edges has nothing to act
+    // on -- dropLink() would record a phantom pair and close zero endpoints, and
+    // the run would still exit 0. That is a configuration error, so flag the
+    // pair as unwireable; the entry point fails the run on it, the same as a
+    // cyclic event link. (mesh declares every pair, so this only bites star,
+    // ring and custom.)
+    for (const auto& want : preferred) {
+      const bool declaredEdge = std::any_of(
+          declared.begin(), declared.end(),
+          [&](const PlannedLink& l) { return samePair(l, want); });
+      if (!declaredEdge) {
+        plan.warnings.push_back(
+            "an event names the link " + std::to_string(want.first) + " <-> " +
+            std::to_string(want.second) +
+            ", which is not an edge of the declared " +
+            topologyTypeName(topology.type) + " topology");
+        plan.unwireable_preferred.push_back(want);
+      }
+    }
   }
 
   plan.links = spanningSubset(candidates, preferred, plan.warnings,

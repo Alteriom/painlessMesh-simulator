@@ -302,6 +302,9 @@ TEST_CASE("an explicit topology is not silently reshaped by an event",
   REQUIRE(withEvent.links == without.links);            // unchanged
   REQUIRE_FALSE(hasLink(withEvent.links, 1002, 1004));  // leaf-leaf not added
   REQUIRE(hasLink(withEvent.links, 1001, 1002));        // still a spoke
+  // ...and the undeclared leaf-to-leaf edge is a fatal planning error, so its
+  // drop does not run as a silent no-op.
+  REQUIRE(withEvent.unwireable_preferred.size() == 1);
 }
 
 TEST_CASE("event links that form a cycle are reported as unwireable",

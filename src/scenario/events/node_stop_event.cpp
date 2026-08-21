@@ -27,7 +27,15 @@ void NodeStopEvent::execute(NodeManager& manager, NetworkSimulator& network) {
   }
   
   if (node->isRunning()) {
-    node->stop();
+    // graceful: false is a forced teardown -- it must exercise the ungraceful
+    // path (crash()), which drops the node without a clean shutdown and counts
+    // the crash. Calling stop() for both did the same graceful teardown either
+    // way, so a scenario asking for a forced outage never got one.
+    if (graceful_) {
+      node->stop();
+    } else {
+      node->crash();
+    }
     std::cout << "[EVENT] Node " << nodeId_ << " stopped " 
               << (graceful_ ? "(graceful)" : "(forced)") << std::endl;
   } else {

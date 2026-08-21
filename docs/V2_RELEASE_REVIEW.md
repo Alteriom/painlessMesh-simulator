@@ -794,6 +794,38 @@ non-empty rather than executing a hollow event. A unit test confirms the third
 drop is flagged, and an end-to-end run of three drops on a triangle exits
 non-zero with *"1 event-named link(s) cannot be wired..."*.
 
+### 37. Link events on undeclared explicit edges still no-opped (medium)
+
+Raised by `chatgpt-codex-connector` on the seventeenth review pass, against
+finding 35. Correct -- finding 35's comment promised a runtime failure that only
+`connection_restore` actually enforced.
+
+Finding 35 stopped *adding* an event's pair to an explicit topology, but a
+`connection_drop` or `connection_degrade` on a pair that is not one of that
+topology's edges was still scheduled: `dropLink()` recorded the phantom pair,
+closed zero endpoints, and the run exited 0. Only `connection_restore` had the
+membership guard (finding 23).
+
+`planTopology()` now, for the explicit modes, flags any event-named pair that is
+not a declared edge as `unwireable_preferred` -- the same fatal list finding 36
+uses for cyclic links. The entry point fails the run with a message naming
+either cause. `mesh` declares every pair, so this only bites `star`, `ring` and
+`custom`; none of the shipped scenarios with link events use those. A unit test
+asserts a star leaf-to-leaf drop is flagged, and end-to-end that scenario exits
+non-zero.
+
+### 38. `graceful: false` did a graceful stop (medium)
+
+`NodeStopEvent::execute()` called `VirtualNode::stop()` unconditionally and only
+printed `(forced)`. So a `stop_node` with `graceful: false` performed the same
+clean teardown as `graceful: true` -- it never exercised the crash path, never
+incremented `crash_count`, and reported a forced outage that did not happen.
+
+A forced stop now calls `crash()` (the ungraceful path), which drops the node
+without a clean shutdown and counts the crash; a graceful stop still calls
+`stop()`. Unit tests assert `crash_count` moves for a forced stop and stays flat
+for a graceful one.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -835,8 +867,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 138 test cases, 1563 assertions, all passing. Findings 14-24 and
-  26-36 each added coverage (30 is gate-script only); finding 25 is a
+- Unit tests: 138 test cases, 1570 assertions, all passing. Findings 14-24 and
+  26-38 each added coverage (30 is gate-script only); finding 25 is a
   seed-resolution change in the entry point, verified by running two seedless
   scenarios and observing different drawn seeds, with the gate scenarios pinned
   so CI stays deterministic.

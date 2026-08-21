@@ -254,9 +254,10 @@ int main(int argc, char* argv[]) {
     // instead of executing a hollow event.
     if (!plan.unwireable_preferred.empty()) {
       std::cerr << "[ERROR] " << plan.unwireable_preferred.size()
-                << " event-named link(s) cannot be wired without closing a "
-                << "cycle painlessMesh will not hold; the scenario's link "
-                << "events would run against no live link" << std::endl;
+                << " event-named link(s) cannot be wired -- not an edge of the "
+                << "declared topology, or would close a cycle painlessMesh will "
+                << "not hold; those link events would run against no live link"
+                << std::endl;
       return 1;
     }
     size_t wired = 0;
