@@ -135,18 +135,27 @@ std::vector<PlannedLink> partitionGroupEdges(
       continue;
     }
     for (const auto& group : event.groups) {
-      uint32_t prev = 0;
-      bool have_prev = false;
+      // Resolve the group to node ids present in the scenario.
+      std::vector<uint32_t> ids;
       for (const auto& id : group) {
         uint32_t resolved = 0;
-        if (!resolveId(nodes, id, resolved)) {
-          continue;  // an unknown node -- validation flags it separately
+        if (resolveId(nodes, id, resolved)) {  // unknown ids flagged in validation
+          ids.push_back(resolved);
         }
-        if (have_prev && prev != resolved) {
-          edges.emplace_back(prev, resolved);
+      }
+      // Emit EVERY intra-group pair, not just a single path. A fixed path chosen
+      // per group in event order is greedy: with overlapping partition events it
+      // can drop an edge as cyclic and reject a topology that does have a valid
+      // spanning tree keeping all groups connected. Offering the whole
+      // intra-group clique lets spanningSubset()'s union-find pick a consistent
+      // set -- for any group not yet connected, some intra-group pair bridges
+      // two of its components and is kept.
+      for (size_t i = 0; i < ids.size(); ++i) {
+        for (size_t j = i + 1; j < ids.size(); ++j) {
+          if (ids[i] != ids[j]) {
+            edges.emplace_back(ids[i], ids[j]);
+          }
         }
-        prev = resolved;
-        have_prev = true;
       }
     }
   }

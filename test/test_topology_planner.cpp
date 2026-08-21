@@ -331,6 +331,30 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner keeps overlapping partition groups connected",
+          "[topology][events]") {
+  // Reviewer's case: a 4-node mesh with two partition events whose groups
+  // overlap -- [n1,n2,n3] and [n1,n3,n4]. A per-group path is greedy and would
+  // reject this, but the tree 1-2, 1-3, 3-4 keeps both groups connected. The
+  // planner must find it, not report infeasible.
+  const auto nodes = makeNodes(4);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig p1;
+  p1.action = EventAction::PARTITION_NETWORK;
+  p1.groups = {{"n1", "n2", "n3"}, {"n4"}};
+
+  EventConfig p2;
+  p2.action = EventAction::PARTITION_NETWORK;
+  p2.groups = {{"n1", "n3", "n4"}, {"n2"}};
+
+  const auto plan = planTopology(topology, nodes, {p1, p2}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+  REQUIRE(isConnected(plan.links, nodes.size()));
+}
+
 TEST_CASE("Topology planner flags a partition it cannot keep connected",
           "[topology][events]") {
   // A star cannot keep a group that excludes the hub internally connected. That

@@ -1076,6 +1076,28 @@ fails only a genuinely broken timeline. A unit test asserts a delivered
 injection does not throw and an injection from a stopped node does; an
 end-to-end run of an inject-from-stopped-node scenario exits non-zero.
 
+### 54. Overlapping partition groups were planned greedily (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-eighth review pass, against
+finding 50/51. Correct.
+
+Finding 50 fed each partition group a single intra-group *path* (consecutive
+pairs) as soft-preferred edges. With overlapping partition events the greedy
+reduction could drop a needed edge as cyclic and then report a group infeasible,
+even when a valid spanning tree existed. On a 4-node mesh, groups `[n1,n2,n3]`
+and `[n1,n3,n4]` gave preferences `1-2, 2-3, 1-3, 3-4`; the reduction kept
+`1-2, 2-3`, dropped `1-3` as cyclic, and called the second group infeasible --
+though the tree `1-2, 1-3, 3-4` keeps both groups connected.
+
+The planner now offers the whole intra-group *clique* (every pair within each
+group) as soft-preferred, not a fixed path. `spanningSubset()`'s union-find then
+picks a consistent set: for any group not yet connected, some intra-group pair
+bridges two of its components and is kept, so every group that *can* be connected
+is. The greedy suboptimality is gone; a group is flagged infeasible only when the
+declared topology genuinely has no intra-group edges to keep (a `star` group
+excluding the hub). A unit test asserts the reviewer's overlapping-groups case
+plans a connected tree with no infeasibility.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1117,8 +1139,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 151 test cases, 1601 assertions, all passing. Findings 14-24 and
-  26-53 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 152 test cases, 1603 assertions, all passing. Findings 14-24 and
+  26-54 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the
