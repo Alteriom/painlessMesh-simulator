@@ -42,23 +42,42 @@ jobs:
           git submodule update --init --recursive
           echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build libboost-all-dev \
-            libyaml-cpp-dev libncurses-dev
+      # Build in the project's own Docker image, exactly as every other build job
+      # here does. A bare ubuntu-latest runner fails 6 partition tests with
+      # "bind: Permission denied" from boost::asio -- an environment difference
+      # that has nothing to do with upstream drift, and would make this job cry
+      # wolf every night.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Configure and build
+      - name: Build Docker image
+        run: docker build --target builder -t painlessmesh-simulator:builder .
+
+      - name: Build against ${{ matrix.branch }}
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON
-          cmake --build build -j"$(nproc)"
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "mkdir -p build-drift && cd build-drift && \
+              cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON .. && \
+              ninja"
 
       - name: Unit tests
-        run: ./build/bin/simulator_tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "./build-drift/bin/simulator_tests"
 
       - name: Behavioural integration checks
-        run: ./scripts/ci_integration_check.sh ./build/bin/painlessmesh-simulator
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "./scripts/ci_integration_check.sh ./build-drift/bin/painlessmesh-simulator"
 
   report:
     name: Report drift

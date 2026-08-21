@@ -160,6 +160,7 @@ rather than faked with a misleading alias.
 | Scenario-declared pass criteria | Scenario-level gating | Assertions live in the CI script, not in the scenario |
 | Fast-forward | CI throughput | `--time-scale` only shortens the update sleep; duration is wall-clock, so a 120s scenario takes 120s |
 | Scale above 100 nodes | The 50-500 node target | `stress_test.yaml` tops out at 100; 500 nodes is uncharacterised |
+| Test suite needs the Docker image | Running tests anywhere else | 6 partition tests fail on a bare `ubuntu-24.04` runner with `bind: Permission denied` out of `boost::asio`, on an unprivileged port (16101). They pass in the project's Docker builder. Surfaced by the drift job's first non-Docker run; the job now uses the Docker image like every other build here, but the underlying portability limit is real |
 
 ## On the two overlapping "test without hardware" surfaces
 
@@ -188,6 +189,11 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   pre-fix build.
 
-Not verified locally: the GitHub Actions workflows themselves, including the
-`upstream-drift` job's apt dependency list and its issue-filing step. Those run
-for the first time on this PR.
+CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
+tests and the new behavioural integration gate all pass on GitHub runners.
+
+The `upstream-drift` job's first run failed for a reason unrelated to drift --
+it built on a bare runner, where 6 pre-existing partition tests fail on
+`boost::asio` bind. It now builds in the project's Docker image like every other
+job here. Its issue-filing step only runs on the nightly schedule and remains
+unexercised.
