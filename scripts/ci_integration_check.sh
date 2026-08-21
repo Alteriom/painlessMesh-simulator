@@ -46,15 +46,22 @@ echo "== 1. every shipped scenario must parse and validate =="
 for scenario in "$SCENARIO_DIR"/*.yaml; do
   if out=$("$SIM" --config "$scenario" --validate-only 2>&1); then
     pass "$(basename "$scenario")"
-  elif is_known_unsupported "$scenario" && \
-       echo "$out" | grep -q 'Unknown event action'; then
-    # Skip only when the failure is the expected unsupported-action diagnostic.
-    # A KNOWN_UNSUPPORTED scenario that breaks for any other reason (malformed
-    # YAML, an unknown node, a bad parameter) must still fail the gate.
-    echo "  SKIP: $(basename "$scenario") (known unsupported event action)"
   elif is_known_unsupported "$scenario"; then
-    fail "$(basename "$scenario") is allowlisted but failed for another reason"
-    echo "$out" | grep -E 'ERROR|  - ' | head -3
+    # The loader now records an unknown action as a validation error rather than
+    # aborting the parse, so getValidationErrors() inspects the whole scenario.
+    # Skip ONLY when every reported validation error is the expected
+    # unknown-action one; if any other error remains (unknown node, bad
+    # parameter, malformed YAML that still parses), the allowlist must not hide
+    # it -- fail. A YAML error that stops the parse entirely leaves no
+    # "  - " lines, so it also fails.
+    errs=$(echo "$out" | grep -E '^  - ')
+    other=$(echo "$errs" | grep -v 'Unknown event action')
+    if [ -n "$errs" ] && [ -z "$other" ]; then
+      echo "  SKIP: $(basename "$scenario") (known unsupported event action)"
+    else
+      fail "$(basename "$scenario") is allowlisted but failed for another reason"
+      echo "${other:-$out}" | grep -E 'ERROR|  - ' | head -3
+    fi
   else
     fail "$(basename "$scenario") does not validate"
     echo "$out" | grep -E 'ERROR|  - ' | head -3

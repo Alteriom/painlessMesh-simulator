@@ -419,6 +419,7 @@ EventConfig ConfigLoader::parseEvent(const YAML::Node& node) {
   
   std::string action_str = getString(node, "action");
   config.action = stringToEventAction(action_str);
+  config.action_raw = action_str;
   
   config.target = getString(node, "target");
   config.description = getString(node, "description");
@@ -814,6 +815,14 @@ void ConfigLoader::validateEvent(const EventConfig& config,
     errors.push_back(err);
   }
 
+  if (config.action == EventAction::UNKNOWN) {
+    ValidationError err;
+    err.field = "event.action";
+    err.message = "Unknown event action: " + config.action_raw;
+    err.suggestion = "Use a supported action; see the scenario documentation";
+    errors.push_back(err);
+  }
+
   // A delayed restart schedules its start at time + delay (see
   // EventFactory::scheduleAll). If that lands past the run, the start never
   // fires and the node stays stopped while the run still reports success. The
@@ -993,7 +1002,10 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "connection_restore") return EventAction::CONNECTION_RESTORE;
   if (lower == "connection_degrade") return EventAction::CONNECTION_DEGRADE;
   
-  throw std::runtime_error("Unknown event action: " + action_str);
+  // An unknown action is a validation error, not a fail-fast parse throw:
+  // throwing here aborts the whole load before the rest of the config can be
+  // validated, which would let an unrelated regression hide behind it.
+  return EventAction::UNKNOWN;
 }
 
 uint32_t ConfigLoader::generateNodeId(const std::string& id_str) {

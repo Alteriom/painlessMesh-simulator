@@ -960,6 +960,32 @@ action it is allowlisted for). An allowlisted scenario that fails for any other
 reason now calls `fail`. Verified by appending malformed YAML to an allowlisted
 scenario and confirming the gate flags it instead of skipping.
 
+### 48. An allowlisted scenario's other errors hid behind the unknown action (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-third review pass, against
+finding 47. Correct -- and it exposed a fail-fast in the loader.
+
+Finding 47 skipped an allowlisted scenario when its diagnostic was *"Unknown
+event action"*. But `stringToEventAction()` *threw* on an unknown action during
+parse, so `loadFromString()` aborted before `getValidationErrors()` could
+inspect the rest of the config. An allowlisted scenario that gained an unrelated
+error (an unknown node, a bad parameter) still surfaced only the unknown-action
+message, and the gate skipped it.
+
+The loader no longer fail-fasts: an unknown action becomes
+`EventAction::UNKNOWN` (its string kept in `action_raw`), the config loads, and
+`validateEvent()` reports the unknown action *alongside* every other validation
+error. `EventFactory::create()` already maps `UNKNOWN` to a skipped event. The
+gate now skips an allowlisted scenario only when *every* reported validation
+error is the unknown-action one; any other error -- or a YAML failure that
+leaves no validation lines at all -- fails it.
+
+Verified: an allowlisted `start_all_nodes` scenario with a bad partition group
+reports both the unknown action and the group error, and the gate fails it; a
+clean allowlisted scenario reports only the unknown action and is skipped. A
+unit test confirms the loader records the unknown action without aborting and
+still flags an unrelated self-link error.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1001,8 +1027,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 145 test cases, 1588 assertions, all passing. Findings 14-24 and
-  26-45 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 146 test cases, 1591 assertions, all passing. Findings 14-24 and
+  26-48 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

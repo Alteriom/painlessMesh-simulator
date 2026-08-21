@@ -647,6 +647,52 @@ events:
   REQUIRE(has_loss);
 }
 
+TEST_CASE("ConfigLoader records an unknown action without aborting the parse",
+          "[config_loader]") {
+  // An unknown action must be a validation error, not a fail-fast parse throw:
+  // otherwise the rest of the scenario is never validated and an unrelated
+  // regression hides behind it. The config loads; validation reports the
+  // unknown action AND the unrelated error.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 5
+    action: no_such_action
+  - time: 10
+    action: connection_drop
+    from: "node-1"
+    to: "node-1"
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());  // parse did not abort
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_unknown = false;
+  bool has_self_link = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Unknown event action: no_such_action") != std::string::npos)
+      has_unknown = true;
+    if (e.message.find("connects a node to itself") != std::string::npos)
+      has_self_link = true;
+  }
+  REQUIRE(has_unknown);
+  REQUIRE(has_self_link);  // the unrelated error is not masked
+}
+
 TEST_CASE("ConfigLoader rejects a self-referential link event",
           "[config_loader]") {
   // resolveLink() would schedule a connection_drop n1<->n1; dropLink() records a
