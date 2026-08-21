@@ -90,6 +90,7 @@ bool NodeManager::removeNode(uint32_t nodeId) {
   for (uint32_t peer : topology_[nodeId]) {
     topology_[peer].erase(nodeId);
     severed_.erase(linkKey(nodeId, peer));
+    partition_cuts_.erase(linkKey(nodeId, peer));
   }
   topology_.erase(nodeId);
 
@@ -232,6 +233,7 @@ bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
     return false;
   }
   severed_.erase(linkKey(a, b));
+  partition_cuts_.erase(linkKey(a, b));
 
   auto nodeA = getNode(a);
   auto nodeB = getNode(b);
@@ -256,6 +258,12 @@ size_t NodeManager::partitionNetwork(
           // the partition back together.
           const bool wired = topology_.count(x) && topology_.at(x).count(y);
           dropLink(x, y);
+          // Track partition-origin cuts separately from explicit connection_drop
+          // links (which also live in severed_): only these should heal. Without
+          // this, healNetwork() restores a deliberately dropped link before its
+          // matching connection_restore, conflating persistent link failures
+          // with a temporary partition.
+          partition_cuts_.insert(linkKey(x, y));
           if (wired) ++cut;
         }
       }
@@ -265,13 +273,19 @@ size_t NodeManager::partitionNetwork(
 }
 
 size_t NodeManager::healNetwork() {
-  const auto severed = severed_;
-  severed_.clear();
+  // Heal only the links a partition cut. An explicit connection_drop lives in
+  // severed_ too, but it is a deliberate, persistent failure with its own
+  // connection_restore event -- healing it here would restore it early and
+  // change the experiment. Those entries stay severed.
+  const auto cuts = partition_cuts_;
+  partition_cuts_.clear();
 
   size_t restored = 0;
-  for (const auto& link : severed) {
+  for (const auto& link : cuts) {
+    // This partition no longer severs the pair, whether or not it is rewired.
+    severed_.erase(link);
     // Only edges the topology actually had are worth rebuilding; a partition
-    // marks every cross pair severed, most of which were never wired.
+    // marks every cross pair cut, most of which were never wired.
     if (!topology_.count(link.first) || !topology_.at(link.first).count(link.second)) {
       continue;
     }

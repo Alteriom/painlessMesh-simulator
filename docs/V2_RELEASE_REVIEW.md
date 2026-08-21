@@ -38,7 +38,8 @@ restored was not yet carrying traffic when the next event needed it, a probe
 meant to measure the mesh was quietly reshaping it, a run that dropped an event
 still called itself a success, the same link event meant two different things
 depending on how it was spelled, a declared-but-empty topology quietly ran a
-random mesh instead, and a "random" seed produced the same graph every time.
+random mesh instead, a "random" seed produced the same graph every time, and a
+partition heal undid a deliberately dropped link.
 
 ## Findings
 
@@ -602,6 +603,27 @@ The two shipped scenarios the behavioural gate reads that had no seed --
 seed, so CI stays reproducible while seedless *user* scenarios get the random
 behaviour the contract promises.
 
+### 26. A partition heal restored explicitly dropped links (medium)
+
+Raised by `chatgpt-codex-connector` on the tenth review pass. Correct.
+
+`connection_drop` and `partitionNetwork()` both mark links in `severed_` (both
+go through `dropLink()`). `healNetwork()` copied and cleared *all* of `severed_`
+and reconnected the lot -- so a heal restored a link a `connection_drop` had
+deliberately taken down, ahead of its own `connection_restore`, conflating a
+persistent link failure with a temporary partition.
+
+`partitionNetwork()` now records its cuts in a separate `partition_cuts_` set,
+and `healNetwork()` restores only those, erasing each from `severed_` as it
+goes. Explicit-drop links stay in `severed_` -- still blocking `reconnectNode()`
+from bridging them, still waiting for their own restore. `restoreLink()` and
+`removeNode()` keep `partition_cuts_` consistent alongside `severed_`.
+
+A unit test on a 4-node line drops one edge explicitly and partitions another:
+the heal reconnects the partitioned edge and leaves the dropped one down and
+severed, and the drop still restores on its own afterward. Removing the
+separation restores the dropped link in the heal and fails the test.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -643,10 +665,10 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 129 test cases, 1483 assertions, all passing. Findings 14-24 each
-  added coverage; finding 25 is a seed-resolution change in the entry point,
-  verified by running two seedless scenarios and observing different drawn
-  seeds, with the gate scenarios pinned so CI stays deterministic.
+- Unit tests: 130 test cases, 1494 assertions, all passing. Findings 14-24 and
+  26 each added coverage; finding 25 is a seed-resolution change in the entry
+  point, verified by running two seedless scenarios and observing different
+  drawn seeds, with the gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.

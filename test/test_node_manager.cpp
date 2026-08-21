@@ -647,6 +647,53 @@ TEST_CASE("settleLink reports whether the link actually came up",
   manager.stopAll();
 }
 
+TEST_CASE("healNetwork does not restore an explicitly dropped link",
+          "[node_manager][heal]") {
+  // connection_drop and partitionNetwork both mark links severed. A heal must
+  // restore only the partition's cuts -- an explicit drop is a deliberate,
+  // persistent failure with its own connection_restore, and healing it early
+  // would conflate a persistent link failure with a temporary partition.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19861;
+  for (uint32_t id : {8861u, 8862u, 8863u, 8864u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  // A line 8861 -- 8862 -- 8863 -- 8864 (a tree; a closing edge would be a
+  // cycle painlessMesh refuses). Both the drop and the partition act on real
+  // edges of it.
+  REQUIRE(manager.connectNodes(8861, 8862));
+  REQUIRE(manager.connectNodes(8862, 8863));
+  REQUIRE(manager.connectNodes(8863, 8864));
+
+  // Explicitly drop 8861 <-> 8862; separately partition {8863} | {8864},
+  // which cuts the 8863 <-> 8864 edge.
+  REQUIRE(manager.dropLink(8861, 8862) >= 1);
+  manager.partitionNetwork({{8861, 8862, 8863}, {8864}});
+  REQUIRE_FALSE(manager.getNode(8863)->isConnectedTo(8864));
+
+  const size_t restored = manager.healNetwork();
+
+  // The partition edge heals; the explicit drop stays down and stays severed.
+  REQUIRE(manager.getNode(8863)->isConnectedTo(8864));
+  REQUIRE_FALSE(manager.getNode(8861)->isConnectedTo(8862));
+  REQUIRE(manager.isLinkSevered(8861, 8862));
+  REQUIRE(restored >= 1);
+
+  // The explicit drop still restores on its own.
+  REQUIRE(manager.restoreLink(8861, 8862));
+  REQUIRE(manager.getNode(8861)->isConnectedTo(8862));
+
+  manager.stopAll();
+}
+
 TEST_CASE("restoreLink refuses a pair the topology never declared",
           "[node_manager][topology]") {
   // connection_restore re-establishes a declared link; connectNodes() records a
