@@ -843,6 +843,20 @@ void ConfigLoader::validateEvent(const EventConfig& config,
     }
   }
 
+  // connection_degrade's packet_loss reaches NetworkSimulator::setPacketLoss(),
+  // which throws on a value outside [0, 1]. Caught up front here, that is a
+  // clear validation error; left to runtime it fails the timeline only once the
+  // event fires, mid-run. (latency is a uint and needs no bound.)
+  if (config.action == EventAction::CONNECTION_DEGRADE) {
+    if (config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
+      ValidationError err;
+      err.field = "event.packet_loss";
+      err.message = "Packet loss must be between 0.0 and 1.0";
+      err.suggestion = "Use 0.0 for no loss, 1.0 to drop everything";
+      errors.push_back(err);
+    }
+  }
+
   // Reject a link event whose two endpoints are the same node. resolveLink()
   // would still schedule it, dropLink() would record a phantom self-pair and
   // close zero endpoints, and the run would exit 0 -- a no-op masquerading as a

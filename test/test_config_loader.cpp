@@ -565,6 +565,47 @@ events:
   REQUIRE(config->events[1].action == EventAction::START_NODE);
 }
 
+TEST_CASE("ConfigLoader rejects out-of-range connection_degrade packet loss",
+          "[config_loader]") {
+  // NetworkSimulator::setPacketLoss() throws on a value outside [0,1]; caught
+  // up front it is a clean validation error, not a mid-run timeline failure.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_degrade
+    from: "node-1"
+    to: "node-2"
+    latency: 200
+    packet_loss: 1.5
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_loss = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Packet loss must be between") != std::string::npos) {
+      has_loss = true;
+    }
+  }
+  REQUIRE(has_loss);
+}
+
 TEST_CASE("ConfigLoader rejects a self-referential link event",
           "[config_loader]") {
   // resolveLink() would schedule a connection_drop n1<->n1; dropLink() records a

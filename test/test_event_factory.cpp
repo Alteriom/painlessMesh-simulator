@@ -183,6 +183,42 @@ TEST_CASE("EventFactory builds message injections", "[event_factory]") {
   }
 }
 
+TEST_CASE("EventFactory models a delayed restart as stop then start",
+          "[event_factory]") {
+  // restart_node with delay > 0 must simulate the downtime: a stop at t and a
+  // start at t + delay, not an atomic restart that ignores delay.
+  const auto nodes = testNodes();
+  EventScheduler scheduler;
+  std::vector<std::string> skipped;
+
+  auto restart = makeEvent(EventAction::RESTART_NODE, 10);
+  restart.target = "node-1";
+  restart.delay = 8;
+
+  const size_t scheduled = EventFactory::scheduleAll(
+      {restart}, nodes, scheduler, skipped);
+
+  REQUIRE(scheduled == 2);                       // stop + start
+  REQUIRE(skipped.empty());
+  REQUIRE(scheduler.getPendingEventCount() == 2);
+  REQUIRE(scheduler.getNextEventTime() == 10);   // the stop fires first
+}
+
+TEST_CASE("EventFactory keeps an undelayed restart atomic", "[event_factory]") {
+  const auto nodes = testNodes();
+  EventScheduler scheduler;
+  std::vector<std::string> skipped;
+
+  auto restart = makeEvent(EventAction::RESTART_NODE, 10);
+  restart.target = "node-1";  // delay defaults to 0
+
+  const size_t scheduled = EventFactory::scheduleAll(
+      {restart}, nodes, scheduler, skipped);
+
+  REQUIRE(scheduled == 1);
+  REQUIRE(scheduler.getPendingEventCount() == 1);
+}
+
 TEST_CASE("EventFactory::scheduleAll reports what it skipped", "[event_factory]") {
   const auto nodes = testNodes();
   EventScheduler scheduler;

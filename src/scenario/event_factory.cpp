@@ -150,6 +150,20 @@ size_t EventFactory::scheduleAll(
   size_t scheduled = 0;
   for (const auto& config : events) {
     try {
+      // A restart_node with a configured delay is a stop now and a start after
+      // the delay. Model it with the two lifecycle events so the downtime
+      // actually happens; NodeRestartEvent is atomic and would ignore `delay`,
+      // reporting a restart that simulated no outage.
+      if (config.action == EventAction::RESTART_NODE && config.delay > 0) {
+        const uint32_t node = resolveTarget(config, idToNodeId);
+        scheduler.scheduleEvent(
+            std::unique_ptr<Event>(new NodeStopEvent(node, true)), config.time);
+        scheduler.scheduleEvent(
+            std::unique_ptr<Event>(new NodeStartEvent(node)),
+            config.time + config.delay);
+        scheduled += 2;
+        continue;
+      }
       auto event = create(config, idToNodeId);
       if (!event) {
         skipped.push_back("t=" + std::to_string(config.time) + " " +

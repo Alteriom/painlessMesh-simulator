@@ -890,6 +890,32 @@ finding 21 -- exactly as `ConnectionRestoreEvent` now does for a failed restore.
 Like findings 20-21 and 39 the failure branch cannot occur on loopback, so it is
 covered by the struct plumbing and a clean-rejoin unit test (`failed == 0`).
 
+### 43. A restart's configured delay was ignored (medium)
+
+Raised by `chatgpt-codex-connector` on the twentieth review pass. Correct.
+
+`restart_node` accepts a `delay`, but the factory built an atomic
+`NodeRestartEvent` (stop immediately followed by start) and discarded it. A
+scenario asking for an 8-second outage got none, and the run reported success
+having simulated no downtime.
+
+`scheduleAll()` now models a `restart_node` with `delay > 0` as two lifecycle
+events -- a `NodeStopEvent` at the event's time and a `NodeStartEvent` at
+`time + delay` -- so the outage actually happens. An undelayed restart stays
+atomic. Verified end-to-end: a restart at t=10 with delay 8 stops the node at
+t=10 and starts it at t=18. Unit tests cover both the split and the atomic case.
+
+### 44. Out-of-range degrade packet loss failed mid-run (medium)
+
+`connection_degrade`'s `packet_loss` reaches `NetworkSimulator::setPacketLoss()`,
+which throws on a value outside `[0, 1]`. Neither config validation nor the
+factory checked it, so `--validate-only` passed and an ordinary run failed only
+once the event fired, part way through the timeline.
+
+Validation now rejects a `connection_degrade` whose `packet_loss` is outside
+`[0, 1]`, so it fails at load with a clear message. A unit test and a
+`--validate-only` run confirm the rejection.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -931,8 +957,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 141 test cases, 1578 assertions, all passing. Findings 14-24 and
-  26-42 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 144 test cases, 1586 assertions, all passing. Findings 14-24 and
+  26-44 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the
