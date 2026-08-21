@@ -132,7 +132,42 @@ int main(int argc, char* argv[]) {
     }
     
     std::cout << "[INFO] Configuration valid" << std::endl;
-    
+
+    // Feasibility checks a normal run performs -- run them as part of
+    // validation too, so --validate-only (and the CI validation sweep) reject a
+    // scenario an ordinary invocation would: an event-named link that cannot be
+    // wired (cyclic, or a non-edge of an explicit topology), or an event whose
+    // action has no runtime class. Both are pure over the config, so they cost
+    // nothing here and need no nodes. A fixed seed is fine: neither check
+    // depends on the random draw. The run path repeats these with user-facing
+    // output; here they only speak up to fail.
+    {
+      const auto feas = planTopology(config.topology, config.nodes,
+                                     config.events, config.simulation.seed);
+      if (!feas.unwireable_preferred.empty()) {
+        std::cerr << "[ERROR] " << feas.unwireable_preferred.size()
+                  << " event-named link(s) cannot be wired -- not an edge of "
+                  << "the declared topology, or would close a cycle painlessMesh "
+                  << "will not hold" << std::endl;
+        return 1;
+      }
+      std::map<std::string, uint32_t> id_to_node_id;
+      for (const auto& node_config : config.nodes) {
+        id_to_node_id[node_config.id] = node_config.nodeId;
+      }
+      EventScheduler probe;
+      std::vector<std::string> skipped;
+      EventFactory::scheduleAll(config.events, id_to_node_id, probe, skipped);
+      if (!skipped.empty()) {
+        std::cerr << "[ERROR] " << skipped.size()
+                  << " scenario event(s) cannot be scheduled:" << std::endl;
+        for (const auto& sk : skipped) {
+          std::cerr << "  - " << sk << std::endl;
+        }
+        return 1;
+      }
+    }
+
     // Handle --validate-only mode
     if (options.validate_only) {
       std::cout << "[INFO] Validation successful. Exiting (--validate-only mode)" << std::endl;

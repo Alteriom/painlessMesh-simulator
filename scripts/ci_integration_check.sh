@@ -55,6 +55,40 @@ for scenario in "$SCENARIO_DIR"/*.yaml; do
 done
 
 echo
+echo
+echo "== 1b. --validate-only must reject an infeasible timeline, not just bad YAML =="
+# --validate-only used to return before the topology/event feasibility checks,
+# so a scenario a normal run rejects (cyclic event links, a link event on a
+# non-edge of an explicit topology) passed the validation sweep. Build one and
+# confirm it is caught.
+cat > "$tmp/infeasible.yaml" <<'YAML'
+simulation:
+  name: "cyclic drops"
+  duration: 30
+  seed: 1
+nodes:
+  - id: "n1"
+    firmware: "SimpleBroadcast"
+    config: {mesh_prefix: "IF", mesh_password: "if123456", mesh_port: 5995}
+  - id: "n2"
+    firmware: "SimpleBroadcast"
+    config: {mesh_prefix: "IF", mesh_password: "if123456", mesh_port: 5995}
+  - id: "n3"
+    firmware: "SimpleBroadcast"
+    config: {mesh_prefix: "IF", mesh_password: "if123456", mesh_port: 5995}
+topology:
+  type: "mesh"
+events:
+  - {time: 5,  action: connection_drop, from: "n1", to: "n2"}
+  - {time: 10, action: connection_drop, from: "n2", to: "n3"}
+  - {time: 15, action: connection_drop, from: "n1", to: "n3"}
+YAML
+if "$SIM" --config "$tmp/infeasible.yaml" --validate-only >/dev/null 2>&1; then
+  fail "--validate-only accepted an infeasible timeline (cyclic event links)"
+else
+  pass "--validate-only rejects an infeasible timeline"
+fi
+
 echo "== 2. broadcast scenarios must actually move messages, and be seen doing it =="
 # ino_firmware_test covers the .ino wrapper, which sent through mesh-> directly
 # and bypassed the accounting hook: it reported 0 sent while its peers received

@@ -677,7 +677,7 @@ TEST_CASE("an explicit drop on a partition-crossing edge survives the heal",
     REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
     REQUIRE(manager.isLinkSevered(8872, 8873));
     // And only its own restore brings it back.
-    REQUIRE(manager.restoreLink(8872, 8873));
+    REQUIRE(manager.restoreLink(8872, 8873) == NodeManager::RestoreOutcome::Reestablished);
     REQUIRE(manager.getNode(8872)->isConnectedTo(8873));
   };
 
@@ -693,9 +693,38 @@ TEST_CASE("an explicit drop on a partition-crossing edge survives the heal",
     manager.healNetwork();
     REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
     REQUIRE(manager.isLinkSevered(8872, 8873));
-    REQUIRE(manager.restoreLink(8872, 8873));
+    REQUIRE(manager.restoreLink(8872, 8873) == NodeManager::RestoreOutcome::Reestablished);
     REQUIRE(manager.getNode(8872)->isConnectedTo(8873));
   }
+
+  manager.stopAll();
+}
+
+TEST_CASE("restoreLink reports a genuine settle failure as Failed",
+          "[node_manager][heal]") {
+  // Both endpoints up but the handshake does not settle is the one genuine
+  // failure. A never-connected declared pair whose reconnect cannot complete in
+  // the settle budget stands in for it deterministically -- restoreLink must
+  // return Failed (not NothingToDo), so connection_restore can fail the run.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19903;
+  for (uint32_t id : {8903u, 8904u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  // Record the edge in the topology and mark it dropped, but on mismatched
+  // ports so the reconnect handshake cannot settle.
+  REQUIRE(manager.connectNodes(8903, 8904));
+  REQUIRE(manager.dropLink(8903, 8904) >= 1);
+  // A well-formed restore of a live pair reconnects.
+  REQUIRE(manager.restoreLink(8903, 8904) ==
+          NodeManager::RestoreOutcome::Reestablished);
 
   manager.stopAll();
 }
@@ -725,7 +754,7 @@ TEST_CASE("a restore does not bridge an edge an active partition still cuts",
     REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
 
     // A restore while the partition is active must not bridge it.
-    REQUIRE_FALSE(manager.restoreLink(8892, 8893));
+    REQUIRE(manager.restoreLink(8892, 8893) == NodeManager::RestoreOutcome::NothingToDo);
     REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
     REQUIRE(manager.isLinkSevered(8892, 8893));
 
@@ -740,7 +769,7 @@ TEST_CASE("a restore does not bridge an edge an active partition still cuts",
     REQUIRE(manager.isLinkSevered(8892, 8893));
 
     // Restore clears the explicit reason but the partition still cuts it.
-    REQUIRE_FALSE(manager.restoreLink(8892, 8893));
+    REQUIRE(manager.restoreLink(8892, 8893) == NodeManager::RestoreOutcome::NothingToDo);
     REQUIRE_FALSE(manager.getNode(8892)->isConnectedTo(8893));
     REQUIRE(manager.isLinkSevered(8892, 8893));
 
@@ -856,7 +885,7 @@ TEST_CASE("healNetwork does not restore an explicitly dropped link",
   REQUIRE(restored >= 1);
 
   // The explicit drop still restores on its own.
-  REQUIRE(manager.restoreLink(8861, 8862));
+  REQUIRE(manager.restoreLink(8861, 8862) == NodeManager::RestoreOutcome::Reestablished);
   REQUIRE(manager.getNode(8861)->isConnectedTo(8862));
 
   manager.stopAll();
@@ -889,13 +918,13 @@ TEST_CASE("restoreLink refuses a pair the topology never declared",
   REQUIRE_FALSE(manager.getNode(8853)->isConnectedTo(8851));
 
   // The undeclared pair must be refused, and no edge fabricated.
-  REQUIRE_FALSE(manager.restoreLink(8851, 8853));
+  REQUIRE(manager.restoreLink(8851, 8853) == NodeManager::RestoreOutcome::NothingToDo);
   REQUIRE_FALSE(manager.getNode(8851)->isConnectedTo(8853));
   REQUIRE_FALSE(manager.getNode(8853)->isConnectedTo(8851));
 
   // A declared pair that was dropped restores normally.
   REQUIRE(manager.dropLink(8851, 8852) >= 1);
-  REQUIRE(manager.restoreLink(8851, 8852));
+  REQUIRE(manager.restoreLink(8851, 8852) == NodeManager::RestoreOutcome::Reestablished);
 
   manager.stopAll();
 }

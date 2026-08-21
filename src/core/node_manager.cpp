@@ -232,14 +232,14 @@ size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
   return severConnection(a, b);
 }
 
-bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
+NodeManager::RestoreOutcome NodeManager::restoreLink(uint32_t a, uint32_t b) {
   // A restore re-establishes a link the topology declared; it is not a licence
   // to invent a new route. connectNodes() records a fresh topology edge, so
   // restoring a pair the declared topology never had would silently add an
   // undeclared link and change later partition, heal and reconnect behaviour.
   // Refuse it -- the same guard healNetwork() already applies to its edges.
   if (!topology_.count(a) || !topology_.at(a).count(b)) {
-    return false;
+    return RestoreOutcome::NothingToDo;
   }
   // connection_restore is the counterpart of connection_drop: it clears the
   // explicit reason only. If an active partition still cuts this edge, the link
@@ -247,18 +247,21 @@ bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
   // two groups early. Leave the partition cut in place and defer.
   explicit_drops_.erase(linkKey(a, b));
   if (partition_cuts_.count(linkKey(a, b))) {
-    return false;  // still partitioned; the heal will bring it back
+    return RestoreOutcome::NothingToDo;  // still partitioned; the heal restores it
   }
 
   auto nodeA = getNode(a);
   auto nodeB = getNode(b);
   if (!nodeA || !nodeB || !nodeA->isRunning() || !nodeB->isRunning()) {
-    return false;
+    return RestoreOutcome::NothingToDo;  // a node is down; start reconnects it
   }
   if (nodeA->isConnectedTo(b) || nodeB->isConnectedTo(a)) {
-    return false;  // already live
+    return RestoreOutcome::NothingToDo;  // already live
   }
-  return connectNodes(a, b);
+  // Both endpoints are up and the link should come back. If the handshake does
+  // not settle, that is a real failure the caller must surface, not a no-op.
+  return connectNodes(a, b) ? RestoreOutcome::Reestablished
+                            : RestoreOutcome::Failed;
 }
 
 size_t NodeManager::partitionNetwork(

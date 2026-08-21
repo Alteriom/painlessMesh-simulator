@@ -288,13 +288,26 @@ public:
   size_t dropLink(uint32_t a, uint32_t b);
 
   /**
+   * @brief Outcome of a restoreLink() call
+   *
+   * Distinguishes a genuine failure to re-establish a link from the several
+   * legitimate reasons a restore does nothing, so a connection_restore event
+   * can fail the run on the former without treating a deferral as an error.
+   */
+  enum class RestoreOutcome {
+    Reestablished,  ///< The link is live again
+    NothingToDo,    ///< Already live, deferred to a heal, a node is down, or undeclared
+    Failed          ///< Both endpoints up but the handshake did not settle
+  };
+
+  /**
    * @brief Restore a previously severed link
    *
    * @param a First node ID
    * @param b Second node ID
-   * @return true if the link was reconnected
+   * @return what happened -- see RestoreOutcome
    */
-  bool restoreLink(uint32_t a, uint32_t b);
+  RestoreOutcome restoreLink(uint32_t a, uint32_t b);
 
   /**
    * @brief Cut every link that crosses a partition boundary

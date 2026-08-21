@@ -826,6 +826,41 @@ without a clean shutdown and counts the crash; a graceful stop still calls
 `stop()`. Unit tests assert `crash_count` moves for a forced stop and stays flat
 for a graceful one.
 
+### 39. A failed restore was logged, not propagated (medium)
+
+Raised by `chatgpt-codex-connector` on the eighteenth review pass, against the
+settlement-return work. Correct.
+
+`ConnectionRestoreEvent` treated `restoreLink()` returning false as a benign
+"no mesh link to re-establish" and completed successfully -- so a genuine
+failure (both endpoints up, handshake past the settle deadline) left the link
+down while `getFailedCount()` stayed zero and the run exited 0.
+
+`restoreLink()` now returns a `RestoreOutcome` -- `Reestablished`, `NothingToDo`
+(already live, deferred to a heal, a node down, or an undeclared edge), or
+`Failed` (both up but the handshake did not settle). `ConnectionRestoreEvent`
+throws on `Failed` -- which `processEvents()` counts and the exit path turns
+into a non-zero status (finding 21) -- and logs the `NothingToDo` reasons
+without failing, so a legitimate deferral is not mistaken for an error. Like
+findings 20-21 the `Failed` branch cannot be produced on loopback, so it is
+covered by the enum plumbing and a success-path unit test rather than a gate
+scenario.
+
+### 40. `--validate-only` skipped the feasibility checks (medium)
+
+`--validate-only` returned right after config validation, before the topology
+plan and event scheduling ran. So a scenario an ordinary run rejects -- cyclic
+event links, a link event on a non-edge of an explicit topology (findings
+36/37), or an event whose action has no runtime class -- reported *"Validation
+successful"*, and the CI validation sweep (gate step 1) could not catch it.
+
+The feasibility checks -- `planTopology()`'s `unwireable_preferred`, and
+`EventFactory::scheduleAll()`'s skipped list -- now run as part of validation,
+before the `--validate-only` return. Both are pure over the config and need no
+nodes. A new gate step (1b) builds a cyclic-drop scenario and asserts
+`--validate-only` rejects it. Verified that both a cyclic-links and a star
+leaf-drop scenario now exit non-zero under `--validate-only`.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -867,11 +902,12 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 138 test cases, 1570 assertions, all passing. Findings 14-24 and
-  26-38 each added coverage (30 is gate-script only); finding 25 is a
-  seed-resolution change in the entry point, verified by running two seedless
-  scenarios and observing different drawn seeds, with the gate scenarios pinned
-  so CI stays deterministic.
+- Unit tests: 139 test cases, 1573 assertions, all passing. Findings 14-24 and
+  26-39 each added coverage (30 and 40 are gate-script/entry-point; 39's Failed
+  branch is loopback-undefined, so unit-covered on the success path); finding 25
+  is a seed-resolution change in the entry point, verified by running two
+  seedless scenarios and observing different drawn seeds, with the gate
+  scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.

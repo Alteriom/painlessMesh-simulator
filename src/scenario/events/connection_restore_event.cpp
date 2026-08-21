@@ -10,6 +10,7 @@
 #include "simulator/node_manager.hpp"
 #include "simulator/network_simulator.hpp"
 #include <iostream>
+#include <stdexcept>
 
 namespace simulator {
 
@@ -22,8 +23,17 @@ void ConnectionRestoreEvent::execute(NodeManager& manager, NetworkSimulator& net
   network.restoreConnection(fromNode_, toNode_);
   network.restoreConnection(toNode_, fromNode_);
 
-  // Re-establish the actual mesh link the matching drop severed.
-  const bool relinked = manager.restoreLink(fromNode_, toNode_);
+  // Re-establish the actual mesh link the matching drop severed. A genuine
+  // failure -- both endpoints up but the handshake did not settle -- must fail
+  // the run, not be logged as a benign no-op; the several legitimate no-ops
+  // (already live, deferred to a heal, a node down) are reported, not failed.
+  const auto outcome = manager.restoreLink(fromNode_, toNode_);
+  if (outcome == NodeManager::RestoreOutcome::Failed) {
+    throw std::runtime_error(
+        "connection_restore: link " + std::to_string(fromNode_) + " <-> " +
+        std::to_string(toNode_) + " did not re-establish");
+  }
+  const bool relinked = outcome == NodeManager::RestoreOutcome::Reestablished;
 
   std::cout << "[EVENT] Connection restored: " << fromNode_
             << " <-> " << toNode_
