@@ -46,8 +46,15 @@ echo "== 1. every shipped scenario must parse and validate =="
 for scenario in "$SCENARIO_DIR"/*.yaml; do
   if out=$("$SIM" --config "$scenario" --validate-only 2>&1); then
     pass "$(basename "$scenario")"
-  elif is_known_unsupported "$scenario"; then
+  elif is_known_unsupported "$scenario" && \
+       echo "$out" | grep -q 'Unknown event action'; then
+    # Skip only when the failure is the expected unsupported-action diagnostic.
+    # A KNOWN_UNSUPPORTED scenario that breaks for any other reason (malformed
+    # YAML, an unknown node, a bad parameter) must still fail the gate.
     echo "  SKIP: $(basename "$scenario") (known unsupported event action)"
+  elif is_known_unsupported "$scenario"; then
+    fail "$(basename "$scenario") is allowlisted but failed for another reason"
+    echo "$out" | grep -E 'ERROR|  - ' | head -3
   else
     fail "$(basename "$scenario") does not validate"
     echo "$out" | grep -E 'ERROR|  - ' | head -3

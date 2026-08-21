@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
                   << " event-named link(s) cannot be wired -- not an edge of "
                   << "the declared topology, or would close a cycle painlessMesh "
                   << "will not hold" << std::endl;
-        return 1;
+        return 2;  // configuration validation failure
       }
       std::map<std::string, uint32_t> id_to_node_id;
       for (const auto& node_config : config.nodes) {
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
         for (const auto& sk : skipped) {
           std::cerr << "  - " << sk << std::endl;
         }
-        return 1;
+        return 2;  // configuration validation failure
       }
     }
 
@@ -293,7 +293,7 @@ int main(int argc, char* argv[]) {
                 << "declared topology, or would close a cycle painlessMesh will "
                 << "not hold; those link events would run against no live link"
                 << std::endl;
-      return 1;
+      return 2;  // configuration validation failure
     }
     size_t wired = 0;
     if (plan.links.empty() && !config.topology.declared) {
@@ -315,7 +315,7 @@ int main(int argc, char* argv[]) {
                   << topologyTypeName(config.topology.type)
                   << "' was declared but planned no links; refusing to fall "
                   << "back to a random mesh" << std::endl;
-        return 1;
+        return 2;  // configuration validation failure
       }
     } else {
       wired = manager.establishConnectivity(plan.links);
@@ -355,7 +355,7 @@ int main(int argc, char* argv[]) {
       if (!skipped.empty()) {
         std::cerr << "[ERROR] " << skipped.size()
                   << " scenario event(s) could not be scheduled." << std::endl;
-        return 1;
+        return 2;  // configuration validation failure
       }
     }
 

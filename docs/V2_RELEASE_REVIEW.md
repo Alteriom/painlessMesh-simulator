@@ -932,6 +932,34 @@ duration, with overflow-safe addition (both are `uint32`). The example fails at
 load: *"Restart start (time 15 + delay 10 = 25s) exceeds simulation duration
 20s"*. A unit test and a `--validate-only` run confirm it.
 
+### 46. Feasibility failures used the wrong exit code (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-second review pass. Correct.
+
+`README.md` reserves exit `2` for configuration-validation failures and `1` for
+runtime/I/O errors. The feasibility checks (findings 36/37/40) and the
+declared-but-empty topology check (finding 24) returned `1`, so a script that
+distinguishes an invalid scenario from a runtime error got the wrong status for
+exactly these config problems.
+
+The five config-validation exit paths -- unwireable event links (pre-validate
+and run), unschedulable events (pre-validate and run), and a declared topology
+that plans no links -- now return `2`. The genuine runtime failure (`wired <
+planned`, a settle failure) stays `1`. Verified: a cyclic-drop and a star
+leaf-drop scenario each exit `2` under `--validate-only`.
+
+### 47. The gate skipped allowlisted scenarios on any failure (medium)
+
+Gate step 1's validation sweep treated *any* failure from a `KNOWN_UNSUPPORTED`
+scenario as an expected skip. So if one gained malformed YAML, an unknown node,
+or any unrelated regression, the "comprehensive" gate still passed it.
+
+The skip is now conditional on the diagnostic being the expected one -- the
+scenario's failure must mention *"Unknown event action"* (the unimplemented
+action it is allowlisted for). An allowlisted scenario that fails for any other
+reason now calls `fail`. Verified by appending malformed YAML to an allowlisted
+scenario and confirming the gate flags it instead of skipping.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
