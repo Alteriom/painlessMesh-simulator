@@ -63,17 +63,21 @@ struct TopologyPlan {
  * the wasted connects, and it is deterministic rather than a race.
  *
  * Where the declared graph has more links than a tree, the surplus is dropped
- * in a defined order: pairs the scenario's own events name are kept first, so
- * a declared `connection_drop node-1 <-> node-2` has a live link to cut. That
+ * in a defined order: pairs named by the scenario's *link-manipulation* events
+ * (connection drop/restore/degrade, break/restore) are kept first, so a
+ * declared `connection_drop node-1 <-> node-2` has a live link to cut. That
  * exact drop reported *"0 live endpoint(s) closed"* before this existed.
+ * `inject_message` pairs are deliberately excluded: an injection traverses the
+ * mesh, often multi-hop, so preferring its endpoints as a direct edge would
+ * rewire the graph around the very probe meant to exercise routing.
  *
  * Link order is stable and the random draw is seeded from `simulation.seed`,
  * so a scenario wires the same graph on every run.
  *
  * @param topology The scenario's `topology:` block
  * @param nodes The scenario's nodes, for id resolution
- * @param events The scenario's events; pairs they name are preferred when the
- *               declared graph must be reduced
+ * @param events The scenario's events; pairs named by link-manipulation events
+ *               (not injections) are preferred when the graph must be reduced
  * @param seed `simulation.seed`; 0 selects a fixed default so runs stay
  *             reproducible
  * @return The links to wire, what was declared, and any warnings

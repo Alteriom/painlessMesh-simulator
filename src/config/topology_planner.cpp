@@ -41,15 +41,40 @@ bool resolveId(const std::vector<NodeConfigExtended>& nodes,
   return false;
 }
 
-/// Node pairs the scenario's own events name. When the declared graph has to
-/// be reduced, these are kept first: a `connection_drop node-1 <-> node-2`
-/// against a link that was never wired reports "0 live endpoint(s) closed",
-/// which is exactly the silence this planner exists to remove.
+/// True for events that act on a specific physical link, and so need that link
+/// wired to do anything: connection drop/restore/degrade and break/restore.
+///
+/// Deliberately NOT inject_message. An injection traverses the mesh -- often
+/// several hops, which is the whole point of a routing scenario -- so
+/// preferring its source/destination as a direct edge would rewire the graph
+/// around the very probe meant to exercise it. issue_138_message_routing
+/// declares a mesh and injects across it to test multi-hop delivery; biasing
+/// the tree toward those pairs would hide exactly the routing failures it
+/// exists to catch.
+bool actsOnAPhysicalLink(EventAction action) {
+  switch (action) {
+    case EventAction::CONNECTION_DROP:
+    case EventAction::CONNECTION_RESTORE:
+    case EventAction::CONNECTION_DEGRADE:
+    case EventAction::BREAK_LINK:
+    case EventAction::RESTORE_LINK:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/// Node pairs a scenario's link-manipulation events name. When the declared
+/// graph has to be reduced, these are kept first: a `connection_drop
+/// node-1 <-> node-2` against a link that was never wired reports "0 live
+/// endpoint(s) closed", which is exactly the silence this planner exists to
+/// remove. Injection pairs are excluded -- see actsOnAPhysicalLink().
 std::vector<PlannedLink> eventPairs(const std::vector<EventConfig>& events,
                                     const std::vector<NodeConfigExtended>& nodes) {
   std::vector<PlannedLink> pairs;
   for (const auto& event : events) {
-    if (event.from.empty() || event.to.empty()) {
+    if (!actsOnAPhysicalLink(event.action) ||
+        event.from.empty() || event.to.empty()) {
       continue;
     }
     uint32_t from = 0;

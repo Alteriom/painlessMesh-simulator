@@ -171,6 +171,58 @@ TEST_CASE("Topology planner reduces a declared graph to what the mesh holds",
   }
 }
 
+TEST_CASE("inject_message does not bias the planned topology", "[topology][events]") {
+  // An injection traverses the mesh -- often multi-hop, which is the point of a
+  // routing scenario. issue_138_message_routing declares a mesh and injects
+  // across it; preferring the source/destination as a direct edge would rewire
+  // the tree around the probe and hide the routing failures it exists to catch.
+  const auto nodes = makeNodes(6);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig inject;
+  inject.time = 10;
+  inject.action = EventAction::INJECT_MESSAGE;
+  inject.from = "n1";
+  inject.to = "n6";
+
+  const auto baseline = planTopology(topology, nodes, {}, 42);
+  const auto withInjection = planTopology(topology, nodes, {inject}, 42);
+
+  // Same seed, same declared graph: the injection must change nothing.
+  REQUIRE(withInjection.links == baseline.links);
+}
+
+TEST_CASE("only link-manipulation events bias the planned topology",
+          "[topology][events]") {
+  // A connection_drop needs its pair wired to have something to close; an
+  // injection does not. The planner must tell them apart.
+  const auto nodes = makeNodes(6);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig inject;
+  inject.action = EventAction::INJECT_MESSAGE;
+  inject.from = "n1";
+  inject.to = "n6";
+
+  EventConfig drop;
+  drop.action = EventAction::CONNECTION_DROP;
+  drop.from = "n1";
+  drop.to = "n6";
+
+  const auto baseline = planTopology(topology, nodes, {}, 42);
+  const auto injected = planTopology(topology, nodes, {inject}, 42);
+  const auto dropped = planTopology(topology, nodes, {drop}, 42);
+
+  // The drop forces its pair into the tree; the injection leaves the plan
+  // identical to the unbiased baseline. (Asserting the injection's pair is
+  // *absent* would be seed-dependent -- a random tree may include it anyway --
+  // so the meaningful, seed-independent claim is "no influence".)
+  REQUIRE(hasLink(dropped.links, 1001, 1006));
+  REQUIRE(injected.links == baseline.links);
+}
+
 TEST_CASE("Topology planner keeps the links a scenario's events name",
           "[topology][events]") {
   const auto nodes = makeNodes(4);

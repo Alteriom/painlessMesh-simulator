@@ -33,8 +33,9 @@ The real finding is what the port exposed. Findings 1-8 came out of the port
 itself; 9-16 came out of review of the resulting PR and are the deeper half --
 a fired event is not the same thing as an event that did something, a node the
 simulator calls stopped is not necessarily a node that stopped, a topology the
-scenario declares was not the topology it ran on, and a link the simulator says
-it restored was not yet carrying traffic when the next event needed it.
+scenario declares was not the topology it ran on, a link the simulator says it
+restored was not yet carrying traffic when the next event needed it, and a
+probe meant to measure the mesh was quietly reshaping it.
 
 ## Findings
 
@@ -442,6 +443,33 @@ re-register from. So the coverage is a scenario, `ino_firmware_test.yaml`,
 folded into gate step 2 -- which now runs both a SimpleBroadcast and an .ino
 scenario and requires each to report a non-zero, peer-confirmed send count.
 
+### 19. Message injections biased the topology they were meant to probe (critical)
+
+Raised by `chatgpt-codex-connector` on the fifth review pass, against finding
+14's own fix. Correct, and a sharp catch.
+
+The topology planner keeps pairs a scenario's events name when it reduces a
+declared graph to a spanning tree, so a `connection_drop` has a live link to
+cut. The first cut of that logic treated *every* event with `from`/`to` fields
+as a preferred link -- including `inject_message`. An injection's whole purpose
+in a routing scenario is to traverse the mesh, often multi-hop.
+`issue_138_message_routing.yaml` declares a mesh and injects `node-1 -> node-6`
+across a future partition boundary precisely to exercise multi-hop delivery;
+preferring that pair as a direct edge wired the probe's endpoints as neighbours
+and hid the routing failure it exists to catch. The experiment changed based on
+its own measurement.
+
+`eventPairs()` now filters on the action: only the events that act on a
+specific physical link -- `connection_drop`, `connection_restore`,
+`connection_degrade`, `break_link`, `restore_link` -- bias the tree.
+`inject_message` and everything else do not. Two unit tests pin it: an
+injection leaves the plan byte-identical to the unbiased baseline, and a drop on
+the same pair forces it into the tree while the injection does not.
+
+(The obvious negative assertion -- that the injection's pair is *absent* from
+the plan -- would have been seed-dependent, since a random tree may include it
+anyway. The test asserts "no influence" instead, which holds for every seed.)
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -483,9 +511,9 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 124 test cases, 1462 assertions, all passing (was 107/1333 before
+- Unit tests: 126 test cases, 1465 assertions, all passing (was 107/1333 before
   this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
-  122/1454 before findings 17-18).
+  122/1454 before findings 17-18; 124/1462 before finding 19).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -510,6 +538,10 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   *"Message injected ... -- REFUSED"*; with `BasicInoFirmware` sending through
   `mesh->` directly again, its scenario reports `Total messages sent: 0` while
   peers receive 44. All 9 gate steps pass on the fixed build.
+- Finding 19 at the unit level: with the action filter removed from
+  `eventPairs()`, both injection-bias tests fail -- an injection once again
+  changes the planned tree. All 9 gate steps still pass, since no shipped
+  scenario's assertions depended on the bias.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.
