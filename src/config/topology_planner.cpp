@@ -73,14 +73,28 @@ std::vector<PlannedLink> eventPairs(const std::vector<EventConfig>& events,
                                     const std::vector<NodeConfigExtended>& nodes) {
   std::vector<PlannedLink> pairs;
   for (const auto& event : events) {
-    if (!actsOnAPhysicalLink(event.action) ||
-        event.from.empty() || event.to.empty()) {
+    if (!actsOnAPhysicalLink(event.action)) {
+      continue;
+    }
+    // A link event names its endpoints as `targets: [a, b]` OR `from`/`to`;
+    // EventFactory::resolveLink() accepts both, so this must too, or a drop
+    // declared with the targets syntax loses its preferred edge and the
+    // spanning-tree reduction can discard the very pair it means to cut.
+    std::string a;
+    std::string b;
+    if (event.targets.size() >= 2) {
+      a = event.targets[0];
+      b = event.targets[1];
+    } else {
+      a = event.from;
+      b = event.to;
+    }
+    if (a.empty() || b.empty()) {
       continue;
     }
     uint32_t from = 0;
     uint32_t to = 0;
-    if (resolveId(nodes, event.from, from) && resolveId(nodes, event.to, to) &&
-        from != to) {
+    if (resolveId(nodes, a, from) && resolveId(nodes, b, to) && from != to) {
       pairs.emplace_back(from, to);
     }
   }

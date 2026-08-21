@@ -223,6 +223,14 @@ size_t NodeManager::dropLink(uint32_t a, uint32_t b) {
 }
 
 bool NodeManager::restoreLink(uint32_t a, uint32_t b) {
+  // A restore re-establishes a link the topology declared; it is not a licence
+  // to invent a new route. connectNodes() records a fresh topology edge, so
+  // restoring a pair the declared topology never had would silently add an
+  // undeclared link and change later partition, heal and reconnect behaviour.
+  // Refuse it -- the same guard healNetwork() already applies to its edges.
+  if (!topology_.count(a) || !topology_.at(a).count(b)) {
+    return false;
+  }
   severed_.erase(linkKey(a, b));
 
   auto nodeA = getNode(a);

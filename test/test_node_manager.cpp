@@ -647,6 +647,44 @@ TEST_CASE("settleLink reports whether the link actually came up",
   manager.stopAll();
 }
 
+TEST_CASE("restoreLink refuses a pair the topology never declared",
+          "[node_manager][topology]") {
+  // connection_restore re-establishes a declared link; connectNodes() records a
+  // fresh topology edge, so restoring an undeclared pair would silently add a
+  // route and change later partition/heal/reconnect behaviour.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19851;
+  for (uint32_t id : {8851u, 8852u, 8853u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+
+  // Declare only 8851 <-> 8852. 8853 is left ISOLATED -- its own component --
+  // so an unguarded restore of 8851 <-> 8853 WOULD succeed (a direct connect
+  // between separate components is accepted), which is what makes this a real
+  // test of the guard rather than of painlessMesh's redundant-link dedup.
+  REQUIRE(manager.connectNodes(8851, 8852));
+  REQUIRE_FALSE(manager.getNode(8853)->isConnectedTo(8851));
+
+  // The undeclared pair must be refused, and no edge fabricated.
+  REQUIRE_FALSE(manager.restoreLink(8851, 8853));
+  REQUIRE_FALSE(manager.getNode(8851)->isConnectedTo(8853));
+  REQUIRE_FALSE(manager.getNode(8853)->isConnectedTo(8851));
+
+  // A declared pair that was dropped restores normally.
+  REQUIRE(manager.dropLink(8851, 8852) >= 1);
+  REQUIRE(manager.restoreLink(8851, 8852));
+
+  manager.stopAll();
+}
+
 TEST_CASE("A healed link carries traffic before the next event runs",
           "[node_manager][heal]") {
   boost::asio::io_context io;

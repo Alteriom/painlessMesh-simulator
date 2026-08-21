@@ -35,8 +35,9 @@ a fired event is not the same thing as an event that did something, a node the
 simulator calls stopped is not necessarily a node that stopped, a topology the
 scenario declares was not the topology it ran on, a link the simulator says it
 restored was not yet carrying traffic when the next event needed it, a probe
-meant to measure the mesh was quietly reshaping it, and a run that dropped an
-event still called itself a success.
+meant to measure the mesh was quietly reshaping it, a run that dropped an event
+still called itself a success, and the same link event meant two different
+things depending on how it was spelled.
 
 ## Findings
 
@@ -516,6 +517,41 @@ events (and the "cannot rebuild its transport" class the reviewer named) rather
 than fixing an observable failure today, which is why its coverage is the
 scheduler unit tests, not a gate scenario that cannot legitimately be built.
 
+### 22. The `targets:` link syntax lost its preferred edge (critical)
+
+Raised by `chatgpt-codex-connector` on the seventh review pass, against finding
+14/19's logic. Correct.
+
+`EventFactory::resolveLink()` accepts a connection event's endpoints in two
+spellings: `targets: [a, b]` or `from`/`to`. Finding 19's `eventPairs()` read
+only `from`/`to`, so a `connection_drop` declared with the `targets` syntax was
+not treated as a preferred edge. For a cyclic declaration like `mesh`, the
+spanning-tree reduction could then discard that exact pair, and the scheduled
+drop would later act on no live link -- the "0 live endpoint(s) closed" silence
+finding 14 exists to remove, reintroduced through the other spelling.
+
+`eventPairs()` now mirrors `resolveLink()`: it reads `targets[0..1]` when
+present, else `from`/`to`. A unit test pins the equivalence -- a drop declared
+via `targets` plans the identical graph to the same drop declared via
+`from`/`to`. (Asserting the pair is merely present would be seed-dependent; the
+equivalence is not, and it fails the moment the `targets` spelling is ignored.)
+
+### 23. A restore could fabricate an undeclared route (medium)
+
+`connection_restore` calls `NodeManager::restoreLink()`, which called
+`connectNodes()` -- and `connectNodes()` records a fresh `topology_` edge. So a
+restore naming a pair the declared topology never had (a drop/restore pair
+omitted from a `custom` topology, say) did not restore anything; it *added* a
+route, changing later partition, heal and reconnect behaviour. A restore is
+meant to bring back a link that existed, not invent one.
+
+`restoreLink()` now refuses a pair absent from `topology_`, the same guard
+`healNetwork()` already applies to its edges. A unit test pins it, and is
+careful to be a real test of the guard rather than of painlessMesh's own
+redundant-link dedup: the refused pair's far node is left *isolated* in its own
+component, so an unguarded restore genuinely would connect it -- the guard is
+what stops it, and removing the guard fails the test.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -557,10 +593,10 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 127 test cases, 1472 assertions, all passing (was 107/1333 before
+- Unit tests: 129 test cases, 1481 assertions, all passing (was 107/1333 before
   this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
   122/1454 before findings 17-18; 124/1462 before finding 19; 126/1465 before
-  findings 20-21).
+  findings 20-21; 127/1472 before findings 22-23).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -594,6 +630,12 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   the scheduler's `getFailedCount()` assertions fail. Both are unit-covered
   rather than gated: a settlement timeout does not occur on loopback, and no
   shipped event throws at execution time.
+- Findings 22 and 23 the same way. With the `targets` spelling ignored, the
+  two-spellings-plan-the-same-graph test fails; with the `restoreLink()` guard
+  removed, the isolated-node restore test connects the undeclared pair and
+  fails. Both reworked from a first cut that passed regardless -- the topology
+  assertion was seed-dependent, and the restore pair was reachable through a
+  third node, so painlessMesh's own dedup, not the guard, was refusing it.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

@@ -223,6 +223,36 @@ TEST_CASE("only link-manipulation events bias the planned topology",
   REQUIRE(injected.links == baseline.links);
 }
 
+TEST_CASE("a link event's targets:[a,b] syntax is a preferred edge too",
+          "[topology][events]") {
+  // EventFactory::resolveLink() accepts targets:[a,b] as well as from/to, so
+  // the planner must read both -- otherwise a drop declared with the targets
+  // syntax loses its preferred edge and the reduction can discard the very pair
+  // it means to cut.
+  const auto nodes = makeNodes(4);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig dropViaTargets;
+  dropViaTargets.action = EventAction::CONNECTION_DROP;
+  dropViaTargets.targets = {"n1", "n4"};  // targets syntax, from/to empty
+
+  EventConfig dropViaFromTo;
+  dropViaFromTo.action = EventAction::CONNECTION_DROP;
+  dropViaFromTo.from = "n1";
+  dropViaFromTo.to = "n4";
+
+  // The two spellings name the same pair, so they must plan the same graph.
+  // (Asserting the pair is merely *present* would be seed-dependent -- a random
+  // tree may include n1<->n4 anyway -- so this asserts equivalence instead,
+  // which fails the moment the targets spelling is ignored.)
+  const auto viaTargets = planTopology(topology, nodes, {dropViaTargets}, 42);
+  const auto viaFromTo = planTopology(topology, nodes, {dropViaFromTo}, 42);
+
+  REQUIRE(viaTargets.links == viaFromTo.links);
+  REQUIRE(hasLink(viaTargets.links, 1001, 1004));
+}
+
 TEST_CASE("Topology planner keeps the links a scenario's events name",
           "[topology][events]") {
   const auto nodes = makeNodes(4);
