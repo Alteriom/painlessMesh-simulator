@@ -565,6 +565,47 @@ events:
   REQUIRE(config->events[1].action == EventAction::START_NODE);
 }
 
+TEST_CASE("ConfigLoader rejects a delayed restart that finishes after the run",
+          "[config_loader]") {
+  // A restart_node schedules its start at time + delay. If that lands past the
+  // duration, the start never fires and the node stays stopped -- while the run
+  // reports success. The plain event-time check only sees the original time.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 20
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 15
+    action: restart_node
+    target: "node-1"
+    delay: 10
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_overrun = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Restart start") != std::string::npos &&
+        e.message.find("exceeds simulation duration") != std::string::npos) {
+      has_overrun = true;
+    }
+  }
+  REQUIRE(has_overrun);
+}
+
 TEST_CASE("ConfigLoader rejects out-of-range connection_degrade packet loss",
           "[config_loader]") {
   // NetworkSimulator::setPacketLoss() throws on a value outside [0,1]; caught

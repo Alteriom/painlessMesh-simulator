@@ -916,6 +916,22 @@ Validation now rejects a `connection_degrade` whose `packet_loss` is outside
 `[0, 1]`, so it fails at load with a clear message. A unit test and a
 `--validate-only` run confirm the rejection.
 
+### 45. A delayed restart could finish after the run ended (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-first review pass, against
+finding 43's fix. Correct.
+
+Finding 43 schedules a delayed restart's start at `time + delay`. Validation
+bounded only the original event time, so a `restart_node` at t=15 with `delay:
+10` in a `duration: 20` run scheduled the stop within the run and the start at
+t=25 -- which never fired. The node stayed stopped while the run reported
+success, because the exit path checks failed events, not pending ones.
+
+Validation now bounds the computed start time -- `time + delay` -- against the
+duration, with overflow-safe addition (both are `uint32`). The example fails at
+load: *"Restart start (time 15 + delay 10 = 25s) exceeds simulation duration
+20s"*. A unit test and a `--validate-only` run confirm it.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -957,8 +973,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 144 test cases, 1586 assertions, all passing. Findings 14-24 and
-  26-44 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 145 test cases, 1588 assertions, all passing. Findings 14-24 and
+  26-45 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

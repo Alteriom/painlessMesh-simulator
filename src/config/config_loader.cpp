@@ -813,6 +813,28 @@ void ConfigLoader::validateEvent(const EventConfig& config,
     err.suggestion = "Ensure all event times are within simulation duration";
     errors.push_back(err);
   }
+
+  // A delayed restart schedules its start at time + delay (see
+  // EventFactory::scheduleAll). If that lands past the run, the start never
+  // fires and the node stays stopped while the run still reports success. The
+  // event-time check above only sees the original time, so bound the computed
+  // start here -- overflow-safe, since both are uint32.
+  if (config.action == EventAction::RESTART_NODE && config.delay > 0 &&
+      simulation_duration > 0) {
+    const uint64_t start_at =
+        static_cast<uint64_t>(config.time) + config.delay;
+    if (start_at > simulation_duration) {
+      ValidationError err;
+      err.field = "event.delay";
+      err.message = "Restart start (time " + std::to_string(config.time) +
+                    " + delay " + std::to_string(config.delay) + " = " +
+                    std::to_string(start_at) + "s) exceeds simulation duration " +
+                    std::to_string(simulation_duration) + "s";
+      err.suggestion = "Shorten the delay, or use stop_node for an outage that "
+                       "outlasts the run";
+      errors.push_back(err);
+    }
+  }
   
   // Validate target node exists
   if (!config.target.empty()) {
