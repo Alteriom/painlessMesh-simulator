@@ -23,6 +23,8 @@ KNOWN_UNSUPPORTED=(
 )
 
 failures=0
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
 fail() { echo "FAIL: $*"; failures=$((failures + 1)); }
 pass() { echo "  ok: $*"; }
@@ -97,14 +99,72 @@ fi
 
 echo
 echo "== 4. a scenario naming unknown firmware must fail, not pass quietly =="
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
 sed 's|firmware: "SimpleBroadcast"|firmware: "NoSuchFirmware"|' \
   "$SCENARIO_DIR/simple_mesh.yaml" > "$tmp/bad_firmware.yaml"
 if "$SIM" --config "$tmp/bad_firmware.yaml" --duration 5 >/dev/null 2>&1; then
   fail "a scenario with unloadable firmware exited 0"
 else
   pass "unloadable firmware fails the run"
+fi
+
+echo
+echo "== 5. a partition must actually cost deliveries, and a heal must repay them =="
+# The regression this catches: link events used to mutate only the standalone
+# NetworkSimulator, which nothing on the delivery path consults, so a
+# "partitioned" mesh carried exactly as much traffic as an intact one.
+part_scenario="$SCENARIO_DIR/partition_delivery_test.yaml"
+sed '/^events:/,$d' "$part_scenario" > "$tmp/partition_control.yaml"
+sed '/^  - time: 26$/,$d' "$part_scenario" > "$tmp/partition_only.yaml"
+
+received_of() { echo "$1" | sed -n 's/^Total messages received: //p'; }
+
+control_out=$("$SIM" --config "$tmp/partition_control.yaml" 2>&1)
+split_out=$("$SIM" --config "$tmp/partition_only.yaml" 2>&1)
+heal_out=$("$SIM" --config "$part_scenario" 2>&1)
+
+control_rx=$(received_of "$control_out")
+split_rx=$(received_of "$split_out")
+cut_links=$(echo "$heal_out" | sed -n 's/.*(\([0-9]*\) mesh link(s) cut).*/\1/p' | head -1)
+restored_links=$(echo "$heal_out" | sed -n 's/.*(\([0-9]*\) mesh link(s) restored).*/\1/p' | head -1)
+
+if [ -z "${control_rx:-}" ] || [ "$control_rx" -lt 20 ]; then
+  fail "partition control run received ${control_rx:-0} messages, too few to compare against"
+elif [ -z "${split_rx:-}" ]; then
+  fail "partitioned run reported no receive total"
+elif [ "$((split_rx * 100 / control_rx))" -ge 80 ]; then
+  fail "partitioned run received $split_rx vs $control_rx intact -- the split cost nothing"
+elif [ -z "${cut_links:-}" ] || [ "$cut_links" -lt 1 ]; then
+  fail "the partition event cut ${cut_links:-0} live mesh links"
+elif [ -z "${restored_links:-}" ] || [ "$restored_links" -lt 1 ]; then
+  fail "the heal event restored ${restored_links:-0} mesh links"
+else
+  pass "split received $split_rx vs $control_rx intact; $cut_links link(s) cut, $restored_links restored"
+fi
+
+echo
+echo "== 6. a restarted node must rejoin the mesh, not just report running =="
+# Before start() rebuilt the mesh, a stopped-then-started node came back with
+# its painlessMesh routing torn down: full marks on the running count, a third
+# of its peers' receive count, and not one of its own sends leaving the node.
+out=$("$SIM" --config "$SCENARIO_DIR/restart_rejoin_test.yaml" --log-level DEBUG 2>&1)
+rc=$?
+relinked=$(echo "$out" | sed -n 's/.*started (\([0-9]*\) mesh link(s) re-established).*/\1/p' | head -1)
+# The scenario stops exactly one node, so the worst receive count in the run is
+# that node's. Comparing it against the best avoids hardcoding a message count
+# that would drift with machine speed.
+restarted_rx=$(echo "$out" | sed -n 's/^  Node [0-9]*: sent=[0-9]*, received=\([0-9]*\)$/\1/p' | sort -n | head -1)
+best_rx=$(echo "$out" | sed -n 's/^  Node [0-9]*: sent=[0-9]*, received=\([0-9]*\)$/\1/p' | sort -n | tail -1)
+
+if [ $rc -ne 0 ]; then
+  fail "restart_rejoin_test exited $rc"
+elif [ -z "${relinked:-}" ] || [ "$relinked" -lt 1 ]; then
+  fail "the restarted node re-established ${relinked:-0} mesh links"
+elif [ -z "${best_rx:-}" ] || [ "$best_rx" -lt 10 ]; then
+  fail "restart_rejoin_test moved too little traffic to judge (best node received ${best_rx:-0})"
+elif [ "$((restarted_rx * 100 / best_rx))" -lt 60 ]; then
+  fail "restarted node received $restarted_rx against a peer best of $best_rx -- it never rejoined"
+else
+  pass "restarted node received $restarted_rx vs peer best $best_rx; $relinked link(s) re-established"
 fi
 
 echo

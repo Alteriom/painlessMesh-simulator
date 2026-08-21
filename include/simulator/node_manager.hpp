@@ -14,6 +14,8 @@
 
 #include <memory>
 #include <map>
+#include <set>
+#include <utility>
 #include <vector>
 #include <cstdint>
 #include <boost/asio.hpp>
@@ -225,7 +227,107 @@ public:
    * @return true if node exists, false otherwise
    */
   bool hasNode(uint32_t nodeId) const;
-  
+
+  // --- Topology control -----------------------------------------------------
+  //
+  // establishConnectivity() wires the mesh once, at startup, and nothing
+  // recorded which node was wired to which. That left two holes: a scenario
+  // link event had no way to sever a real connection (it could only mutate the
+  // standalone NetworkSimulator, which no delivery path reads), and a node
+  // restarted mid-run came back isRunning() == true without rejoining the
+  // mesh. The manager now owns the edge list so both are answerable.
+
+  /**
+   * @brief Connect two nodes and record the edge in the topology
+   *
+   * @param fromNode Node that initiates the connection
+   * @param toNode Node that accepts it
+   * @return true if both nodes exist and the connection was initiated
+   */
+  bool connectNodes(uint32_t fromNode, uint32_t toNode);
+
+  /**
+   * @brief Sever the live link between two nodes
+   *
+   * Marks the link severed so a later reconnect will not silently restore it,
+   * then closes the painlessMesh connection from both ends.
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return Number of live connection endpoints actually closed (0, 1 or 2)
+   */
+  size_t dropLink(uint32_t a, uint32_t b);
+
+  /**
+   * @brief Restore a previously severed link
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return true if the link was reconnected
+   */
+  bool restoreLink(uint32_t a, uint32_t b);
+
+  /**
+   * @brief Cut every link that crosses a partition boundary
+   *
+   * @param groups Node ID groups; every pair drawn from two different groups
+   *               is severed
+   * @return Number of recorded edges cut
+   */
+  size_t partitionNetwork(const std::vector<std::vector<uint32_t>>& groups);
+
+  /**
+   * @brief Clear every severed link and rebuild the recorded topology
+   *
+   * @return Number of links reconnected
+   */
+  size_t healNetwork();
+
+  /**
+   * @brief Re-attach a node to its recorded peers after a start or restart
+   *
+   * @param nodeId Node that has just come back up
+   * @return Number of links re-established
+   */
+  size_t reconnectNode(uint32_t nodeId);
+
+  /**
+   * @brief Whether a link is currently marked severed by a scenario event
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return true if severed
+   */
+  bool isLinkSevered(uint32_t a, uint32_t b) const;
+
+  /**
+   * @brief Recorded peers of a node, whether or not the links are live
+   *
+   * @param nodeId Node to query
+   * @return Peer node IDs (empty if the node is unknown)
+   */
+  std::vector<uint32_t> getRecordedPeers(uint32_t nodeId) const;
+
+  /**
+   * @brief Total number of live mesh connections across all nodes
+   *
+   * Counts endpoints, so a healthy two-node link contributes 2.
+   *
+   * @return Live connection endpoint count
+   */
+  size_t getTotalConnectionCount() const;
+
+  /**
+   * @brief Groups of node IDs that can still reach each other
+   *
+   * Computed from the recorded topology minus severed links, so it answers
+   * "did that partition event actually split the mesh?" without waiting for
+   * painlessMesh to reconverge.
+   *
+   * @return One sorted vector of node IDs per connected component
+   */
+  std::vector<std::vector<uint32_t>> getConnectedComponents() const;
+
   // Resource limits
   
   /**
@@ -242,6 +344,13 @@ private:
   std::map<uint32_t, std::shared_ptr<VirtualNode>> nodes_;        ///< Map of node ID to node
   size_t firmware_load_failures_ = 0;                             ///< Nodes whose firmware failed to load
   uint32_t next_node_id_{1000};                                   ///< Next auto-assigned node ID
+  std::map<uint32_t, std::set<uint32_t>> topology_;               ///< Recorded mesh edges, both directions
+  std::set<std::pair<uint32_t, uint32_t>> severed_;               ///< Links cut by scenario events, (low, high)
+
+  /// Normalises a node pair so severed_ keys are direction-independent.
+  static std::pair<uint32_t, uint32_t> linkKey(uint32_t a, uint32_t b) {
+    return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
+  }
 };
 
 } // namespace simulator

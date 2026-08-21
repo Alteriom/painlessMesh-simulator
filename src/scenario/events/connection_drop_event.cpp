@@ -18,12 +18,18 @@ ConnectionDropEvent::ConnectionDropEvent(uint32_t fromNode, uint32_t toNode)
 }
 
 void ConnectionDropEvent::execute(NodeManager& manager, NetworkSimulator& network) {
-  // Drop connection in both directions
+  // Keep the NetworkSimulator's view in step for its own metrics...
   network.dropConnection(fromNode_, toNode_);
   network.dropConnection(toNode_, fromNode_);
-  
-  std::cout << "[EVENT] Connection dropped: " << fromNode_ 
-            << " <-> " << toNode_ << std::endl;
+
+  // ...but the traffic that matters flows over the nodes' painlessMesh
+  // connections, which nothing on the NetworkSimulator path touches. Sever the
+  // real link, or this event only prints.
+  const size_t closed = manager.dropLink(fromNode_, toNode_);
+
+  std::cout << "[EVENT] Connection dropped: " << fromNode_
+            << " <-> " << toNode_ << " (" << closed
+            << " live endpoint(s) closed)" << std::endl;
 }
 
 std::string ConnectionDropEvent::getDescription() const {

@@ -21,9 +21,14 @@ void ConnectionRestoreEvent::execute(NodeManager& manager, NetworkSimulator& net
   // Restore connection in both directions
   network.restoreConnection(fromNode_, toNode_);
   network.restoreConnection(toNode_, fromNode_);
-  
-  std::cout << "[EVENT] Connection restored: " << fromNode_ 
-            << " <-> " << toNode_ << std::endl;
+
+  // Re-establish the actual mesh link the matching drop severed.
+  const bool relinked = manager.restoreLink(fromNode_, toNode_);
+
+  std::cout << "[EVENT] Connection restored: " << fromNode_
+            << " <-> " << toNode_
+            << (relinked ? " (mesh link re-established)"
+                         : " (no mesh link to re-establish)") << std::endl;
 }
 
 std::string ConnectionRestoreEvent::getDescription() const {

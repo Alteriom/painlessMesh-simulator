@@ -421,3 +421,165 @@ TEST_CASE("NodeManager integration tests", "[node_manager][integration]") {
     REQUIRE(true);
   }
 }
+
+// --- Topology control ---------------------------------------------------
+//
+// establishConnectivity() used to wire the mesh and forget what it had wired.
+// Scenario link events could then only mutate the standalone NetworkSimulator,
+// which no delivery path reads, and a node restarted mid-run never rejoined.
+// These cover the recorded edge list that closes both holes.
+
+TEST_CASE("NodeManager records the topology it establishes", "[node_manager][topology]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig a{31001, "TestMesh", "password", 31001};
+  NodeConfig b{31002, "TestMesh", "password", 31002};
+  NodeConfig c{31003, "TestMesh", "password", 31003};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.createNode(c);
+
+  SECTION("connectNodes records the edge in both directions") {
+    REQUIRE(manager.connectNodes(31001, 31002));
+
+    auto peers_of_a = manager.getRecordedPeers(31001);
+    auto peers_of_b = manager.getRecordedPeers(31002);
+    REQUIRE(peers_of_a.size() == 1);
+    REQUIRE(peers_of_a[0] == 31002);
+    REQUIRE(peers_of_b.size() == 1);
+    REQUIRE(peers_of_b[0] == 31001);
+  }
+
+  SECTION("connecting a node to itself or to a stranger is refused") {
+    REQUIRE_FALSE(manager.connectNodes(31001, 31001));
+    REQUIRE_FALSE(manager.connectNodes(31001, 99999));
+  }
+
+  SECTION("establishConnectivity leaves every node reachable") {
+    manager.startAll();
+    manager.establishConnectivity();
+
+    // A tree over three nodes is one component until something cuts it.
+    REQUIRE(manager.getConnectedComponents().size() == 1);
+  }
+
+  SECTION("removing a node forgets its edges") {
+    manager.connectNodes(31001, 31002);
+    manager.connectNodes(31002, 31003);
+    REQUIRE(manager.removeNode(31002));
+
+    REQUIRE(manager.getRecordedPeers(31002).empty());
+    REQUIRE(manager.getRecordedPeers(31001).empty());
+    REQUIRE(manager.getRecordedPeers(31003).empty());
+  }
+}
+
+TEST_CASE("NodeManager severs and restores links", "[node_manager][topology]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig a{32001, "TestMesh", "password", 32001};
+  NodeConfig b{32002, "TestMesh", "password", 32002};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.startAll();
+  manager.connectNodes(32001, 32002);
+
+  SECTION("a dropped link stays severed") {
+    manager.dropLink(32001, 32002);
+    REQUIRE(manager.isLinkSevered(32001, 32002));
+    // Direction must not matter.
+    REQUIRE(manager.isLinkSevered(32002, 32001));
+    REQUIRE(manager.getConnectedComponents().size() == 2);
+  }
+
+  SECTION("restoring clears the severed mark") {
+    manager.dropLink(32001, 32002);
+    manager.restoreLink(32001, 32002);
+    REQUIRE_FALSE(manager.isLinkSevered(32001, 32002));
+    REQUIRE(manager.getConnectedComponents().size() == 1);
+  }
+
+  SECTION("reconnectNode will not bridge a severed link") {
+    manager.dropLink(32001, 32002);
+    REQUIRE(manager.reconnectNode(32001) == 0);
+    REQUIRE(manager.isLinkSevered(32001, 32002));
+  }
+
+  SECTION("reconnectNode does nothing for a node that is not running") {
+    manager.getNode(32001)->stop();
+    REQUIRE(manager.reconnectNode(32001) == 0);
+  }
+}
+
+TEST_CASE("NodeManager partitions and heals the recorded topology",
+          "[node_manager][topology]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  // A path: 33001 - 33002 - 33003 - 33004, so {1,2} | {3,4} is a clean cut.
+  const std::vector<uint32_t> ids{33001, 33002, 33003, 33004};
+  for (uint32_t id : ids) {
+    NodeConfig cfg{id, "TestMesh", "password", static_cast<uint16_t>(id)};
+    manager.createNode(cfg);
+  }
+  manager.startAll();
+  for (size_t i = 1; i < ids.size(); ++i) {
+    manager.connectNodes(ids[i - 1], ids[i]);
+  }
+  REQUIRE(manager.getConnectedComponents().size() == 1);
+
+  SECTION("a cut along a real edge yields the requested groups") {
+    const size_t cut = manager.partitionNetwork({{33001, 33002}, {33003, 33004}});
+    REQUIRE(cut == 1);  // only 33002-33003 was actually wired
+
+    auto components = manager.getConnectedComponents();
+    REQUIRE(components.size() == 2);
+    REQUIRE(components[0] == std::vector<uint32_t>{33001, 33002});
+    REQUIRE(components[1] == std::vector<uint32_t>{33003, 33004});
+  }
+
+  SECTION("every cross pair is marked, not just the wired one") {
+    manager.partitionNetwork({{33001, 33002}, {33003, 33004}});
+    REQUIRE(manager.isLinkSevered(33001, 33004));  // never wired, still severed
+    // ...so a restart on either side reattaches only within its own group and
+    // cannot silently bridge the split.
+    manager.reconnectNode(33002);
+    REQUIRE(manager.isLinkSevered(33002, 33003));
+    REQUIRE(manager.getConnectedComponents().size() == 2);
+  }
+
+  SECTION("healing puts the mesh back together") {
+    manager.partitionNetwork({{33001, 33002}, {33003, 33004}});
+    const size_t restored = manager.healNetwork();
+    REQUIRE(restored == 1);
+    REQUIRE_FALSE(manager.isLinkSevered(33002, 33003));
+    REQUIRE(manager.getConnectedComponents().size() == 1);
+  }
+
+  SECTION("groups that are not subtrees fragment further, and it is visible") {
+    // {33001, 33003} | {33002, 33004} cuts three of the three path edges.
+    manager.partitionNetwork({{33001, 33003}, {33002, 33004}});
+    // Four isolated nodes, not the two groups the author asked for.
+    REQUIRE(manager.getConnectedComponents().size() == 4);
+  }
+}
+
+TEST_CASE("NodeManager reattaches a restarted node", "[node_manager][topology]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+
+  NodeConfig a{34001, "TestMesh", "password", 34001};
+  NodeConfig b{34002, "TestMesh", "password", 34002};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.startAll();
+  manager.connectNodes(34001, 34002);
+
+  // stop() closes the node's connections; nothing used to put them back.
+  manager.getNode(34001)->stop();
+  manager.getNode(34001)->start();
+  REQUIRE(manager.reconnectNode(34001) == 1);
+  REQUIRE_FALSE(manager.isLinkSevered(34001, 34002));
+}

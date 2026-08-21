@@ -10,6 +10,7 @@
 #include "simulator/config_loader.hpp"
 #include "simulator/event_factory.hpp"
 #include "simulator/event_scheduler.hpp"
+#include "simulator/events/message_inject_event.hpp"
 #include <map>
 #include <string>
 #include <vector>
@@ -118,10 +119,68 @@ TEST_CASE("EventFactory builds partition events", "[event_factory]") {
 TEST_CASE("EventFactory reports actions it cannot build", "[event_factory]") {
   const auto nodes = testNodes();
   // Parsed and validated by the config loader, but with no runtime event class.
-  auto c = makeEvent(EventAction::INJECT_MESSAGE);
-  c.from = "node-1";
-  c.to = "node-2";
-  REQUIRE(EventFactory::create(c, nodes) == nullptr);
+  REQUIRE(EventFactory::create(makeEvent(EventAction::ADD_NODES), nodes) == nullptr);
+  REQUIRE(EventFactory::create(makeEvent(EventAction::BREAK_LINK), nodes) == nullptr);
+  REQUIRE(EventFactory::create(makeEvent(EventAction::SET_NETWORK_QUALITY), nodes) ==
+          nullptr);
+}
+
+TEST_CASE("EventFactory builds message injections", "[event_factory]") {
+  const auto nodes = testNodes();
+
+  SECTION("from/to resolve to a directed send") {
+    auto c = makeEvent(EventAction::INJECT_MESSAGE);
+    c.from = "node-1";
+    c.to = "node-2";
+    c.payload = "ping";
+    auto event = EventFactory::create(c, nodes);
+    REQUIRE(event != nullptr);
+    auto* inject = dynamic_cast<MessageInjectEvent*>(event.get());
+    REQUIRE(inject != nullptr);
+    CHECK(inject->getFromNode() == nodes.at("node-1"));
+    CHECK(inject->getToNode() == nodes.at("node-2"));
+    CHECK(inject->getPayload() == "ping");
+  }
+
+  SECTION("the broadcast sentinel resolves to node 0") {
+    for (const std::string sentinel : {"broadcast", "all"}) {
+      auto c = makeEvent(EventAction::INJECT_MESSAGE);
+      c.from = "node-1";
+      c.to = sentinel;
+      auto event = EventFactory::create(c, nodes);
+      REQUIRE(event != nullptr);
+      CHECK(dynamic_cast<MessageInjectEvent*>(event.get())->getToNode() == 0);
+    }
+  }
+
+  SECTION("a missing destination means broadcast") {
+    auto c = makeEvent(EventAction::INJECT_MESSAGE);
+    c.from = "node-1";
+    auto event = EventFactory::create(c, nodes);
+    REQUIRE(event != nullptr);
+    auto* inject = dynamic_cast<MessageInjectEvent*>(event.get());
+    REQUIRE(inject != nullptr);
+    CHECK(inject->getToNode() == 0);
+  }
+
+  SECTION("target is accepted as a sender alias") {
+    auto c = makeEvent(EventAction::INJECT_MESSAGE);
+    c.target = "node-2";
+    auto event = EventFactory::create(c, nodes);
+    REQUIRE(event != nullptr);
+    CHECK(dynamic_cast<MessageInjectEvent*>(event.get())->getFromNode() ==
+          nodes.at("node-2"));
+  }
+
+  SECTION("no sender at all is an error, not a silent drop") {
+    REQUIRE_THROWS(EventFactory::create(makeEvent(EventAction::INJECT_MESSAGE), nodes));
+  }
+
+  SECTION("an unknown sender is an error") {
+    auto c = makeEvent(EventAction::INJECT_MESSAGE);
+    c.from = "node-nope";
+    REQUIRE_THROWS(EventFactory::create(c, nodes));
+  }
 }
 
 TEST_CASE("EventFactory::scheduleAll reports what it skipped", "[event_factory]") {

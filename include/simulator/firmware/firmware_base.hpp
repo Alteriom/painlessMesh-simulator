@@ -101,6 +101,21 @@ public:
   }
   
   /**
+   * @brief Re-point this firmware at a rebuilt mesh instance
+   *
+   * A node that stops and starts again gets a fresh painlessMesh object (see
+   * VirtualNode::start()). The firmware's cached pointer would otherwise dangle
+   * on the destroyed one. Deliberately does not re-run setup(): the firmware's
+   * scheduler task is still registered and enabled, and adding it twice
+   * corrupts the scheduler's task list.
+   *
+   * @param mesh The new mesh instance
+   */
+  void rebindMesh(painlessmesh::Mesh<painlessmesh::Connection>* mesh) {
+    mesh_ = mesh;
+  }
+
+  /**
    * @brief Check if firmware has been initialized
    * 
    * @return true if initialize() has been called, false otherwise

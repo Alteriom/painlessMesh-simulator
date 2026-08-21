@@ -16,13 +16,17 @@ namespace simulator {
 void NetworkHealEvent::execute(NodeManager& manager, NetworkSimulator& network) {
   // Restore all previously dropped connections
   network.restoreAllConnections();
-  
+
+  // Rebuild the mesh links the partition severed.
+  const size_t restored = manager.healNetwork();
+
   // Clear partition IDs for all nodes
   for (auto& node : manager.getAllNodes()) {
     node->setPartitionId(0);  // Single partition
   }
-  
-  std::cout << "[EVENT] Network partitions healed" << std::endl;
+
+  std::cout << "[EVENT] Network partitions healed (" << restored
+            << " mesh link(s) restored)" << std::endl;
 }
 
 std::string NetworkHealEvent::getDescription() const {

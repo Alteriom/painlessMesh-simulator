@@ -27,7 +27,10 @@ void NodeRestartEvent::execute(NodeManager& manager, NetworkSimulator& network) 
   }
   
   node->restart();
-  std::cout << "[EVENT] Node " << nodeId_ << " restarted" << std::endl;
+  // restart() is stop() + start(); the start half leaves the node detached.
+  const size_t relinked = manager.reconnectNode(nodeId_);
+  std::cout << "[EVENT] Node " << nodeId_ << " restarted ("
+            << relinked << " mesh link(s) re-established)" << std::endl;
 }
 
 std::string NodeRestartEvent::getDescription() const {

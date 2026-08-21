@@ -115,7 +115,23 @@ void VirtualNode::start() {
   if (!mesh_) {
     throw std::runtime_error("Mesh instance not initialized");
   }
-  
+
+  // A stopped painlessMesh is not a restartable one. Mesh::stop() closes every
+  // connection, disables and nulls the ack tasks, clears the ack trackers and
+  // tears down the PackageHandler's scheduler tasks -- and nothing in Mesh
+  // re-arms any of it. Reusing the instance produced a node that reported
+  // isRunning() == true while its routing machinery stayed dead: it counted
+  // sends that never left, and its peers received nothing from it for the rest
+  // of the run. Build a fresh mesh instead.
+  if (mesh_needs_rebuild_) {
+    mesh_ = std::unique_ptr<MeshTest>(new MeshTest(scheduler_, node_id_, io_));
+    mesh_needs_rebuild_ = false;
+    // The firmware cached a pointer to the mesh we just destroyed.
+    if (firmware_) {
+      firmware_->rebindMesh(mesh_.get());
+    }
+  }
+
   // Record start time
   metrics_.start_time = std::chrono::steady_clock::now();
   
@@ -147,6 +163,7 @@ void VirtualNode::stop() {
   
   if (mesh_) {
     mesh_->stop();
+    mesh_needs_rebuild_ = true;
   }
   
   running_ = false;
@@ -168,6 +185,7 @@ void VirtualNode::crash() {
   // We still call mesh_->stop() but this represents an ungraceful shutdown
   if (mesh_) {
     mesh_->stop();
+    mesh_needs_rebuild_ = true;
   }
   
   running_ = false;
@@ -230,6 +248,69 @@ void VirtualNode::connectTo(VirtualNode& other) {
   
   // Connect this node to the other node
   mesh_->connect(*other.mesh_);
+}
+
+bool VirtualNode::disconnectFrom(uint32_t peerId) {
+  if (!mesh_) {
+    return false;
+  }
+
+  // Collect first: close() runs the dropped-connection callbacks, which mutate
+  // subs, so closing while iterating it invalidates the iterator.
+  std::vector<std::shared_ptr<painlessmesh::Connection>> matches;
+  for (const auto& conn : mesh_->subs) {
+    if (conn && conn->nodeId == peerId) {
+      matches.push_back(conn);
+    }
+  }
+
+  for (const auto& conn : matches) {
+    conn->close();
+  }
+
+  if (!matches.empty()) {
+    mesh_->eraseClosedConnections();
+    return true;
+  }
+  return false;
+}
+
+bool VirtualNode::isConnectedTo(uint32_t peerId) const {
+  if (!mesh_) {
+    return false;
+  }
+  for (const auto& conn : mesh_->subs) {
+    if (conn && conn->nodeId == peerId && conn->connected()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+size_t VirtualNode::getConnectionCount() const {
+  if (!mesh_) {
+    return 0;
+  }
+  size_t live = 0;
+  for (const auto& conn : mesh_->subs) {
+    if (conn && conn->connected()) ++live;
+  }
+  return live;
+}
+
+bool VirtualNode::injectMessage(uint32_t dest, const std::string& payload) {
+  if (!mesh_ || !running_) {
+    return false;
+  }
+
+  String msg(payload.c_str());
+  const bool sent = dest == 0 ? mesh_->sendBroadcast(msg)
+                              : mesh_->sendSingle(dest, msg);
+  if (sent) {
+    metrics_.messages_sent++;
+    metrics_.bytes_sent += payload.size();
+  }
+  return sent;
 }
 
 void VirtualNode::onReceive(uint32_t from, std::string& msg) {

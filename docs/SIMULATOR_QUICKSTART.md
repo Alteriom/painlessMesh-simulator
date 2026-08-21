@@ -95,7 +95,7 @@ topology:
 ```yaml
 simulation:
   duration: 300
-  time_scale: 5.0  # 5x faster
+  time_scale: 5.0  # 5x the poll rate -- the run still takes `duration` seconds
 
 nodes:
   - template: "sensor"
@@ -336,7 +336,7 @@ The simulator builds on `test/boost/tcp_integration.cpp` which already demonstra
 ### Performance Targets
 - 100 nodes: Real-time on modern hardware
 - 200+ nodes: May need time scaling (2-5x slower)
-- Configurable time_scale for fast-forward
+- Configurable time_scale to raise the node poll rate (it does not fast-forward the run)
 
 ## Support
 

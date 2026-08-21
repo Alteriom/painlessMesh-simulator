@@ -189,6 +189,7 @@ set(SIMULATOR_SOURCES
   src/scenario/events/connection_degrade_event.cpp
   src/scenario/events/network_partition_event.cpp
   src/scenario/events/network_heal_event.cpp
+  src/scenario/events/message_inject_event.cpp
   # Firmware framework
   src/firmware/firmware_base.cpp
   src/firmware/simple_broadcast_firmware.cpp
@@ -219,6 +220,7 @@ set(SIMULATOR_HEADERS
   include/simulator/events/connection_degrade_event.hpp
   include/simulator/events/network_partition_event.hpp
   include/simulator/events/network_heal_event.hpp
+  include/simulator/events/message_inject_event.hpp
   # Firmware framework
   include/simulator/firmware/firmware_base.hpp
   include/simulator/firmware/firmware_factory.hpp

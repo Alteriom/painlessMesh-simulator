@@ -40,10 +40,16 @@ void ConnectionDegradeEvent::execute(NodeManager& manager, NetworkSimulator& net
   network.setPacketLoss(fromNode_, toNode_, loss);
   network.setPacketLoss(toNode_, fromNode_, loss);
   
-  std::cout << "[EVENT] Connection degraded: " << fromNode_ 
-            << " <-> " << toNode_ 
-            << " (latency: " << latencyMs_ << "ms, loss: " 
+  std::cout << "[EVENT] Connection degraded: " << fromNode_
+            << " <-> " << toNode_
+            << " (latency: " << latencyMs_ << "ms, loss: "
             << (packetLoss_ * 100.0f) << "%)" << std::endl;
+  // Unlike drop/restore, degradation has no live-transport equivalent: the
+  // nodes talk over real loopback sockets and nothing interposes on that path
+  // to delay or discard frames. The values above configure the NetworkSimulator
+  // model only. Flagged rather than left to read as a delivered effect.
+  std::cout << "[EVENT]   note: applies to the NetworkSimulator model only; "
+            << "live mesh traffic is unaffected" << std::endl;
 }
 
 std::string ConnectionDegradeEvent::getDescription() const {

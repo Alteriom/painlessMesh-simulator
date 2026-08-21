@@ -1,0 +1,56 @@
+---
+# Restart rejoin test
+#
+# scripts/ci_integration_check.sh asserts that the restarted node ends the run
+# with a receive count comparable to its peers. Before the mesh was rebuilt on
+# start(), a node that stopped and started again reported isRunning() == true
+# while its routing machinery stayed torn down -- it received a third of what
+# its peers did and its own sends never left.
+
+simulation:
+  name: "Restart Rejoin Test"
+  description: "A node that stops and starts again must rejoin the mesh, not just report running"
+  duration: 40
+  time_scale: 1.0
+  seed: 20260821
+
+nodes:
+  - id: "n1"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n2"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n3"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+
+events:
+  - time: 10
+    action: stop_node
+    target: n2
+    graceful: true
+    description: "n2 goes down for maintenance"
+
+  - time: 20
+    action: start_node
+    target: n2
+    description: "n2 comes back and must rejoin"

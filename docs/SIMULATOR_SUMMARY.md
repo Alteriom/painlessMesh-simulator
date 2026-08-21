@@ -291,7 +291,7 @@ Add features based on feedback:
 ### Mitigation
 - Start small, validate early
 - Profile and optimize
-- Use time_scale for large simulations
+- Use time_scale to raise the poll rate on large simulations (it does not shorten them)
 - Mock only necessary APIs
 
 ## Next Steps

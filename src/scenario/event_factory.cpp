@@ -3,6 +3,7 @@
 #include "simulator/events/connection_degrade_event.hpp"
 #include "simulator/events/connection_drop_event.hpp"
 #include "simulator/events/connection_restore_event.hpp"
+#include "simulator/events/message_inject_event.hpp"
 #include "simulator/events/network_heal_event.hpp"
 #include "simulator/events/network_partition_event.hpp"
 #include "simulator/events/node_crash_event.hpp"
@@ -106,13 +107,35 @@ std::unique_ptr<Event> EventFactory::create(
     case EventAction::HEAL_PARTITION:
       return std::unique_ptr<Event>(new NetworkHealEvent());
 
+    case EventAction::INJECT_MESSAGE: {
+      // `from` names the sender; `to` is optional and means broadcast when
+      // absent. `target` is accepted as a sender alias so the two spellings
+      // shipped in scenarios both resolve.
+      uint32_t from = 0;
+      if (!config.from.empty()) {
+        from = resolve(config.from, idToNodeId);
+      } else if (!config.target.empty()) {
+        from = resolve(config.target, idToNodeId);
+      } else {
+        throw std::runtime_error("inject_message needs a sending node");
+      }
+      // Shipped scenarios spell a mesh-wide send as `to: "broadcast"`; the
+      // absent-`to` form means the same thing. Both map to node id 0.
+      uint32_t to = 0;
+      if (!config.to.empty() && config.to != "broadcast" && config.to != "all") {
+        to = resolve(config.to, idToNodeId);
+      }
+      const std::string payload =
+          config.payload.empty() ? std::string("injected") : config.payload;
+      return std::unique_ptr<Event>(new MessageInjectEvent(from, to, payload));
+    }
+
     // Parsed and validated by the config loader, but with no runtime
     // implementation yet. Reported to the caller rather than dropped silently.
     case EventAction::REMOVE_NODE:
     case EventAction::ADD_NODES:
     case EventAction::BREAK_LINK:
     case EventAction::RESTORE_LINK:
-    case EventAction::INJECT_MESSAGE:
     case EventAction::SET_NETWORK_QUALITY:
     default:
       return nullptr;

@@ -232,7 +232,45 @@ public:
    * in a real mesh network.
    */
   void connectTo(VirtualNode& other);
-  
+
+  /**
+   * @brief Closes the live mesh connection to a specific peer
+   *
+   * Scenario link events used to mutate only the standalone NetworkSimulator,
+   * which nothing on the delivery path consults -- so a "dropped" link kept
+   * carrying traffic. This severs the actual painlessMesh connection instead.
+   *
+   * @param peerId Node ID of the peer to disconnect from
+   * @return true if a connection to that peer was found and closed
+   */
+  bool disconnectFrom(uint32_t peerId);
+
+  /**
+   * @brief Checks whether a live mesh connection to a peer exists
+   *
+   * @param peerId Node ID of the peer
+   * @return true if this node currently holds a connection to peerId
+   */
+  bool isConnectedTo(uint32_t peerId) const;
+
+  /**
+   * @brief Number of live mesh connections this node currently holds
+   *
+   * @return Size of the node's connection list (0 if the mesh is gone)
+   */
+  size_t getConnectionCount() const;
+
+  /**
+   * @brief Sends a message on behalf of a scenario `inject_message` event
+   *
+   * @param dest Destination node ID, or 0 to broadcast
+   * @param payload Message body
+   * @return true if the message was handed to the mesh
+   *
+   * Counts against this node's messages_sent, like a firmware send would.
+   */
+  bool injectMessage(uint32_t dest, const std::string& payload);
+
   /**
    * @brief Sets the partition ID for this node
    * 
@@ -292,6 +330,7 @@ private:
   boost::asio::io_context& io_;        ///< IO context reference
   NodeMetrics metrics_;                ///< Performance metrics
   bool running_{false};                ///< Running state flag
+  bool mesh_needs_rebuild_{false};     ///< Set by stop()/crash(); start() must rebuild the mesh
   float network_quality_{1.0f};        ///< Network quality (0.0-1.0)
   uint32_t partition_id_{0};           ///< Partition ID (0 = no partition)
   NodeConfig config_;                  ///< Node configuration

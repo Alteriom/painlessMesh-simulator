@@ -83,7 +83,7 @@ simulation:
 | `name` | string | *required* | Human-readable simulation name |
 | `description` | string | "" | Optional detailed description |
 | `duration` | uint32 | 0 | Simulation duration in seconds (0 = run indefinitely) |
-| `time_scale` | float | 1.0 | Time scale multiplier (1.0 = real-time, 5.0 = 5x faster) |
+| `time_scale` | float | 1.0 | Node poll-rate multiplier. **Does not shorten the run** -- see the note below |
 | `seed` | uint32 | 0 | Random seed for reproducibility (0 = use random seed) |
 
 #### Example
@@ -93,7 +93,7 @@ simulation:
   name: "Network Resilience Test"
   description: "Tests mesh recovery after multiple node failures"
   duration: 300      # 5 minutes
-  time_scale: 2.0    # Run 2x faster
+  time_scale: 2.0    # Poll nodes 2x more often (run still takes `duration` seconds)
   seed: 12345        # Reproducible results
 ```
 
@@ -101,8 +101,17 @@ simulation:
 
 - **name** is required and must not be empty
 - **time_scale** must be positive (> 0.0)
-- **time_scale** > 1.0 makes simulation faster (good for stress tests)
-- **time_scale** < 1.0 makes simulation slower (good for debugging)
+- **time_scale** > 1.0 polls every node more often (more updates per wall-clock second)
+- **time_scale** < 1.0 polls less often
+
+> **`time_scale` cannot fast-forward a scenario.** It divides the simulation
+> loop's sleep, and nothing else. painlessMesh's TaskScheduler, its ack
+> timeouts and its connection timers all read `millis()`, which the Boost build
+> wires straight to `gettimeofday()` -- there is no virtual clock to advance.
+> So `duration`, every `events:` entry and every mesh timer stay on the wall
+> clock: a 300-second scenario takes 300 seconds at `time_scale: 5.0` exactly
+> as it does at `1.0`. The simulator prints a warning when `time_scale` is not
+> `1.0` to say so. Earlier revisions of this guide claimed otherwise.
 - Setting **seed** ensures identical random behavior across runs
 
 ---
@@ -809,7 +818,7 @@ simulation:
   name: "100-Node Stress Test"
   description: "Performance test with 100 nodes and realistic network conditions"
   duration: 300  # Run for 5 minutes
-  time_scale: 5.0  # Run 5x faster than real-time
+  time_scale: 5.0  # Poll nodes 5x more often (run still takes `duration` seconds)
   seed: 54321
 
 network:

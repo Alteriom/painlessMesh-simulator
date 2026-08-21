@@ -148,6 +148,19 @@ int main(int argc, char* argv[]) {
                                   std::to_string(config.simulation.duration) + " seconds" : 
                                   "infinite") << std::endl;
     std::cout << "Time scale: " << config.simulation.time_scale << "x" << std::endl;
+    if (config.simulation.time_scale != 1.0f) {
+      // time_scale only divides the loop's sleep, i.e. how often nodes are
+      // polled. It cannot compress the run: painlessMesh's TaskScheduler, its
+      // ack timeouts and its connection timers all read millis(), which the
+      // boost build wires to gettimeofday(). There is no virtual clock to
+      // advance, so `duration`, the scenario timeline and every mesh timer stay
+      // on the wall clock. Said out loud, because the docs read as if a 5x
+      // scenario finished five times sooner.
+      std::cout << "[WARN] time_scale raises the poll rate only. Mesh timers "
+                   "and the event timeline run on the wall clock, so a "
+                << config.simulation.duration << "s scenario still takes "
+                << config.simulation.duration << "s." << std::endl;
+    }
     std::cout << "Node count: " << config.nodes.size() << std::endl;
     std::cout << "Log level: " << options.log_level << std::endl;
     std::cout << "================================\n" << std::endl;
