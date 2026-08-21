@@ -125,7 +125,8 @@ uint32_t findRoot(std::map<uint32_t, uint32_t>& parent, uint32_t x) {
 /// overlapping handshakes.
 std::vector<PlannedLink> spanningSubset(const std::vector<PlannedLink>& declared,
                                         const std::vector<PlannedLink>& preferred,
-                                        std::vector<std::string>& warnings) {
+                                        std::vector<std::string>& warnings,
+                                        std::vector<PlannedLink>& unwireablePreferred) {
   std::map<uint32_t, uint32_t> parent;
   for (const auto& link : declared) {
     parent[link.first] = link.first;
@@ -165,6 +166,7 @@ std::vector<PlannedLink> spanningSubset(const std::vector<PlannedLink>& declared
             "an event names the link " + std::to_string(link.first) + " <-> " +
             std::to_string(link.second) +
             ", but keeping it would close a cycle painlessMesh will not hold");
+        unwireablePreferred.push_back(link);
       }
       continue;
     }
@@ -321,16 +323,26 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   // every topology type; spanningSubset() still prefers them into the tree.
   const auto preferred = eventPairs(events, nodes);
   std::vector<PlannedLink> candidates = declared;
-  for (const auto& want : preferred) {
-    const bool present = std::any_of(
-        candidates.begin(), candidates.end(),
-        [&](const PlannedLink& l) { return samePair(l, want); });
-    if (!present) {
-      candidates.push_back(want);
+
+  // For a `random` topology only, add an event-named pair the random draw did
+  // not include, so a connection_drop has a live link to cut. The other modes
+  // declare an explicit, intentional graph: inserting an event's pair there
+  // would change the topology and slip an undeclared edge past restoreLink()'s
+  // guard. An event naming a non-edge of an explicit topology is a config error
+  // left to fail at runtime, not papered over here.
+  if (topology.type == TopologyType::RANDOM) {
+    for (const auto& want : preferred) {
+      const bool present = std::any_of(
+          candidates.begin(), candidates.end(),
+          [&](const PlannedLink& l) { return samePair(l, want); });
+      if (!present) {
+        candidates.push_back(want);
+      }
     }
   }
 
-  plan.links = spanningSubset(candidates, preferred, plan.warnings);
+  plan.links = spanningSubset(candidates, preferred, plan.warnings,
+                              plan.unwireable_preferred);
   if (plan.links.size() < declared.size()) {
     plan.warnings.push_back(
         topologyTypeName(topology.type) + " declares " +

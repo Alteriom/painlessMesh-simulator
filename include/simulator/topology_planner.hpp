@@ -41,6 +41,10 @@ struct TopologyPlan {
   std::vector<PlannedLink> links;      ///< Links to wire, in a stable order
   size_t declared = 0;                 ///< Links the topology block asked for
   std::vector<std::string> warnings;   ///< Anything the plan could not honour
+  /// Event-named links that could not be wired because they would close a cycle
+  /// painlessMesh will not hold. A scheduled event on such a pair would be a
+  /// silent no-op, so the entry point treats a non-empty list as a hard error.
+  std::vector<PlannedLink> unwireable_preferred;
 };
 
 /**

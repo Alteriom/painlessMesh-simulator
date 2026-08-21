@@ -248,6 +248,17 @@ int main(int argc, char* argv[]) {
     for (const auto& warning : plan.warnings) {
       std::cout << "[WARN] topology: " << warning << std::endl;
     }
+    // An event-named link that cannot be wired (it would close a cycle
+    // painlessMesh will not hold) would make its scheduled drop/restore/degrade
+    // a silent no-op, running the timeline the author did not ask for. Fail
+    // instead of executing a hollow event.
+    if (!plan.unwireable_preferred.empty()) {
+      std::cerr << "[ERROR] " << plan.unwireable_preferred.size()
+                << " event-named link(s) cannot be wired without closing a "
+                << "cycle painlessMesh will not hold; the scenario's link "
+                << "events would run against no live link" << std::endl;
+      return 1;
+    }
     size_t wired = 0;
     if (plan.links.empty() && !config.topology.declared) {
       // No topology block at all: keep the historical random tree so a scenario

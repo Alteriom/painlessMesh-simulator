@@ -761,6 +761,39 @@ edge is cut while the event still reports a two-way partition.
 
 Validation now rejects any empty partition group. A unit test covers it.
 
+### 35. The candidate merge silently reshaped explicit topologies (critical)
+
+Raised by `chatgpt-codex-connector` on the sixteenth review pass, against
+finding 33. Correct -- finding 33's merge over-reached.
+
+Finding 33 added an event-named pair to the candidate graph for *every* topology
+type. For `random` that is right (the draw is arbitrary). For `star`, `ring` and
+`custom` the declared graph is explicit and intentional: inserting an event's
+pair there changed it -- a leaf-to-leaf `connection_drop` in a star was added
+and preferred, displacing a hub edge -- and it slipped an undeclared edge into
+`topology_` at startup, so `restoreLink()`'s undeclared-edge guard (finding 23)
+never saw it.
+
+The merge is now restricted to `random`. For the explicit modes the declared
+graph stands as written; an event naming a non-edge of one is a configuration
+error, left to fail at runtime rather than papered over by reshaping the graph.
+A unit test asserts a star's plan is byte-identical with and without a
+leaf-to-leaf drop event, and that the leaf-leaf pair is not wired.
+
+### 36. A cyclic set of event links ran an event as a silent no-op (medium)
+
+When event-named links form a cycle -- three `connection_drop`s naming all
+three edges of a three-node mesh -- `spanningSubset()` can keep only two (a
+tree) and dropped the third with just a warning. The run then scheduled all
+three events, and the third executed against a link that was never wired: zero
+endpoints closed, a timeline the author did not ask for.
+
+The planner now records every event-named link it could not wire in
+`unwireable_preferred`, and the entry point fails the run when that list is
+non-empty rather than executing a hollow event. A unit test confirms the third
+drop is flagged, and an end-to-end run of three drops on a triangle exits
+non-zero with *"1 event-named link(s) cannot be wired..."*.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -802,8 +835,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 136 test cases, 1558 assertions, all passing. Findings 14-24 and
-  26-34 each added coverage (30 is gate-script only); finding 25 is a
+- Unit tests: 138 test cases, 1563 assertions, all passing. Findings 14-24 and
+  26-36 each added coverage (30 is gate-script only); finding 25 is a
   seed-resolution change in the entry point, verified by running two seedless
   scenarios and observing different drawn seeds, with the gate scenarios pinned
   so CI stays deterministic.

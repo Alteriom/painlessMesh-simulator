@@ -279,6 +279,55 @@ TEST_CASE("a random topology still wires an event-named pair it did not draw",
   }
 }
 
+TEST_CASE("an explicit topology is not silently reshaped by an event",
+          "[topology][events]") {
+  // The random-only merge must NOT apply to star/ring/custom: inserting an
+  // event's pair there would change the declared graph (a leaf-to-leaf drop
+  // displacing a hub edge) and slip an undeclared edge past restoreLink()'s
+  // runtime guard. A star's plan must stay hub-and-spoke regardless of a
+  // leaf-to-leaf event.
+  const auto nodes = makeNodes(4);
+  TopologyConfig topology;
+  topology.type = TopologyType::STAR;
+  topology.hub = std::string("n1");
+
+  EventConfig leafDrop;
+  leafDrop.action = EventAction::CONNECTION_DROP;
+  leafDrop.from = "n2";
+  leafDrop.to = "n4";  // two leaves; not a star edge
+
+  const auto withEvent = planTopology(topology, nodes, {leafDrop}, 42);
+  const auto without = planTopology(topology, nodes, {}, 42);
+
+  REQUIRE(withEvent.links == without.links);            // unchanged
+  REQUIRE_FALSE(hasLink(withEvent.links, 1002, 1004));  // leaf-leaf not added
+  REQUIRE(hasLink(withEvent.links, 1001, 1002));        // still a spoke
+}
+
+TEST_CASE("event links that form a cycle are reported as unwireable",
+          "[topology][events]") {
+  // Three drop events naming all edges of a 3-node mesh cannot all be wired:
+  // the tree holds two, so the third would close a cycle. That third drop would
+  // be a silent no-op, so the planner flags it and the run fails.
+  const auto nodes = makeNodes(3);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  auto drop = [](const std::string& a, const std::string& b) {
+    EventConfig e;
+    e.action = EventAction::CONNECTION_DROP;
+    e.from = a; e.to = b;
+    return e;
+  };
+  const std::vector<EventConfig> events = {
+      drop("n1", "n2"), drop("n2", "n3"), drop("n1", "n3")};
+
+  const auto plan = planTopology(topology, nodes, events, 42);
+
+  REQUIRE(plan.links.size() == 2);                  // a tree
+  REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
+}
+
 TEST_CASE("Topology planner keeps the links a scenario's events name",
           "[topology][events]") {
   const auto nodes = makeNodes(4);
