@@ -1057,6 +1057,25 @@ of how many cross edges this particular partition severed; only a
 NetworkSimulator-level unit test that never wired a mesh is skipped. A unit test
 partitions a wired-but-disconnected mesh and asserts the event throws.
 
+### 53. A refused injection was swallowed (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-seventh review pass, and
+consistent with findings 39 and 42. Correct.
+
+`MessageInjectEvent` logged `REFUSED` and returned normally when
+`injectMessage()` returned false -- the sender down, or with no mesh to send
+into. `EventScheduler` recorded no failure and the run exited 0, so a lifecycle
+or partition experiment could pass without ever exercising its asserted probe.
+
+The event now throws when the injection is refused, which `processEvents()`
+counts and the exit path turns non-zero (finding 21). A refused injection means
+the probe never left the node -- not a delivery outcome to note and move on
+from. All four shipped inject scenarios were checked: none produces a refusal
+(a partitioned mesh's `sendSingle` is best-effort and returns true), so this
+fails only a genuinely broken timeline. A unit test asserts a delivered
+injection does not throw and an injection from a stopped node does; an
+end-to-end run of an inject-from-stopped-node scenario exits non-zero.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1098,8 +1117,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 150 test cases, 1598 assertions, all passing. Findings 14-24 and
-  26-52 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 151 test cases, 1601 assertions, all passing. Findings 14-24 and
+  26-53 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

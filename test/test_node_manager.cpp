@@ -10,6 +10,9 @@
 #include <catch2/catch_approx.hpp>
 #include "simulator/node_manager.hpp"
 #include "simulator/virtual_node.hpp"
+#include "simulator/events/message_inject_event.hpp"
+#include "simulator/network_simulator.hpp"
+#include <stdexcept>
 #include <boost/asio.hpp>
 
 using namespace simulator;
@@ -982,6 +985,36 @@ TEST_CASE("A healed link carries traffic before the next event runs",
   // Immediately after the heal returns, as a same-second event would see it.
   REQUIRE(manager.getNode(8811)->isConnectedTo(8812));
   REQUIRE(manager.getNode(8811)->injectMessage(8812, "same second"));
+
+  manager.stopAll();
+}
+
+TEST_CASE("MessageInjectEvent fails when the injection is refused",
+          "[node_manager][inject]") {
+  // A refused injection -- the sender is down, or has no mesh -- means the probe
+  // never left the node. The event must fail the run, not log REFUSED and
+  // continue, so a lifecycle/partition experiment cannot pass without its
+  // asserted traffic.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network;
+  NodeConfig a{9101, "TestMesh", "password", 19101};
+  NodeConfig b{9102, "TestMesh", "password", 19101};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.startAll();
+  REQUIRE(manager.connectNodes(9101, 9102));
+
+  // A delivered injection succeeds.
+  {
+    MessageInjectEvent ok(9101, 9102, "hello");
+    REQUIRE_NOTHROW(ok.execute(manager, network));
+  }
+
+  // Stop the sender; the injection is refused and must throw.
+  manager.getNode(9101)->stop();
+  MessageInjectEvent refused(9101, 9102, "from a stopped node");
+  REQUIRE_THROWS_AS(refused.execute(manager, network), std::runtime_error);
 
   manager.stopAll();
 }

@@ -38,6 +38,17 @@ void MessageInjectEvent::execute(NodeManager& manager, NetworkSimulator& network
                              : std::to_string(toNode_))
             << (sent ? "" : " -- REFUSED (node down or mesh rejected it)")
             << std::endl;
+
+  // A refused injection means the probe never left the node -- the sender is
+  // down, or it has no mesh to send into. That is not a delivery outcome to
+  // note and move on from; the requested traffic was never exercised, so fail
+  // the run rather than let a lifecycle or partition experiment pass without it.
+  if (!sent) {
+    throw std::runtime_error(
+        "inject_message from " + std::to_string(fromNode_) + " to " +
+        (toNode_ == 0 ? std::string("<broadcast>") : std::to_string(toNode_)) +
+        " was refused; the probe was never injected");
+  }
 }
 
 std::string MessageInjectEvent::getDescription() const {
