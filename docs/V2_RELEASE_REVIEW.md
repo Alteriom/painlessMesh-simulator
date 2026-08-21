@@ -986,6 +986,20 @@ clean allowlisted scenario reports only the unknown action and is skipped. A
 unit test confirms the loader records the unknown action without aborting and
 still flags an unrelated self-link error.
 
+### 49. The drift-report job could not reach the repo (critical)
+
+Raised by `chatgpt-codex-connector` on the twenty-fourth review pass. Correct.
+
+`upstream-drift.yml`'s `report` job runs on the scheduled sweep in a fresh
+workspace with no checkout, and set only `GH_TOKEN`. `gh issue list/comment/
+create` infer the repository from a local git repo or `GH_REPO`; with neither,
+they fail with *"not a git repository"* -- so the drift issue is never opened,
+exactly when a nightly upstream break needs to notify.
+
+The job now sets `GH_REPO: ${{ github.repository }}`, which all three `gh`
+commands read. A workflow-only fix, on the job whose entire purpose -- surfacing
+drift no one is watching for -- was silently defeated by the missing context.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up

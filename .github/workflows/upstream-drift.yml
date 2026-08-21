@@ -94,6 +94,11 @@ jobs:
       - name: Open or update the drift issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job runs in a fresh workspace with no checkout, so gh has no
+          # local repository to infer context from. Without GH_REPO the gh
+          # issue commands fail with "not a git repository" -- exactly when the
+          # drift issue needs opening.
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           TITLE="Simulator no longer builds against painlessMesh upstream"
