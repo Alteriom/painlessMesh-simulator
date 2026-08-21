@@ -6,6 +6,7 @@
  * @license MIT License
  */
 
+#include <stdexcept>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
@@ -578,4 +579,30 @@ TEST_CASE("Partition event with uneven groups", "[event][partition]") {
     // Others can still communicate
     REQUIRE(network.isConnectionActive(1002, 1010));
   }
+}
+
+TEST_CASE("NetworkPartitionEvent fails a fragmenting split even with no cross cut",
+          "[event][partition]") {
+  // A disconnected mesh -- only A--B wired, C and D isolated -- partitioned
+  // [[A,B],[C,D]] cuts no cross edge (cut == 0) yet yields three components. The
+  // check must fire on a wired mesh regardless of the cut count.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network;
+  NodeConfig a{1101, "TestMesh", "password", 16301};
+  NodeConfig b{1102, "TestMesh", "password", 16301};
+  NodeConfig c{1103, "TestMesh", "password", 16301};
+  NodeConfig d{1104, "TestMesh", "password", 16301};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.createNode(c);
+  manager.createNode(d);
+  manager.startAll();
+  // Wire only A--B; C and D stay isolated (but the mesh IS wired).
+  REQUIRE(manager.connectNodes(1101, 1102));
+
+  NetworkPartitionEvent event({{1101, 1102}, {1103, 1104}});
+  REQUIRE_THROWS_AS(event.execute(manager, network), std::runtime_error);
+
+  manager.stopAll();
 }

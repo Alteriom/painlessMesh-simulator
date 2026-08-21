@@ -151,6 +151,12 @@ int main(int argc, char* argv[]) {
                   << "will not hold" << std::endl;
         return 2;  // configuration validation failure
       }
+      for (const auto& bad : feas.infeasible_partitions) {
+        std::cerr << "[ERROR] " << bad << std::endl;
+      }
+      if (!feas.infeasible_partitions.empty()) {
+        return 2;  // configuration validation failure
+      }
       std::map<std::string, uint32_t> id_to_node_id;
       for (const auto& node_config : config.nodes) {
         id_to_node_id[node_config.id] = node_config.nodeId;
@@ -293,6 +299,12 @@ int main(int argc, char* argv[]) {
                 << "declared topology, or would close a cycle painlessMesh will "
                 << "not hold; those link events would run against no live link"
                 << std::endl;
+      return 2;  // configuration validation failure
+    }
+    for (const auto& bad : plan.infeasible_partitions) {
+      std::cerr << "[ERROR] " << bad << std::endl;
+    }
+    if (!plan.infeasible_partitions.empty()) {
       return 2;  // configuration validation failure
     }
     size_t wired = 0;

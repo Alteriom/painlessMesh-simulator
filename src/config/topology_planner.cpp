@@ -421,6 +421,51 @@ TopologyPlan planTopology(const TopologyConfig& topology,
         " surplus link(s) were not wired (wiring them all at once leaves the " +
         "mesh with no live links at all)");
   }
+  // A partition cuts only cross-group links, so each group must be internally
+  // connected in the final plan or the partition fragments it. Detect that here
+  // and record it, so validation rejects the scenario rather than throwing only
+  // when the event fires.
+  for (const auto& event : events) {
+    if (event.action != EventAction::PARTITION_NETWORK) {
+      continue;
+    }
+    for (const auto& group : event.groups) {
+      // Resolve the group to node ids present in the plan.
+      std::vector<uint32_t> ids;
+      for (const auto& id : group) {
+        uint32_t resolved = 0;
+        if (resolveId(nodes, id, resolved)) {
+          ids.push_back(resolved);
+        }
+      }
+      if (ids.size() < 2) {
+        continue;  // a single node is trivially connected
+      }
+      // Union-find over the plan's intra-group edges only.
+      std::map<uint32_t, uint32_t> gp;
+      for (uint32_t id : ids) gp[id] = id;
+      for (const auto& link : plan.links) {
+        const bool a_in = std::find(ids.begin(), ids.end(), link.first) != ids.end();
+        const bool b_in = std::find(ids.begin(), ids.end(), link.second) != ids.end();
+        if (a_in && b_in) {
+          gp[findRoot(gp, link.first)] = findRoot(gp, link.second);
+        }
+      }
+      const uint32_t root = findRoot(gp, ids.front());
+      const bool connected = std::all_of(ids.begin(), ids.end(),
+          [&](uint32_t id) { return findRoot(gp, id) == root; });
+      if (!connected) {
+        std::string members;
+        for (size_t i = 0; i < group.size(); ++i) {
+          members += (i ? ", " : "") + group[i];
+        }
+        plan.infeasible_partitions.push_back(
+            "partition group [" + members + "] is not internally connected in "
+            "the " + topologyTypeName(topology.type) + " topology");
+      }
+    }
+  }
+
   return plan;
 }
 

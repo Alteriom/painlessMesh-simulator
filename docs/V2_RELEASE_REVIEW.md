@@ -1027,6 +1027,36 @@ A unit test asserts both intra-group edges survive the mesh reduction and the
 plan stays a connected tree; an infeasible star partition exits non-zero
 end-to-end.
 
+### 51. Infeasible partitions failed only at runtime (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-sixth review pass, against
+finding 50. Correct.
+
+Finding 50's soft-preferred group edges are silently skipped when the topology
+cannot honour them (a `star` group excluding the hub, or incompatible groups
+across events). So `--validate-only` succeeded while an ordinary run threw when
+the partition's timestamp arrived.
+
+`planTopology()` now checks, per partition group, whether the group is connected
+using only the plan's intra-group edges. A group that is not is recorded in a
+new `plan.infeasible_partitions`, and the entry point fails validation on it
+(exit 2) -- the runtime throw from finding 50 stays as a backstop. Verified: a
+star partition excluding the hub, and a custom line partitioned into
+non-contiguous groups, both fail `--validate-only`.
+
+### 52. The fragmentation check skipped when no cross edge was cut (medium)
+
+Finding 50 guarded its runtime check on `cut > 0`. But a disconnected topology
+can fragment with no cross edge to cut: only `A--B` wired, `C` and `D` isolated,
+partitioned `[[A,B],[C,D]]` cuts nothing yet has three components, and the guard
+suppressed the check.
+
+The check is now guarded on `NodeManager::hasWiredTopology()` -- whether a mesh
+was ever wired -- not on the cut count. A real mesh is always checked regardless
+of how many cross edges this particular partition severed; only a
+NetworkSimulator-level unit test that never wired a mesh is skipped. A unit test
+partitions a wired-but-disconnected mesh and asserts the event throws.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1068,8 +1098,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 147 test cases, 1594 assertions, all passing. Findings 14-24 and
-  26-50 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 150 test cases, 1598 assertions, all passing. Findings 14-24 and
+  26-52 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

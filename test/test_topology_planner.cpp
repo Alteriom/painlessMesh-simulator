@@ -331,6 +331,40 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner flags a partition it cannot keep connected",
+          "[topology][events]") {
+  // A star cannot keep a group that excludes the hub internally connected. That
+  // must be recorded in the plan so validation rejects it, not discovered only
+  // when the event throws mid-run.
+  const auto nodes = makeNodes(4);  // n1 hub
+  TopologyConfig topology;
+  topology.type = TopologyType::STAR;
+  topology.hub = std::string("n1");
+
+  EventConfig part;
+  part.action = EventAction::PARTITION_NETWORK;
+  part.groups = {{"n1", "n2"}, {"n3", "n4"}};  // n3,n4 have no star edge
+
+  const auto plan = planTopology(topology, nodes, {part}, 42);
+
+  REQUIRE_FALSE(plan.infeasible_partitions.empty());
+}
+
+TEST_CASE("Topology planner accepts a partition it can keep connected",
+          "[topology][events]") {
+  const auto nodes = makeNodes(4);
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig part;
+  part.action = EventAction::PARTITION_NETWORK;
+  part.groups = {{"n1", "n2"}, {"n3", "n4"}};
+
+  const auto plan = planTopology(topology, nodes, {part}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+}
+
 TEST_CASE("Topology planner keeps partition groups internally connected",
           "[topology][events]") {
   // A network_partition cuts only cross-group links, so each group must be a

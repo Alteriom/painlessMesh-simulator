@@ -54,12 +54,14 @@ void NetworkPartitionEvent::execute(NodeManager& manager, NetworkSimulator& netw
   // this split -- a star whose group excludes the hub, say. That is a scenario
   // that would silently test something other than what it asks, so fail rather
   // than warn.
-  // Only meaningful when this partition actually cut a wired mesh. A test (or a
-  // scenario) that never established connectivity leaves every node its own
-  // component regardless, and cuts nothing -- there is no fragmentation to
-  // diagnose.
+  // Only meaningful once a mesh was wired. Guard on that, not on whether this
+  // partition happened to cut a cross edge: a disconnected topology (only A--B,
+  // with C and D isolated) partitioned [[A,B],[C,D]] cuts nothing yet still has
+  // three components, not two. An isolation test that never wired a mesh has no
+  // recorded topology and is correctly skipped.
   const auto components = manager.getConnectedComponents();
-  if (cut > 0 && components.size() != partition_groups_.size()) {
+  if (manager.hasWiredTopology() &&
+      components.size() != partition_groups_.size()) {
     throw std::runtime_error(
         "network_partition requested " + std::to_string(partition_groups_.size()) +
         " groups but the topology fragmented into " +

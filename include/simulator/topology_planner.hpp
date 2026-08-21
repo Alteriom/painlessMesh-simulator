@@ -45,6 +45,11 @@ struct TopologyPlan {
   /// painlessMesh will not hold. A scheduled event on such a pair would be a
   /// silent no-op, so the entry point treats a non-empty list as a hard error.
   std::vector<PlannedLink> unwireable_preferred;
+  /// Human-readable descriptions of partition groups the plan cannot keep
+  /// internally connected (an explicit topology whose group excludes the only
+  /// path between its nodes, or incompatible groups across events). The event
+  /// would throw at its timestamp, so the entry point fails on these too.
+  std::vector<std::string> infeasible_partitions;
 };
 
 /**

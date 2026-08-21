@@ -359,6 +359,16 @@ public:
   std::vector<uint32_t> getRecordedPeers(uint32_t nodeId) const;
 
   /**
+   * @brief Whether any mesh edge was ever wired
+   *
+   * The recorded topology persists across drops (a drop marks a link severed
+   * but keeps the intended edge), so this is true iff establishConnectivity ran.
+   * A partition's component check is only meaningful once a mesh exists -- an
+   * isolation test that never wires one leaves every node its own component.
+   */
+  bool hasWiredTopology() const { return !topology_.empty(); }
+
+  /**
    * @brief Total number of live mesh connections across all nodes
    *
    * Counts endpoints, so a healthy two-node link contributes 2.
