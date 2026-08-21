@@ -37,8 +37,8 @@ scenario declares was not the topology it ran on, a link the simulator says it
 restored was not yet carrying traffic when the next event needed it, a probe
 meant to measure the mesh was quietly reshaping it, a run that dropped an event
 still called itself a success, the same link event meant two different things
-depending on how it was spelled, and a declared-but-empty topology quietly ran
-a random mesh instead.
+depending on how it was spelled, a declared-but-empty topology quietly ran a
+random mesh instead, and a "random" seed produced the same graph every time.
 
 ## Findings
 
@@ -576,6 +576,32 @@ guards are independent -- validation catches the concrete case early, the
 A unit test pins the validation rejection; it fails when the self-link check is
 removed.
 
+### 25. A zero seed wired the same graph every run (medium)
+
+Raised by `chatgpt-codex-connector` on the ninth review pass. Correct -- a
+contract violation the topology work introduced.
+
+`SimulationConfig` documents `seed = 0` as *random*. Finding 14's planner
+substituted a fixed `kDefaultSeed` for a zero seed, and `NetworkSimulator` was
+constructed with the literal zero. Now that the plan wires the actual mesh, a
+scenario that omits `simulation.seed` got the identical spanning tree on every
+run instead of the documented variation.
+
+The run's entry point now resolves the seed once: a zero `simulation.seed`
+draws a real seed from `std::random_device`, and that resolved value feeds both
+`planTopology()` and `NetworkSimulator`. The drawn seed is logged with the exact
+line needed to pin it -- *"drew random seed N (set simulation.seed: N to
+reproduce)"* -- so a run that surfaces something interesting is reproducible
+after the fact. `planTopology()` stays a pure, total function: it still maps a
+zero argument to `kDefaultSeed` deterministically, but the entry point no longer
+passes zero, so that fallback now only serves a unit test that calls it
+directly.
+
+The two shipped scenarios the behavioural gate reads that had no seed --
+`node_lifecycle_test` and `connection_events_test` -- were pinned to an explicit
+seed, so CI stays reproducible while seedless *user* scenarios get the random
+behaviour the contract promises.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -617,10 +643,10 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 129 test cases, 1483 assertions, all passing (was 107/1333 before
-  this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
-  122/1454 before findings 17-18; 124/1462 before finding 19; 126/1465 before
-  findings 20-21; 127/1472 before findings 22-23; 1481 before finding 24).
+- Unit tests: 129 test cases, 1483 assertions, all passing. Findings 14-24 each
+  added coverage; finding 25 is a seed-resolution change in the entry point,
+  verified by running two seedless scenarios and observing different drawn
+  seeds, with the gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.

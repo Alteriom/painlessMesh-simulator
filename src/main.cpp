@@ -26,6 +26,7 @@
 #include <map>
 #include <boost/asio.hpp>
 #include <csignal>
+#include <random>
 
 using namespace simulator;
 
@@ -223,13 +224,27 @@ int main(int argc, char* argv[]) {
     manager.startAll();
     std::cout << "[INFO] All nodes started" << std::endl;
     
+    // Resolve the run seed once. SimulationConfig documents seed 0 as "random",
+    // so draw a real one when it is unset -- otherwise every seedless scenario
+    // would wire the identical spanning tree run to run, now that the plan
+    // drives the actual mesh. Log the drawn value so a run that surfaces
+    // something interesting can be reproduced by pinning it. CI scenarios that
+    // need determinism set an explicit seed.
+    uint32_t run_seed = config.simulation.seed;
+    if (run_seed == 0) {
+      run_seed = std::random_device{}();
+      std::cout << "[INFO] No simulation.seed set; drew random seed " << run_seed
+                << " (set simulation.seed: " << run_seed << " to reproduce)"
+                << std::endl;
+    }
+
     // Establish connectivity between nodes. The scenario's topology block was
     // parsed and validated from the first release but never applied: every run
     // got a random spanning tree, so a full-mesh scenario dropping a named pair
     // reported "0 live endpoint(s) closed" because that pair was never wired.
     std::cout << "[INFO] Establishing mesh connectivity..." << std::endl;
     const auto plan = planTopology(config.topology, config.nodes, config.events,
-                                   config.simulation.seed);
+                                   run_seed);
     for (const auto& warning : plan.warnings) {
       std::cout << "[WARN] topology: " << warning << std::endl;
     }
@@ -272,7 +287,7 @@ int main(int argc, char* argv[]) {
     // config.events all along; until now nothing turned those records into Event
     // objects, so every scenario ran as a static mesh for its duration.
     EventScheduler event_scheduler;
-    NetworkSimulator network(config.simulation.seed);
+    NetworkSimulator network(run_seed);
     {
       std::map<std::string, uint32_t> id_to_node_id;
       for (const auto& node_config : config.nodes) {

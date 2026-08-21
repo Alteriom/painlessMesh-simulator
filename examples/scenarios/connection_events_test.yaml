@@ -8,6 +8,7 @@ simulation:
   description: "Test connection drop, restore, and degradation"
   duration: 90  # 1.5 minutes
   time_scale: 1.0
+  seed: 20260821  # pinned so the CI gate is reproducible
 
 nodes:
   - id: "node-1"

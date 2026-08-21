@@ -17,8 +17,11 @@ namespace simulator {
 
 namespace {
 
-/// Fixed fallback so a scenario without a seed still wires the same graph
-/// on every run -- a CI gate that cannot reproduce its own graph is not a gate.
+/// Deterministic fallback for a zero seed reaching this pure function directly
+/// (e.g. a unit test). The run's entry point resolves simulation.seed == 0 to a
+/// real random seed before calling, honouring SimulationConfig's "0 = random"
+/// contract; this keeps planTopology itself total and reproducible for any
+/// input, including 0.
 constexpr uint32_t kDefaultSeed = 20260821u;
 
 std::vector<uint32_t> nodeIds(const std::vector<NodeConfigExtended>& nodes) {

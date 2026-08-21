@@ -8,6 +8,7 @@ simulation:
   description: "Test node lifecycle events and mesh recovery"
   duration: 120  # 2 minutes
   time_scale: 1.0
+  seed: 20260821  # pinned so the CI gate is reproducible
 
 nodes:
   - id: "node-1"
