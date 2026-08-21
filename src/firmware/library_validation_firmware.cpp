@@ -52,15 +52,12 @@ void LibraryValidationFirmware::setup() {
   // Schedule validation tasks
   if (scheduler_) {
     if (is_coordinator_) {
-      scheduler_->addTask(test_progress_task_);
-      test_progress_task_.enable();
+      registerTask(test_progress_task_);
       
-      scheduler_->addTask(message_test_task_);
-      message_test_task_.enable();
+      registerTask(message_test_task_);
     }
     
-    scheduler_->addTask(status_report_task_);
-    status_report_task_.enable();
+    registerTask(status_report_task_);
   }
   
   // Start with lifecycle tests

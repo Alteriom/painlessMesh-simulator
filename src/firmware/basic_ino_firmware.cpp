@@ -122,9 +122,9 @@ private:
     // Mesh is already initialized by the simulator framework
     // Callbacks are already registered by InoFirmwareWrapper
     
-    // Add the periodic send message task
-    userScheduler->addTask(taskSendMessage);
-    taskSendMessage.enable();
+    // Add the periodic send message task. Registered through the base rather
+    // than on the scheduler directly so it stops while the node is down.
+    registerTask(taskSendMessage);
     
     setup_completed = true;
     std::cout << "[INO] basic.ino: Setup complete on node " << getNodeId() << "\n";

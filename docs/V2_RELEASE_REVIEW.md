@@ -30,8 +30,9 @@ simulator call site. `VirtualNode` needed no rewrite. The whole port is ten
 lines of CMake.
 
 The real finding is what the port exposed. Findings 1-8 came out of the port
-itself; 9-12 came out of review of the resulting PR and are the deeper half --
-a fired event is not the same thing as an event that did something.
+itself; 9-13 came out of review of the resulting PR and are the deeper half --
+a fired event is not the same thing as an event that did something, and a node
+the simulator calls stopped is not necessarily a node that stopped.
 
 ## Findings
 
@@ -244,6 +245,45 @@ rate changes, and the four docs that advertised "run 5x faster" have been
 corrected. A real fast-forward means virtualising `millis()` across painlessMesh
 and the TaskScheduler, which is a different piece of work.
 
+### 13. Stopped nodes went on transmitting (high)
+
+Raised by `chatgpt-codex-connector` on the second review pass, and confirmed
+before it was fixed.
+
+`NodeManager` owns exactly one `Scheduler` and `updateAll()` executes it for
+the whole fleet. `VirtualNode::update()` does return early for a node that is
+not running -- but that only skips `mesh_->update()` and the firmware's
+`loop()`. A firmware's *scheduler task* is not on that path. So from `stop()`
+to `start()` the task kept firing: `SimpleBroadcastFirmware::broadcastMessage()`
+sent through the stopped mesh's torn-down routing state, and
+`FirmwareBase::sendBroadcast()` ran the send-accounting hook added in finding 4,
+booking transmissions that never left the node.
+
+Measured on `restart_rejoin_test.yaml`, one node down from t=10 to t=20 with a
+2000 ms broadcast interval:
+
+| | Broadcasts logged during downtime | Total sends reported |
+|---|---|---|
+| Before | 5 -- one per interval, exactly | 63 |
+| After | 0 | 58 |
+
+The five-send difference is the phantom traffic, removed from the metric.
+
+`FirmwareBase` now owns task registration. `registerTask()` adds the task to
+the scheduler, enables it and records it; `suspend()` disables every registered
+task and blocks the `sendBroadcast()`/`sendSingle()` helpers; `resume()`
+restores each task to the enabled state it held at suspend time rather than
+enabling all of them, so `LibraryValidationFirmware` -- which disables its own
+tasks once its tests finish -- does not find them running again after a
+restart. `VirtualNode::stop()` and `crash()` suspend; `start()` resumes after
+`setupFirmware()`. The four firmwares that registered tasks directly were
+converted, and the authoring guides now document `registerTask()` as the way
+in: a task added straight to the scheduler is still untracked, and would
+reintroduce this.
+
+Gate step 7 covers both halves -- no sends during downtime, and at least one
+after the restart, so silencing the firmware permanently would not pass.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -283,8 +323,9 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 117 test cases, 1402 assertions, all passing (was 107/1333 before
-  this work; 112/1351 before the topology and injection coverage).
+- Unit tests: 118 test cases, 1419 assertions, all passing (was 107/1333 before
+  this work; 112/1351 before the topology and injection coverage; 117/1406
+  before finding 13).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -294,6 +335,10 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   *"partitioned run received 598 vs 598 intact -- the split cost nothing"* and
   step 6 *"the restarted node re-established 0 mesh links"*, exit 1. They are
   not vacuous.
+- Finding 13 the same way: with the `suspend()` calls removed, gate step 7
+  reports *"node 1226381676 broadcast 5 time(s) while stopped"*, exit 1, and
+  the new unit test fails on `messages_sent 10 == 5`. Steps 1-6 still pass on
+  the fixed build, so the change is not a regression trade.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

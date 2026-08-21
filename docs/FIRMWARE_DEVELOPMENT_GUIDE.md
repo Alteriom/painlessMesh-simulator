@@ -215,8 +215,11 @@ void MySensorFirmware::setup() {
     readAndSendSensorData();
   });
   
-  scheduler_->addTask(sensor_task_);
-  sensor_task_.enable();
+  // registerTask(), not scheduler_->addTask(): a task registered through the
+  // base is disabled while the node is stopped or crashed and restored when it
+  // starts again. One added to the scheduler directly keeps firing on a node
+  // that is supposed to be down.
+  registerTask(sensor_task_);
 }
 
 void MySensorFirmware::readAndSendSensorData() {

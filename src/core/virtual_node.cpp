@@ -140,6 +140,12 @@ void VirtualNode::start() {
   
   // Setup firmware after mesh initialized
   setupFirmware();
+
+  // Put the firmware's periodic tasks back to work. They were disabled for the
+  // duration of the downtime; on a first start there is nothing to resume.
+  if (firmware_) {
+    firmware_->resume();
+  }
   
   running_ = true;
   
@@ -161,6 +167,13 @@ void VirtualNode::stop() {
     now - metrics_.start_time).count();
   metrics_.total_uptime_ms += uptime;
   
+  // The firmware's tasks live on the NodeManager's shared scheduler, which
+  // keeps executing for every node. Silence them, or this "stopped" node goes
+  // on broadcasting through its torn-down mesh for the whole downtime.
+  if (firmware_) {
+    firmware_->suspend();
+  }
+
   if (mesh_) {
     mesh_->stop();
     mesh_needs_rebuild_ = true;
@@ -181,6 +194,11 @@ void VirtualNode::crash() {
   metrics_.total_uptime_ms += uptime;
   metrics_.crash_count++;
   
+  // A crashed node runs no firmware either -- see stop().
+  if (firmware_) {
+    firmware_->suspend();
+  }
+
   // Abrupt stop - no cleanup, simulating power failure
   // We still call mesh_->stop() but this represents an ungraceful shutdown
   if (mesh_) {

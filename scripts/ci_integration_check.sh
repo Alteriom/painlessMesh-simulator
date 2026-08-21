@@ -148,6 +148,8 @@ echo "== 6. a restarted node must rejoin the mesh, not just report running =="
 # of its peers' receive count, and not one of its own sends leaving the node.
 out=$("$SIM" --config "$SCENARIO_DIR/restart_rejoin_test.yaml" --log-level DEBUG 2>&1)
 rc=$?
+# Step 7 asserts on the same 40s run rather than paying for a second one.
+printf '%s\n' "$out" > "$tmp/restart_rejoin.log"
 relinked=$(echo "$out" | sed -n 's/.*started (\([0-9]*\) mesh link(s) re-established).*/\1/p' | head -1)
 # The scenario stops exactly one node, so the worst receive count in the run is
 # that node's. Comparing it against the best avoids hardcoding a message count
@@ -165,6 +167,41 @@ elif [ "$((restarted_rx * 100 / best_rx))" -lt 60 ]; then
   fail "restarted node received $restarted_rx against a peer best of $best_rx -- it never rejoined"
 else
   pass "restarted node received $restarted_rx vs peer best $best_rx; $relinked link(s) re-established"
+fi
+
+echo
+echo "== 7. a stopped node must stop transmitting, and resume when it starts =="
+# Every node's firmware tasks live on NodeManager's one shared Scheduler, which
+# updateAll() executes for the whole fleet. A stopped node therefore went on
+# broadcasting through its torn-down mesh for the whole downtime -- 5 phantom
+# sends across the 10s outage here -- and each one was booked as a real
+# transmission. The second assertion keeps the cure honest: suspending the
+# firmware forever would silence the ghosts too.
+rr_log="$tmp/restart_rejoin.log"
+if [ ! -s "$rr_log" ]; then
+  fail "step 6 produced no restart_rejoin log to assert on"
+else
+  stopped_id=$(sed -n 's/^\[EVENT\] Node \([0-9]*\) stopped.*/\1/p' "$rr_log" | head -1)
+  if [ -z "${stopped_id:-}" ]; then
+    fail "restart_rejoin_test stopped no node"
+  else
+    ghost_sends=$(awk -v id="$stopped_id" '
+      $0 ~ "\\[EVENT\\] Node " id " stopped"  { down = 1; next }
+      $0 ~ "\\[EVENT\\] Node " id " started"  { down = 0; next }
+      down && $0 ~ "Node " id " broadcasting"   { n++ }
+      END { print n + 0 }' "$rr_log")
+    sends_after_restart=$(awk -v id="$stopped_id" '
+      $0 ~ "\\[EVENT\\] Node " id " started" { up = 1; next }
+      up && $0 ~ "Node " id " broadcasting"    { n++ }
+      END { print n + 0 }' "$rr_log")
+    if [ "$ghost_sends" -gt 0 ]; then
+      fail "node $stopped_id broadcast $ghost_sends time(s) while stopped"
+    elif [ "$sends_after_restart" -lt 1 ]; then
+      fail "node $stopped_id never broadcast again after restarting"
+    else
+      pass "no sends during downtime; $sends_after_restart send(s) after restart"
+    fi
+  fi
 fi
 
 echo

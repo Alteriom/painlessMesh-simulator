@@ -55,10 +55,8 @@ public:
     // Configure broadcast task
     broadcast_task_.setInterval(broadcast_interval_);
     
-    // Add task to scheduler
-    if (scheduler_) {
-      scheduler_->addTask(broadcast_task_);
-      broadcast_task_.enable();
+    // Registered through the base so the task stops while the node is down
+    if (registerTask(broadcast_task_)) {
       
       std::cout << "[INFO] Node " << node_id_ 
                 << " SimpleBroadcast firmware initialized (interval: " 

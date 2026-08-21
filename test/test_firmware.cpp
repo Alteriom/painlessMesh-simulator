@@ -509,6 +509,87 @@ TEST_CASE("SimpleBroadcast firmware functionality", "[firmware][integration]") {
   }
 }
 
+TEST_CASE("A stopped node's firmware stops sending", "[firmware][lifecycle]") {
+  // Every node shares one Scheduler and NodeManager::updateAll() executes it
+  // for the whole fleet, so a stopped node's firmware task used to keep firing:
+  // it broadcast through torn-down routing state and booked sends that never
+  // left the node. Reproduced on restart_rejoin_test.yaml as 5 phantom
+  // broadcasts across a 10s downtime, one per broadcast interval.
+  boost::asio::io_context io;
+  Scheduler scheduler;
+
+  if (!FirmwareFactory::instance().isRegistered("SimpleBroadcast")) {
+    FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
+      []() { return std::make_unique<SimpleBroadcastFirmware>(); });
+  }
+
+  NodeConfig config;
+  config.nodeId = 3101;
+  config.meshPrefix = "TestMesh";
+  config.meshPassword = "password";
+  config.meshPort = 19101;
+  config.firmware = "SimpleBroadcast";
+  config.firmwareConfig["broadcast_interval"] = "100";
+  config.firmwareConfig["broadcast_message"] = "Test";
+
+  VirtualNode node(3101, config, &scheduler, io);
+  node.loadFirmware("SimpleBroadcast");
+  node.start();
+
+  auto* firmware = dynamic_cast<SimpleBroadcastFirmware*>(node.getFirmware());
+  REQUIRE(firmware != nullptr);
+
+  // Drives the shared scheduler the way NodeManager::updateAll() does --
+  // unconditionally, whether or not the node is running.
+  auto pump = [&](int cycles) {
+    for (int i = 0; i < cycles; ++i) {
+      scheduler.execute();
+      node.update();
+      io.poll();
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  };
+
+  pump(25);  // ~500ms at a 100ms interval
+  uint32_t sent_while_running = firmware->getMessagesSent();
+  REQUIRE(sent_while_running >= 2);
+
+  SECTION("stop() halts the firmware task") {
+    node.stop();
+    REQUIRE(firmware->isSuspended());
+    uint32_t sent_at_stop = firmware->getMessagesSent();
+
+    pump(25);
+    REQUIRE(firmware->getMessagesSent() == sent_at_stop);
+
+    // ...and start() brings it back
+    node.start();
+    REQUIRE_FALSE(firmware->isSuspended());
+    pump(25);
+    REQUIRE(firmware->getMessagesSent() > sent_at_stop);
+    node.stop();
+  }
+
+  SECTION("crash() halts the firmware task") {
+    node.crash();
+    REQUIRE(firmware->isSuspended());
+    uint32_t sent_at_crash = firmware->getMessagesSent();
+
+    pump(25);
+    REQUIRE(firmware->getMessagesSent() == sent_at_crash);
+  }
+
+  SECTION("a suspended firmware books no sends") {
+    node.stop();
+    uint32_t sent_at_stop = node.getMetrics().messages_sent;
+
+    pump(25);
+    // The node-level metric is fed by FirmwareBase's send hook, which a
+    // suspended firmware must not reach even if something calls it directly.
+    REQUIRE(node.getMetrics().messages_sent == sent_at_stop);
+  }
+}
+
 TEST_CASE("EchoServer firmware is registered", "[firmware][factory]") {
   // EchoServer should auto-register via REGISTER_FIRMWARE macro
   if (!FirmwareFactory::instance().isRegistered("EchoServer")) {

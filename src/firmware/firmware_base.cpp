@@ -8,13 +8,59 @@
 
 #include "simulator/firmware/firmware_base.hpp"
 #include "Arduino.h"  // For TSTRING typedef
+#include <TaskSchedulerDeclarations.h>
 #include "painlessmesh/mesh.hpp"
 #include <list>
 
 namespace simulator {
 namespace firmware {
 
+bool FirmwareBase::registerTask(Task& task, bool enable_now) {
+  if (!scheduler_) {
+    return false;
+  }
+  scheduler_->addTask(task);
+  tasks_.push_back(&task);
+  if (enable_now) {
+    task.enable();
+  }
+  return true;
+}
+
+void FirmwareBase::suspend() {
+  if (suspended_) {
+    return;
+  }
+  enabled_before_suspend_.clear();
+  enabled_before_suspend_.reserve(tasks_.size());
+  for (Task* task : tasks_) {
+    enabled_before_suspend_.push_back(task->isEnabled());
+    task->disable();
+  }
+  suspended_ = true;
+}
+
+void FirmwareBase::resume() {
+  if (!suspended_) {
+    return;
+  }
+  for (size_t i = 0; i < tasks_.size(); ++i) {
+    if (i < enabled_before_suspend_.size() && enabled_before_suspend_[i]) {
+      tasks_[i]->enable();
+    }
+  }
+  enabled_before_suspend_.clear();
+  suspended_ = false;
+}
+
 void FirmwareBase::sendBroadcast(const String& msg) {
+  // A suspended firmware belongs to a node that is down. Its mesh pointer is
+  // still non-null -- it addresses the stopped instance until start() rebuilds
+  // one -- so without this guard the send reaches torn-down routing state and
+  // the accounting hook books a transmission that never left the node.
+  if (suspended_) {
+    return;
+  }
   if (mesh_) {
     String msg_copy = msg;  // painlessMesh modifies the message
     mesh_->sendBroadcast(msg_copy);
@@ -23,6 +69,9 @@ void FirmwareBase::sendBroadcast(const String& msg) {
 }
 
 void FirmwareBase::sendSingle(uint32_t dest, const String& msg) {
+  if (suspended_) {
+    return;
+  }
   if (mesh_) {
     String msg_copy = msg;  // painlessMesh modifies the message
     mesh_->sendSingle(dest, msg_copy);
