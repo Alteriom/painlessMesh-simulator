@@ -112,14 +112,21 @@ private:
     // Create request message
     String msg = "Request #" + std::to_string(requests_sent_);
     
+    // A false return means the mesh had no route -- do not count it as a
+    // request sent, or the echo ratio reports responses that were never asked
+    // for.
     if (server_node_id_ == 0) {
       // Broadcast mode - send to all nodes
-      sendBroadcast(msg);  // via FirmwareBase so the send is counted
+      if (!sendBroadcast(msg)) {
+        return;
+      }
       std::cout << "[INFO] Node " << node_id_ << " broadcasting request: " 
                 << msg << std::endl;
     } else {
       // Send to specific server
-      sendSingle(server_node_id_, msg);  // via FirmwareBase so the send is counted
+      if (!sendSingle(server_node_id_, msg)) {
+        return;
+      }
       std::cout << "[INFO] Node " << node_id_ << " sending request to " 
                 << server_node_id_ << ": " << msg << std::endl;
     }

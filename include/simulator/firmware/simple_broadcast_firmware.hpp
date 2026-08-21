@@ -106,6 +106,13 @@ public:
    */
   uint32_t getMessagesReceived() const { return messages_received_; }
 
+  /**
+   * @brief Gets number of broadcasts the mesh refused to carry
+   *
+   * Non-zero means this node was isolated for part of the run.
+   */
+  uint32_t getBroadcastsRejected() const { return broadcasts_rejected_; }
+
 private:
   /**
    * @brief Broadcasts a message to all nodes
@@ -118,8 +125,17 @@ private:
     // Create message
     String msg = broadcast_message_ + " " + std::to_string(node_id_);
     
-    // Broadcast to all nodes
-    sendBroadcast(msg);  // via FirmwareBase so the send is counted
+    // Broadcast to all nodes. A false return means the mesh reached nobody --
+    // an isolated node, or one cut off by a partition. Counting it anyway
+    // would report undelivered traffic as sent.
+    if (!sendBroadcast(msg)) {
+      if (broadcasts_rejected_++ == 0) {
+        std::cout << "[WARN] Node " << node_id_
+                  << " broadcast reached no peers (further rejections are "
+                  << "counted, not logged)" << std::endl;
+      }
+      return;
+    }
     messages_sent_++;
     
     std::cout << "[INFO] Node " << node_id_ << " broadcasting: " 
@@ -129,7 +145,8 @@ private:
   Task broadcast_task_;                    ///< Task for periodic broadcasts
   uint32_t broadcast_interval_{5000};      ///< Broadcast interval in ms
   String broadcast_message_;               ///< Message to broadcast
-  uint32_t messages_sent_{0};              ///< Number of messages sent
+  uint32_t messages_sent_{0};              ///< Number of messages the mesh accepted
+  uint32_t broadcasts_rejected_{0};        ///< Broadcasts the mesh reached nobody with
   uint32_t messages_received_{0};          ///< Number of messages received
 };
 

@@ -154,6 +154,32 @@ public:
    * painlessMesh networks.
    */
   void establishConnectivity();
+
+  /**
+   * @brief Wire exactly the links a scenario's topology asks for
+   *
+   * `topology:` was parsed and validated but never applied -- every run got the
+   * random tree above regardless of what the scenario declared, so once link
+   * events became live they addressed edges that did not exist. Plan the links
+   * with planTopology() and pass them here.
+   *
+   * Each link is recorded in the adjacency map, so drop, partition, heal and
+   * reconnect all operate on the graph the scenario actually declared.
+   *
+   * @param links Node-id pairs to connect
+   * @return Number of links successfully wired
+   */
+  size_t establishConnectivity(const std::vector<std::pair<uint32_t, uint32_t>>& links);
+
+  /**
+   * @brief Pump the mesh until a just-created link settles
+   *
+   * Wiring every declared link in one tight loop makes painlessMesh tear the
+   * whole mesh down: measured on a 4-node full mesh, 6 links wired, 0 live and
+   * not one message delivered in 20s. Given a moment between connects it
+   * instead prunes the redundant edges and keeps a working spanning tree.
+   */
+  void settleLink(uint32_t a, uint32_t b);
   
   // Queries
   

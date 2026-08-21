@@ -177,6 +177,7 @@ set(SIMULATOR_SOURCES
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
   src/config/config_loader.cpp
+  src/config/topology_planner.cpp
   src/network/network_simulator.cpp
   src/scenario/event_scheduler.cpp
   src/scenario/event_factory.cpp
@@ -313,6 +314,7 @@ if(ENABLE_TESTING)
     test/test_network_simulator.cpp
     test/test_network_integration.cpp
     test/test_event_scheduler.cpp
+    test/test_topology_planner.cpp
     test/test_event_factory.cpp
     test/test_node_lifecycle.cpp
     test/test_connection_events.cpp

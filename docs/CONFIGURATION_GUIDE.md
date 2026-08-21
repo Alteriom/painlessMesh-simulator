@@ -355,13 +355,41 @@ topology:
 
 #### Topology Types
 
-| Type | Description | Required Parameters |
-|------|-------------|-------------------|
-| `random` | Random connections based on density | `density` |
-| `star` | Star topology with central hub | `hub` |
-| `ring` | Ring topology with sequential connections | `bidirectional` (optional) |
-| `mesh` | Full mesh (all nodes connected) | None |
-| `custom` | Custom connections defined explicitly | `connections` |
+| Type | Declares | Required Parameters |
+|------|----------|-------------------|
+| `random` | `density` of all possible pairs | `density` |
+| `star` | The hub linked to every other node | `hub` |
+| `ring` | Consecutive nodes plus the closing link | `bidirectional` (optional) |
+| `mesh` | Every pair | None |
+| `custom` | Exactly the listed pairs | `connections` |
+
+#### What actually gets wired
+
+painlessMesh holds a **spanning tree**, so a declaration with more links than
+that is reduced to one before anything is wired. This is not a simplification
+for convenience: wiring the 6 links of a 4-node `mesh` in one pass was measured
+to leave the mesh with **0 live links and not one message delivered** over 20
+seconds, because the overlapping handshakes make the library tear everything
+down. Handed the links one at a time it prunes back to a tree by itself.
+
+The run says what it did:
+
+```
+[WARN] topology: mesh declares 6 link(s); painlessMesh holds a spanning tree,
+       so 3 surplus link(s) were not wired
+[INFO] Mesh connectivity established (topology=mesh, 3 of 3 planned link(s)
+       wired, 6 declared)
+```
+
+Which links survive the reduction is deterministic, seeded from
+`simulation.seed`, and pairs named by the scenario's own events are kept first
+— so a `connection_drop` on a declared pair has a live link to cut.
+
+A topology declaration therefore chooses **which tree** the run uses, not how
+densely connected it is. `star` gives you a hub-and-spoke tree, `custom` the
+shape you drew if it is acyclic, `random` a seeded tree. Anything beyond a
+tree — full mesh, a closed ring, `density` above `(n-1)/(n(n-1)/2)` — is
+declared, reported and then reduced.
 
 #### Parameters
 
@@ -382,11 +410,14 @@ topology:
 ```
 
 - Creates random connections between nodes
-- **density** controls how connected the network is:
-  - 0.0 = no connections (isolated nodes)
-  - 0.3 = sparse network (30% of possible connections)
-  - 0.7 = dense network (70% of possible connections)
-  - 1.0 = full mesh (all nodes connected)
+- **density** targets a share of all possible connections:
+  - 0.3 = 30% of possible connections
+  - 0.7 = 70% of possible connections
+  - 1.0 = every pair
+- the plan is always connected first, then filled toward the target: a low
+  density never partitions the mesh before the run starts
+- the target is capped by what painlessMesh holds (a spanning tree), so above
+  roughly `2/n` the extra links are declared and reported, not wired
 
 #### Star Topology
 

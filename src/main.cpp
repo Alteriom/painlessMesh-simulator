@@ -13,6 +13,7 @@
 #include "simulator/cli_options.hpp"
 #include "simulator/config_loader.hpp"
 #include "simulator/node_manager.hpp"
+#include "simulator/topology_planner.hpp"
 #include "simulator/event_factory.hpp"
 #include "simulator/event_scheduler.hpp"
 #include "simulator/network_simulator.hpp"
@@ -222,10 +223,35 @@ int main(int argc, char* argv[]) {
     manager.startAll();
     std::cout << "[INFO] All nodes started" << std::endl;
     
-    // Establish connectivity between nodes
+    // Establish connectivity between nodes. The scenario's topology block was
+    // parsed and validated from the first release but never applied: every run
+    // got a random spanning tree, so a full-mesh scenario dropping a named pair
+    // reported "0 live endpoint(s) closed" because that pair was never wired.
     std::cout << "[INFO] Establishing mesh connectivity..." << std::endl;
-    manager.establishConnectivity();
-    std::cout << "[INFO] Mesh connectivity established" << std::endl;
+    const auto plan = planTopology(config.topology, config.nodes, config.events,
+                                   config.simulation.seed);
+    for (const auto& warning : plan.warnings) {
+      std::cout << "[WARN] topology: " << warning << std::endl;
+    }
+    size_t wired = 0;
+    if (plan.links.empty()) {
+      // No topology declared, or too few nodes to link: keep the historical
+      // random tree so a scenario without a topology block behaves as before.
+      manager.establishConnectivity();
+      std::cout << "[INFO] Mesh connectivity established (random tree)"
+                << std::endl;
+    } else {
+      wired = manager.establishConnectivity(plan.links);
+      std::cout << "[INFO] Mesh connectivity established (topology="
+                << topologyTypeName(config.topology.type) << ", " << wired
+                << " of " << plan.links.size() << " planned link(s) wired, "
+                << plan.declared << " declared)" << std::endl;
+      if (wired < plan.links.size()) {
+        std::cerr << "[ERROR] " << (plan.links.size() - wired)
+                  << " declared link(s) could not be wired" << std::endl;
+        return 1;
+      }
+    }
     
     // Build the scenario timeline. The config loader has parsed and validated
     // config.events all along; until now nothing turned those records into Event
@@ -279,9 +305,16 @@ int main(int argc, char* argv[]) {
       
       // Progress reporting every 5 seconds
       if (elapsed > 0 && elapsed % 5 == 0 && elapsed != last_report) {
+        // Live links, not just running nodes: a mesh can report every node up
+        // while carrying nothing, which is how findings 9, 10 and 14 all hid.
+        size_t live_links = 0;
+        for (const auto& node : manager.getAllNodes()) {
+          live_links += node->getConnectionCount();
+        }
         std::cout << "[" << elapsed << "s] " 
                   << manager.getRunningCount() << "/" << manager.getNodeCount()
                   << " nodes running, "
+                  << (live_links / 2) << " live link(s), "
                   << update_count << " updates performed" << std::endl;
         last_report = elapsed;
       }

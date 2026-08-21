@@ -20,6 +20,7 @@ void EventScheduler::scheduleEvent(std::unique_ptr<Event> event, uint32_t time) 
   }
   
   event->setScheduledTime(time);
+  event->setSequence(nextSequence_++);
   eventQueue_.push(std::move(event));
 }
 

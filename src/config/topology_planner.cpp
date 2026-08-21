@@ -1,0 +1,283 @@
+/**
+ * @file topology_planner.cpp
+ * @brief Implementation of the scenario topology planner
+ *
+ * @copyright Copyright (c) 2025 Alteriom
+ * @license MIT License
+ */
+
+#include "simulator/topology_planner.hpp"
+
+#include <algorithm>
+#include <map>
+#include <random>
+#include <string>
+
+namespace simulator {
+
+namespace {
+
+/// Fixed fallback so a scenario without a seed still wires the same graph
+/// on every run -- a CI gate that cannot reproduce its own graph is not a gate.
+constexpr uint32_t kDefaultSeed = 20260821u;
+
+std::vector<uint32_t> nodeIds(const std::vector<NodeConfigExtended>& nodes) {
+  std::vector<uint32_t> ids;
+  ids.reserve(nodes.size());
+  for (const auto& node : nodes) {
+    ids.push_back(node.nodeId);
+  }
+  return ids;
+}
+
+bool resolveId(const std::vector<NodeConfigExtended>& nodes,
+               const std::string& name, uint32_t& out) {
+  for (const auto& node : nodes) {
+    if (node.id == name) {
+      out = node.nodeId;
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Node pairs the scenario's own events name. When the declared graph has to
+/// be reduced, these are kept first: a `connection_drop node-1 <-> node-2`
+/// against a link that was never wired reports "0 live endpoint(s) closed",
+/// which is exactly the silence this planner exists to remove.
+std::vector<PlannedLink> eventPairs(const std::vector<EventConfig>& events,
+                                    const std::vector<NodeConfigExtended>& nodes) {
+  std::vector<PlannedLink> pairs;
+  for (const auto& event : events) {
+    if (event.from.empty() || event.to.empty()) {
+      continue;
+    }
+    uint32_t from = 0;
+    uint32_t to = 0;
+    if (resolveId(nodes, event.from, from) && resolveId(nodes, event.to, to) &&
+        from != to) {
+      pairs.emplace_back(from, to);
+    }
+  }
+  return pairs;
+}
+
+bool samePair(const PlannedLink& a, const PlannedLink& b) {
+  return (a.first == b.first && a.second == b.second) ||
+         (a.first == b.second && a.second == b.first);
+}
+
+/// Union-find root with path compression
+uint32_t findRoot(std::map<uint32_t, uint32_t>& parent, uint32_t x) {
+  while (parent[x] != x) {
+    parent[x] = parent[parent[x]];
+    x = parent[x];
+  }
+  return x;
+}
+
+/// Reduce a declared graph to a spanning forest, preferring @p preferred edges
+///
+/// painlessMesh converges to a spanning tree whatever it is handed, so this
+/// picks which tree deterministically instead of leaving it to a race between
+/// overlapping handshakes.
+std::vector<PlannedLink> spanningSubset(const std::vector<PlannedLink>& declared,
+                                        const std::vector<PlannedLink>& preferred,
+                                        std::vector<std::string>& warnings) {
+  std::map<uint32_t, uint32_t> parent;
+  for (const auto& link : declared) {
+    parent[link.first] = link.first;
+    parent[link.second] = link.second;
+  }
+
+  // Preferred edges first, in the order the events named them, then the rest
+  // in declared order. Stable either way.
+  std::vector<PlannedLink> ordered;
+  ordered.reserve(declared.size());
+  for (const auto& want : preferred) {
+    for (const auto& link : declared) {
+      if (samePair(link, want) &&
+          std::none_of(ordered.begin(), ordered.end(),
+                       [&](const PlannedLink& l) { return samePair(l, link); })) {
+        ordered.push_back(link);
+      }
+    }
+  }
+  for (const auto& link : declared) {
+    if (std::none_of(ordered.begin(), ordered.end(),
+                     [&](const PlannedLink& l) { return samePair(l, link); })) {
+      ordered.push_back(link);
+    }
+  }
+
+  std::vector<PlannedLink> kept;
+  for (const auto& link : ordered) {
+    const uint32_t ra = findRoot(parent, link.first);
+    const uint32_t rb = findRoot(parent, link.second);
+    if (ra == rb) {
+      // Would close a cycle. Say so for the pairs an event names, since that
+      // event will find nothing to act on.
+      if (std::any_of(preferred.begin(), preferred.end(),
+                      [&](const PlannedLink& p) { return samePair(p, link); })) {
+        warnings.push_back(
+            "an event names the link " + std::to_string(link.first) + " <-> " +
+            std::to_string(link.second) +
+            ", but keeping it would close a cycle painlessMesh will not hold");
+      }
+      continue;
+    }
+    parent[ra] = rb;
+    kept.push_back(link);
+  }
+  return kept;
+}
+
+}  // namespace
+
+std::string topologyTypeName(TopologyType type) {
+  switch (type) {
+    case TopologyType::RANDOM: return "random";
+    case TopologyType::STAR:   return "star";
+    case TopologyType::RING:   return "ring";
+    case TopologyType::MESH:   return "mesh";
+    case TopologyType::CUSTOM: return "custom";
+  }
+  return "unknown";
+}
+
+TopologyPlan planTopology(const TopologyConfig& topology,
+                          const std::vector<NodeConfigExtended>& nodes,
+                          const std::vector<EventConfig>& events,
+                          uint32_t seed) {
+  TopologyPlan plan;
+  const auto ids = nodeIds(nodes);
+  if (ids.size() < 2) {
+    return plan;  // nothing to wire
+  }
+
+  std::vector<PlannedLink> declared;
+
+  switch (topology.type) {
+    case TopologyType::MESH: {
+      for (size_t i = 0; i < ids.size(); ++i) {
+        for (size_t j = i + 1; j < ids.size(); ++j) {
+          declared.emplace_back(ids[i], ids[j]);
+        }
+      }
+      break;
+    }
+
+    case TopologyType::STAR: {
+      uint32_t hub = ids.front();
+      if (topology.hub.is_initialized() &&
+          !resolveId(nodes, topology.hub.get(), hub)) {
+        plan.warnings.push_back(
+            "star hub '" + topology.hub.get() +
+            "' is not a node in this scenario; using the first node as hub");
+        hub = ids.front();
+      } else if (!topology.hub.is_initialized()) {
+        plan.warnings.push_back(
+            "star topology declared without a hub; using the first node");
+      }
+      for (uint32_t id : ids) {
+        if (id != hub) {
+          declared.emplace_back(hub, id);
+        }
+      }
+      break;
+    }
+
+    case TopologyType::RING: {
+      for (size_t i = 0; i + 1 < ids.size(); ++i) {
+        declared.emplace_back(ids[i], ids[i + 1]);
+      }
+      if (ids.size() > 2) {
+        declared.emplace_back(ids.back(), ids.front());
+      }
+      if (!topology.bidirectional) {
+        // A link here is one TCP connection and carries both directions. There
+        // is no half-duplex mode to fall back on, so say so rather than
+        // pretending the flag did something.
+        plan.warnings.push_back(
+            "ring declared bidirectional: false, but a simulated link is a "
+            "single connection carrying both directions -- wired as "
+            "bidirectional");
+      }
+      break;
+    }
+
+    case TopologyType::CUSTOM: {
+      for (const auto& conn : topology.connections) {
+        uint32_t from = 0;
+        uint32_t to = 0;
+        if (!resolveId(nodes, conn.first, from) ||
+            !resolveId(nodes, conn.second, to)) {
+          plan.warnings.push_back("custom connection '" + conn.first + "' <-> '" +
+                                  conn.second + "' names an unknown node; skipped");
+          continue;
+        }
+        if (from == to) {
+          plan.warnings.push_back("custom connection '" + conn.first +
+                                  "' <-> '" + conn.second +
+                                  "' is a self-link; skipped");
+          continue;
+        }
+        declared.emplace_back(from, to);
+      }
+      break;
+    }
+
+    case TopologyType::RANDOM: {
+      std::mt19937 rng(seed != 0 ? seed : kDefaultSeed);
+
+      // Spanning tree first. Density is a target, not a licence to partition
+      // the mesh before the run starts -- and this tree is exactly what every
+      // scenario was given before the planner existed.
+      for (size_t i = 1; i < ids.size(); ++i) {
+        std::uniform_int_distribution<size_t> pick(0, i - 1);
+        declared.emplace_back(ids[i], ids[pick(rng)]);
+      }
+
+      const size_t possible = ids.size() * (ids.size() - 1) / 2;
+      const size_t target = static_cast<size_t>(
+          static_cast<double>(topology.density) * static_cast<double>(possible) + 0.5);
+      if (target > declared.size()) {
+        // Collect the pairs the tree did not use, shuffle once, and take the
+        // shortfall. Shuffling beats rejection sampling: it terminates.
+        std::vector<PlannedLink> spare;
+        spare.reserve(possible - declared.size());
+        for (size_t i = 0; i < ids.size(); ++i) {
+          for (size_t j = i + 1; j < ids.size(); ++j) {
+            const PlannedLink pair(ids[i], ids[j]);
+            const bool already = std::any_of(
+                declared.begin(), declared.end(), [&](const PlannedLink& l) {
+                  return (l.first == pair.first && l.second == pair.second) ||
+                         (l.first == pair.second && l.second == pair.first);
+                });
+            if (!already) {
+              spare.push_back(pair);
+            }
+          }
+        }
+        std::shuffle(spare.begin(), spare.end(), rng);
+        const size_t extra = std::min(target - declared.size(), spare.size());
+        declared.insert(declared.end(), spare.begin(), spare.begin() + extra);
+      }
+      break;
+    }
+  }
+
+  plan.declared = declared.size();
+  plan.links = spanningSubset(declared, eventPairs(events, nodes), plan.warnings);
+  if (plan.links.size() < declared.size()) {
+    plan.warnings.push_back(
+        topologyTypeName(topology.type) + " declares " +
+        std::to_string(declared.size()) + " link(s); painlessMesh holds a " +
+        "spanning tree, so " + std::to_string(declared.size() - plan.links.size()) +
+        " surplus link(s) were not wired (wiring them all at once leaves the " +
+        "mesh with no live links at all)");
+  }
+  return plan;
+}
+
+} // namespace simulator

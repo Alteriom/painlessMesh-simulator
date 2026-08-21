@@ -30,9 +30,10 @@ simulator call site. `VirtualNode` needed no rewrite. The whole port is ten
 lines of CMake.
 
 The real finding is what the port exposed. Findings 1-8 came out of the port
-itself; 9-13 came out of review of the resulting PR and are the deeper half --
-a fired event is not the same thing as an event that did something, and a node
-the simulator calls stopped is not necessarily a node that stopped.
+itself; 9-16 came out of review of the resulting PR and are the deeper half --
+a fired event is not the same thing as an event that did something, a node the
+simulator calls stopped is not necessarily a node that stopped, and a topology
+the scenario declares was not the topology it ran on.
 
 ## Findings
 
@@ -284,6 +285,104 @@ reintroduce this.
 Gate step 7 covers both halves -- no sends during downtime, and at least one
 after the restart, so silencing the firmware permanently would not pass.
 
+### 14. The declared topology was never applied (critical)
+
+Raised by `chatgpt-codex-connector` on the third review pass. Confirmed, and
+the fix it proposed would have made things worse.
+
+`ConfigLoader` parsed and validated `topology:` from the first release --
+type, hub, density, custom connections, the lot -- and nothing ever read it.
+`NodeManager::establishConnectivity()` took no arguments and always built a
+random spanning tree. 21 of the 23 shipped scenarios declare a topology, so
+nearly every run was against a graph nobody asked for. Star scenarios had no
+hub; custom scenarios had none of their drawn links.
+
+Harmless while events were inert. Once findings 1 and 9 made link events live,
+the events addressed edges that did not exist. `connection_events_test.yaml`
+declares a full mesh and drops `node-1 <-> node-2` at t=20:
+
+```
+[EVENT] Connection dropped: 1934219892 <-> 572338315 (0 live endpoint(s) closed)
+```
+
+The obvious fix -- wire what the YAML declares -- was measured before it was
+trusted, and it is catastrophic. Four nodes running SimpleBroadcast, 20s:
+
+| Topology | Links wired | Live links | Sent | Received |
+|---|---|---|---|---|
+| star (3 links, a tree) | 3 | 3 | 40 | 119 |
+| custom line (3 links, a tree) | 3 | 3 | 40 | 118 |
+| random d=0.5 (3 links, a tree) | 3 | 3 | 40 | 118 |
+| ring (4 links, one cycle) | 4 | **0** | **0** | **0** |
+| mesh (6 links) | 6 | **0** | **0** | **0** |
+| random d=1.0 (6 links) | 6 | **0** | **0** | **0** |
+
+Wiring a cyclic graph in one pass does not give painlessMesh a richer mesh; it
+gives it none at all. The cause is the burst, not the cycle: closing a ring
+*at runtime* is handled gracefully -- the extra connection is rejected and the
+tree survives (3 live links, 60 sent / 179 received) -- and with a settling
+pass between connects, the same 6-link mesh converges to 3 live links and
+healthy traffic. Overlapping handshakes are what the library cannot take.
+
+So the simulator now plans the declared graph, reduces it to a spanning forest
+-- which is what painlessMesh converges to anyway -- and says so:
+
+```
+[WARN] topology: mesh declares 6 link(s); painlessMesh holds a spanning tree,
+       so 3 surplus link(s) were not wired
+[INFO] Mesh connectivity established (topology=mesh, 3 of 3 planned link(s)
+       wired, 6 declared)
+```
+
+Reduction order is deterministic and prefers the pairs the scenario's own
+events name, so a declared drop has a live link to cut. The same drop now
+reports:
+
+```
+[EVENT] Connection dropped: 1934219892 <-> 572338315 (2 live endpoint(s) closed)
+```
+
+`NodeManager::settleLink()` pumps the mesh between connects so the burst
+cannot recur if a caller passes a cyclic list anyway. Planning lives in
+`planTopology()`, a pure function with its own tests, and gate step 8 asserts
+the declared type is wired and the declared drop cuts.
+
+What a topology declaration now controls is *which* tree a run uses -- a real
+fidelity gain over a random one -- not how densely connected it is. Density
+above a tree, a closed ring and a full mesh are declared, reported and
+reduced; see the gaps table.
+
+### 15. Failed sends were counted as delivered (high)
+
+`Mesh::sendBroadcast()` returns false when `router::broadcast` reached nobody,
+and `sendSingle()` false when there is no route. `FirmwareBase`'s helpers
+ignored both and ran the send-accounting hook regardless, so an isolated node
+-- or one on the wrong side of a partition -- reported traffic it never got
+rid of. `VirtualNode::injectMessage()` already had this right; the firmware
+path did not.
+
+Both helpers now return the mesh's verdict and only account for a true.
+`SimpleBroadcastFirmware` counts and logs only accepted broadcasts and tracks
+rejections separately (warning once per node rather than per message);
+`EchoClient` does not count a request the mesh refused; `EchoServer` does not
+count an echo with no route back.
+
+Two existing tests asserted the old behaviour -- an EchoServer with no peers
+"echoing" to node 9999, and an echo counted before the link it needed had come
+up -- and were corrected rather than pinned.
+
+### 16. Equal-time events ran in arbitrary order (medium)
+
+`EventScheduler`'s comparator documented FIFO for events sharing a timestamp
+and did not implement it: `std::priority_queue` is a binary heap, which is not
+stable, and the comparator looked only at `scheduledTime`. Six events queued
+at the same second came out `a c f e b d`. A same-second `heal` could run
+after the `inject` that needed it, or a `start` before the `stop` above it.
+
+Events are now stamped with a monotonic sequence at schedule time and the
+comparator breaks ties on it. Two tests cover it, and both fail on the old
+comparator with the scramble above.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -294,6 +393,8 @@ rather than faked with a misleading alias.
 | `start_all_nodes` event action | `network_partition_test.yaml`, `split_brain_partition_test.yaml` | No enum value or event class; mechanically similar to `NodeStartEvent` over all node ids |
 | `partial_heal` event action | `issue_138_cascade_healing.yaml` | `NetworkHealEvent` clears every partition unconditionally; needs a subset argument |
 | `add_nodes`, `remove_node`, `break_link`, `restore_link`, `set_network_quality` | -- | Parsed and validated, no runtime class. `EventFactory` reports them |
+| Links beyond a spanning tree | `mesh`, `ring`, dense `random` | painlessMesh holds a tree. A declared full mesh is reduced and reported (finding 14); modelling a genuinely multi-path mesh would need a transport the library does not have |
+| `bidirectional: false` on a ring | Directional-link scenarios | A simulated link is one TCP connection carrying both ways. The plan warns rather than pretending |
 | Live-transport degradation | `connection_degrade` | Nodes talk over real loopback sockets with nothing interposed, so latency and loss cannot be applied to live traffic. The event configures the `NetworkSimulator` model and says so |
 | v2.0.0 ACK surfaces | The release headline | `ack.hpp`, `message_tracker.hpp`, `gateway.hpp` have no coverage, and are the most-churned upstream area |
 | Metrics export | Trend analysis | `metrics.output` and `export: [csv, json]` are inert; no file is written |
@@ -323,9 +424,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 118 test cases, 1419 assertions, all passing (was 107/1333 before
-  this work; 112/1351 before the topology and injection coverage; 117/1406
-  before finding 13).
+- Unit tests: 122 test cases, 1454 assertions, all passing (was 107/1333 before
+  this work; 117/1406 before finding 13; 118/1419 before findings 14-16).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -339,6 +439,13 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   reports *"node 1226381676 broadcast 5 time(s) while stopped"*, exit 1, and
   the new unit test fails on `messages_sent 10 == 5`. Steps 1-6 still pass on
   the fixed build, so the change is not a regression trade.
+- Findings 14 and 16 likewise. Forced back onto the random-tree path, gate
+  step 8 reports *"connection_events_test declares a mesh but did not wire
+  one"*, exit 1; the naive alternative -- wiring the declared mesh as-is -- was
+  measured at 0 live links and 0 messages before it was rejected. With the
+  sequence tie-break removed, the ordering tests fail on
+  `{a, c, f, e, b, d} == {a, b, c, d, e, f}`. All 8 gate steps pass on the
+  fixed build.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

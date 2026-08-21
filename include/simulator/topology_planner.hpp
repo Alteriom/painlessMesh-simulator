@@ -1,0 +1,93 @@
+/**
+ * @file topology_planner.hpp
+ * @brief Turns a scenario's declared topology into the links to wire
+ *
+ * `topology:` was parsed and validated from the first release and never
+ * applied: `NodeManager::establishConnectivity()` took no arguments and always
+ * built a random spanning tree. 21 of the 23 shipped scenarios declare a
+ * topology, so nearly every run was against a graph nobody asked for -- and
+ * once link events became live, events addressed edges that did not exist. A
+ * full-mesh scenario dropping a named pair reported *"0 live endpoint(s)
+ * closed"*.
+ *
+ * The planner is a pure function so the mapping from declaration to edge list
+ * can be tested without standing up sockets.
+ *
+ * @copyright Copyright (c) 2025 Alteriom
+ * @license MIT License
+ */
+
+#ifndef SIMULATOR_TOPOLOGY_PLANNER_HPP
+#define SIMULATOR_TOPOLOGY_PLANNER_HPP
+
+#include "simulator/config_loader.hpp"
+
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace simulator {
+
+/**
+ * @brief A planned link between two nodes, by numeric node id
+ */
+using PlannedLink = std::pair<uint32_t, uint32_t>;
+
+/**
+ * @brief Result of planning a scenario's topology
+ */
+struct TopologyPlan {
+  std::vector<PlannedLink> links;      ///< Links to wire, in a stable order
+  size_t declared = 0;                 ///< Links the topology block asked for
+  std::vector<std::string> warnings;   ///< Anything the plan could not honour
+};
+
+/**
+ * @brief Plan the links a scenario's declared topology asks for
+ *
+ * Declared shape per type:
+ * - `mesh`: every pair.
+ * - `star`: the hub to every other node.
+ * - `ring`: consecutive nodes plus the closing link.
+ * - `custom`: exactly the declared connections, resolved by string id.
+ * - `random`: `density` of all possible pairs.
+ *
+ * **The declared graph is then reduced to a spanning forest**, because that is
+ * all painlessMesh will hold. Measured on 4 nodes with SimpleBroadcast: wiring
+ * the 3 links of a star gives 3 live links and 40 sent / 119 received over
+ * 20s; wiring the 6 links a `mesh` declares gives **0 live links and not one
+ * message** -- the overlapping handshakes make the library tear the whole mesh
+ * down. Given a moment between connects it instead prunes back to a spanning
+ * tree on its own. Planning the tree directly is the same end state without
+ * the wasted connects, and it is deterministic rather than a race.
+ *
+ * Where the declared graph has more links than a tree, the surplus is dropped
+ * in a defined order: pairs the scenario's own events name are kept first, so
+ * a declared `connection_drop node-1 <-> node-2` has a live link to cut. That
+ * exact drop reported *"0 live endpoint(s) closed"* before this existed.
+ *
+ * Link order is stable and the random draw is seeded from `simulation.seed`,
+ * so a scenario wires the same graph on every run.
+ *
+ * @param topology The scenario's `topology:` block
+ * @param nodes The scenario's nodes, for id resolution
+ * @param events The scenario's events; pairs they name are preferred when the
+ *               declared graph must be reduced
+ * @param seed `simulation.seed`; 0 selects a fixed default so runs stay
+ *             reproducible
+ * @return The links to wire, what was declared, and any warnings
+ */
+TopologyPlan planTopology(const TopologyConfig& topology,
+                          const std::vector<NodeConfigExtended>& nodes,
+                          const std::vector<EventConfig>& events,
+                          uint32_t seed);
+
+/**
+ * @brief Human-readable name of a topology type, for logging
+ */
+std::string topologyTypeName(TopologyType type);
+
+} // namespace simulator
+
+#endif // SIMULATOR_TOPOLOGY_PLANNER_HPP

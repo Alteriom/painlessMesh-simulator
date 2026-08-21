@@ -133,14 +133,24 @@ public:
 private:
   /**
    * @brief Comparator for event priority queue
-   * 
-   * Orders events by scheduled time (earliest first).
-   * For events with the same time, maintains insertion order (FIFO).
+   *
+   * Orders events by scheduled time (earliest first), then by insertion
+   * sequence so equal-time events keep the order the scenario declared.
+   *
+   * std::priority_queue is a binary heap and is not stable, so the FIFO
+   * contract documented here was not actually held: comparing only the
+   * timestamp let a same-second `heal` run after the `inject` that depended on
+   * it, or a `start` run before the `stop` written above it. Harmless while
+   * nothing built a timeline from the YAML; a real ordering bug once something
+   * did.
    */
   struct EventComparator {
     bool operator()(const std::unique_ptr<Event>& a, const std::unique_ptr<Event>& b) const {
       // Return true if a should come after b (min-heap)
-      return a->getScheduledTime() > b->getScheduledTime();
+      if (a->getScheduledTime() != b->getScheduledTime()) {
+        return a->getScheduledTime() > b->getScheduledTime();
+      }
+      return a->getSequence() > b->getSequence();
     }
   };
   
@@ -148,6 +158,10 @@ private:
   std::priority_queue<std::unique_ptr<Event>, 
                       std::vector<std::unique_ptr<Event>>, 
                       EventComparator> eventQueue_;
+
+  /// Stamped onto each event as it is queued; never reset, so ordering holds
+  /// across a clear() and re-fill too.
+  uint64_t nextSequence_ = 0;
 };
 
 } // namespace simulator

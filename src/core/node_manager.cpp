@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 #include <TaskSchedulerDeclarations.h>
 
 namespace simulator {
@@ -141,6 +143,38 @@ void NodeManager::establishConnectivity() {
     // Connect to a random node among the previously added nodes
     size_t target_idx = std::rand() % i;
     connectNodes(node_list[i]->getNodeId(), node_list[target_idx]->getNodeId());
+  }
+}
+
+size_t NodeManager::establishConnectivity(
+    const std::vector<std::pair<uint32_t, uint32_t>>& links) {
+  size_t wired = 0;
+  for (const auto& link : links) {
+    if (connectNodes(link.first, link.second)) {
+      ++wired;
+    }
+    settleLink(link.first, link.second);
+  }
+  return wired;
+}
+
+void NodeManager::settleLink(uint32_t a, uint32_t b) {
+  // A loopback handshake completes in a millisecond or two, so this returns
+  // almost immediately for a link the mesh accepts. The budget is only spent
+  // on a link painlessMesh declines to hold -- a redundant edge -- and 100ms
+  // of that at startup beats the alternative, which was a mesh with no live
+  // links at all.
+  constexpr int kSettleBudgetMs = 100;
+  auto nodeA = getNode(a);
+  auto nodeB = getNode(b);
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(kSettleBudgetMs);
+  while (std::chrono::steady_clock::now() < deadline) {
+    updateAll();
+    if (nodeA && nodeB && nodeA->isConnectedTo(b) && nodeB->isConnectedTo(a)) {
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 

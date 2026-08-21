@@ -44,6 +44,27 @@ private:
 };
 
 /**
+ * @brief Test event that appends its name to a shared log when it runs
+ *
+ * Order, not just execution, is what the FIFO contract is about.
+ */
+class OrderedEvent : public Event {
+public:
+  OrderedEvent(std::string name, std::vector<std::string>& log)
+    : name_(std::move(name)), log_(log) {}
+
+  void execute(NodeManager& manager, NetworkSimulator& network) override {
+    log_.push_back(name_);
+  }
+
+  std::string getDescription() const override { return "OrderedEvent: " + name_; }
+
+private:
+  std::string name_;
+  std::vector<std::string>& log_;
+};
+
+/**
  * @brief Test event that throws an exception
  */
 class FailingEvent : public Event {
@@ -460,4 +481,46 @@ TEST_CASE("NodeCrashEvent", "[event][node_crash]") {
     REQUIRE(scheduler.getPendingEventCount() == 1);
     REQUIRE(scheduler.getNextEventTime() == 30);
   }
+}
+
+TEST_CASE("Equal-time events run in the order the scenario declared them",
+          "[event][scheduler][ordering]") {
+  // std::priority_queue is a binary heap and is not stable. The comparator
+  // looked only at the timestamp, so same-second events came out in whatever
+  // order the heap happened to hold -- a heal after the injection that needed
+  // it, or a start before the stop written above it. Harmless while nothing
+  // built a timeline from the YAML; a real ordering bug once something did.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network(1);
+  EventScheduler scheduler;
+
+  std::vector<std::string> ran;
+  const std::vector<std::string> declared = {"a", "b", "c", "d", "e", "f"};
+  for (const auto& name : declared) {
+    scheduler.scheduleEvent(std::make_unique<OrderedEvent>(name, ran), 10);
+  }
+
+  REQUIRE(scheduler.processEvents(10, manager, network) == declared.size());
+  REQUIRE(ran == declared);
+}
+
+TEST_CASE("Ordering holds across differing times", "[event][scheduler][ordering]") {
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network(1);
+  EventScheduler scheduler;
+
+  std::vector<std::string> ran;
+  // Queued out of time order, and with a tie at t=5, to check that the
+  // sequence tie-break did not disturb the primary ordering by time.
+  scheduler.scheduleEvent(std::make_unique<OrderedEvent>("late", ran), 9);
+  scheduler.scheduleEvent(std::make_unique<OrderedEvent>("early-1", ran), 5);
+  scheduler.scheduleEvent(std::make_unique<OrderedEvent>("early-2", ran), 5);
+  scheduler.scheduleEvent(std::make_unique<OrderedEvent>("first", ran), 1);
+
+  scheduler.processEvents(10, manager, network);
+
+  const std::vector<std::string> expected = {"first", "early-1", "early-2", "late"};
+  REQUIRE(ran == expected);
 }

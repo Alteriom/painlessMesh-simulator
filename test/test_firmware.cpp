@@ -515,63 +515,75 @@ TEST_CASE("A stopped node's firmware stops sending", "[firmware][lifecycle]") {
   // it broadcast through torn-down routing state and booked sends that never
   // left the node. Reproduced on restart_rejoin_test.yaml as 5 phantom
   // broadcasts across a 10s downtime, one per broadcast interval.
+  //
+  // Two wired nodes rather than one isolated node: painlessMesh refuses a
+  // broadcast that would reach nobody, and a refused broadcast is no longer
+  // counted, so a lone node could not tell "task stopped" from "send refused".
   boost::asio::io_context io;
-  Scheduler scheduler;
+  NodeManager manager(io);
 
   if (!FirmwareFactory::instance().isRegistered("SimpleBroadcast")) {
     FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
       []() { return std::make_unique<SimpleBroadcastFirmware>(); });
   }
 
-  NodeConfig config;
-  config.nodeId = 3101;
-  config.meshPrefix = "TestMesh";
-  config.meshPassword = "password";
-  config.meshPort = 19101;
-  config.firmware = "SimpleBroadcast";
-  config.firmwareConfig["broadcast_interval"] = "100";
-  config.firmwareConfig["broadcast_message"] = "Test";
+  auto makeConfig = [](uint32_t id, uint16_t port) {
+    NodeConfig config;
+    config.nodeId = id;
+    config.meshPrefix = "TestMesh";
+    config.meshPassword = "password";
+    config.meshPort = port;
+    config.firmware = "SimpleBroadcast";
+    config.firmwareConfig["broadcast_interval"] = "100";
+    config.firmwareConfig["broadcast_message"] = "Test";
+    return config;
+  };
 
-  VirtualNode node(3101, config, &scheduler, io);
-  node.loadFirmware("SimpleBroadcast");
-  node.start();
+  auto peer = manager.createNode(makeConfig(3101, 19101));
+  auto node = manager.createNode(makeConfig(3102, 19101));
+  manager.startAll();
+  REQUIRE(manager.connectNodes(3101, 3102));
+  manager.settleLink(3101, 3102);
 
-  auto* firmware = dynamic_cast<SimpleBroadcastFirmware*>(node.getFirmware());
+  auto* firmware = dynamic_cast<SimpleBroadcastFirmware*>(node->getFirmware());
   REQUIRE(firmware != nullptr);
 
-  // Drives the shared scheduler the way NodeManager::updateAll() does --
-  // unconditionally, whether or not the node is running.
+  // Drives the shared scheduler the way a real run does -- unconditionally,
+  // whether or not a given node is running.
   auto pump = [&](int cycles) {
     for (int i = 0; i < cycles; ++i) {
-      scheduler.execute();
-      node.update();
-      io.poll();
+      manager.updateAll();
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
   };
 
   pump(25);  // ~500ms at a 100ms interval
-  uint32_t sent_while_running = firmware->getMessagesSent();
-  REQUIRE(sent_while_running >= 2);
+  REQUIRE(node->isConnectedTo(3101));
+  REQUIRE(firmware->getMessagesSent() >= 2);
 
   SECTION("stop() halts the firmware task") {
-    node.stop();
+    node->stop();
     REQUIRE(firmware->isSuspended());
     uint32_t sent_at_stop = firmware->getMessagesSent();
+    uint32_t metric_at_stop = node->getMetrics().messages_sent;
 
     pump(25);
     REQUIRE(firmware->getMessagesSent() == sent_at_stop);
+    // The node-level metric is fed by FirmwareBase's send hook, which a
+    // suspended firmware must not reach either.
+    REQUIRE(node->getMetrics().messages_sent == metric_at_stop);
 
     // ...and start() brings it back
-    node.start();
+    node->start();
     REQUIRE_FALSE(firmware->isSuspended());
+    REQUIRE(manager.connectNodes(3101, 3102));
+    manager.settleLink(3101, 3102);
     pump(25);
     REQUIRE(firmware->getMessagesSent() > sent_at_stop);
-    node.stop();
   }
 
   SECTION("crash() halts the firmware task") {
-    node.crash();
+    node->crash();
     REQUIRE(firmware->isSuspended());
     uint32_t sent_at_crash = firmware->getMessagesSent();
 
@@ -579,15 +591,7 @@ TEST_CASE("A stopped node's firmware stops sending", "[firmware][lifecycle]") {
     REQUIRE(firmware->getMessagesSent() == sent_at_crash);
   }
 
-  SECTION("a suspended firmware books no sends") {
-    node.stop();
-    uint32_t sent_at_stop = node.getMetrics().messages_sent;
-
-    pump(25);
-    // The node-level metric is fed by FirmwareBase's send hook, which a
-    // suspended firmware must not reach even if something calls it directly.
-    REQUIRE(node.getMetrics().messages_sent == sent_at_stop);
-  }
+  manager.stopAll();
 }
 
 TEST_CASE("EchoServer firmware is registered", "[firmware][factory]") {
@@ -646,12 +650,13 @@ TEST_CASE("EchoServer firmware functionality", "[firmware][integration]") {
     // Initially no echoes sent
     REQUIRE(firmware->getEchoCount() == 0);
     
-    // Simulate receiving a message
+    // Simulate receiving a message from a node the mesh has no route to. The
+    // echo helper returns false and the count stays put: painlessMesh refused
+    // the send, so booking it would report an echo that never left.
     String test_msg = "Test message";
     firmware->onReceive(9999, test_msg);
     
-    // Should have echoed once
-    REQUIRE(firmware->getEchoCount() == 1);
+    REQUIRE(firmware->getEchoCount() == 0);
     
     node.stop();
   }
@@ -804,8 +809,17 @@ TEST_CASE("Echo client/server integration", "[firmware][integration]") {
     REQUIRE(server_fw != nullptr);
     REQUIRE(client_fw != nullptr);
     
-    // Connect nodes
+    // Connect nodes, and let the link come up before expecting a route: the
+    // echo is only counted if the mesh accepts it.
     server.connectTo(client);
+    for (int i = 0; i < 100 && !server.isConnectedTo(6002); ++i) {
+      scheduler.execute();
+      server.update();
+      client.update();
+      io.poll();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    REQUIRE(server.isConnectedTo(6002));
     
     // Simulate client sending a request that server echoes back
     String request = "Request #0";

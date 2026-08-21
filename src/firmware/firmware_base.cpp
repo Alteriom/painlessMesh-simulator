@@ -53,30 +53,35 @@ void FirmwareBase::resume() {
   suspended_ = false;
 }
 
-void FirmwareBase::sendBroadcast(const String& msg) {
+bool FirmwareBase::sendBroadcast(const String& msg) {
   // A suspended firmware belongs to a node that is down. Its mesh pointer is
   // still non-null -- it addresses the stopped instance until start() rebuilds
   // one -- so without this guard the send reaches torn-down routing state and
   // the accounting hook books a transmission that never left the node.
-  if (suspended_) {
-    return;
+  if (suspended_ || !mesh_) {
+    return false;
   }
-  if (mesh_) {
-    String msg_copy = msg;  // painlessMesh modifies the message
-    mesh_->sendBroadcast(msg_copy);
-    if (on_message_sent_) on_message_sent_(msg.length());
+  String msg_copy = msg;  // painlessMesh modifies the message
+  // router::broadcast() returns the number of nodes it reached; Mesh turns a
+  // zero into false. Counting regardless would report an isolated node's
+  // traffic as delivered, which is what the metrics and the gate read.
+  if (!mesh_->sendBroadcast(msg_copy)) {
+    return false;
   }
+  if (on_message_sent_) on_message_sent_(msg.length());
+  return true;
 }
 
-void FirmwareBase::sendSingle(uint32_t dest, const String& msg) {
-  if (suspended_) {
-    return;
+bool FirmwareBase::sendSingle(uint32_t dest, const String& msg) {
+  if (suspended_ || !mesh_) {
+    return false;
   }
-  if (mesh_) {
-    String msg_copy = msg;  // painlessMesh modifies the message
-    mesh_->sendSingle(dest, msg_copy);
-    if (on_message_sent_) on_message_sent_(msg.length());
+  String msg_copy = msg;  // painlessMesh modifies the message
+  if (!mesh_->sendSingle(dest, msg_copy)) {
+    return false;
   }
+  if (on_message_sent_) on_message_sent_(msg.length());
+  return true;
 }
 
 uint32_t FirmwareBase::getNodeTime() const {

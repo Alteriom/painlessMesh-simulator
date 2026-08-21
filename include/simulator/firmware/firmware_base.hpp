@@ -308,22 +308,28 @@ protected:
 
   /**
    * @brief Send a broadcast message to all nodes in the mesh
-   * 
-   * Helper method that wraps mesh_->sendBroadcast() with null check.
-   * 
+   *
+   * painlessMesh returns false when the broadcast reached nobody -- a node with
+   * no live connections, for instance. The send accounting only fires on a
+   * true return, so a rejected attempt is not booked as a transmission.
+   * Callers keeping their own counters should test the result the same way.
+   *
    * @param msg Message to broadcast
+   * @return true if the mesh accepted the message for delivery
    */
-  void sendBroadcast(const String& msg);
+  bool sendBroadcast(const String& msg);
   
   /**
    * @brief Send a message to a specific node
-   * 
-   * Helper method that wraps mesh_->sendSingle() with null check.
-   * 
+   *
+   * As sendBroadcast(): false when the mesh has no route to @p dest, and a
+   * false return is not counted.
+   *
    * @param dest Destination node ID
    * @param msg Message to send
+   * @return true if the mesh accepted the message for delivery
    */
-  void sendSingle(uint32_t dest, const String& msg);
+  bool sendSingle(uint32_t dest, const String& msg);
   
   /**
    * @brief Get the current mesh time

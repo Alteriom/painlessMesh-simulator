@@ -205,6 +205,41 @@ else
 fi
 
 echo
+echo "== 8. a scenario's declared topology must be the graph that gets wired =="
+# `topology:` was parsed and validated from the first release and never
+# applied: every run got a random spanning tree instead. 21 of the 23 shipped
+# scenarios declare a topology, so the newly live link events were addressing
+# edges that did not exist -- connection_events_test declares a full mesh and
+# its t=20 drop of a named pair reported "0 live endpoint(s) closed".
+#
+# painlessMesh holds a spanning tree whatever it is handed (wiring all 6 links
+# of a 4-node mesh at once measured 0 live links and no traffic at all), so the
+# planner reduces the declared graph and keeps event-named pairs first. That is
+# what this asserts: the declared type is wired, and a declared drop cuts.
+# Trimmed to the first drop: the validator rejects --duration shorter than the
+# scenario's last event, and the later events add 65s to the gate for nothing.
+sed -e 's/^  duration: 90.*/  duration: 25/' -e '/^  - time: 35$/,$d' \
+  "$SCENARIO_DIR/connection_events_test.yaml" > "$tmp/topology_probe.yaml"
+topo_out=$("$SIM" --config "$tmp/topology_probe.yaml" 2>&1)
+topo_rc=$?
+declared_drop=$(printf '%s\n' "$topo_out" \
+  | sed -n 's/.*Connection dropped:.*(\([0-9]*\) live endpoint(s) closed).*/\1/p' | head -1)
+live_before_drop=$(printf '%s\n' "$topo_out" \
+  | sed -n 's/^\[15s\] [0-9]*\/[0-9]* nodes running, \([0-9]*\) live link(s).*/\1/p' | head -1)
+
+if [ $topo_rc -ne 0 ]; then
+  fail "the trimmed connection_events_test exited $topo_rc"
+elif ! printf '%s\n' "$topo_out" | grep -q 'topology=mesh'; then
+  fail "connection_events_test declares a mesh but did not wire one"
+elif [ -z "${live_before_drop:-}" ] || [ "$live_before_drop" -lt 1 ]; then
+  fail "the wired topology carried ${live_before_drop:-0} live link(s) before the drop"
+elif [ -z "${declared_drop:-}" ] || [ "$declared_drop" -lt 1 ]; then
+  fail "a declared connection_drop closed ${declared_drop:-0} live endpoint(s) -- the named pair was never wired"
+else
+  pass "mesh wired, $live_before_drop live link(s), declared drop closed $declared_drop endpoint(s)"
+fi
+
+echo
 if [ "$failures" -gt 0 ]; then
   echo "integration check FAILED ($failures problem(s))"
   exit 1

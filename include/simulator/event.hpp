@@ -99,8 +99,26 @@ public:
    */
   void setScheduledTime(uint32_t time) { scheduledTime_ = time; }
 
+  /**
+   * @brief Get this event's insertion sequence number
+   *
+   * EventScheduler stamps every event as it is queued and breaks ties on this,
+   * so events sharing a timestamp run in the order the scenario declared them.
+   *
+   * @return Monotonic sequence number assigned at schedule time
+   */
+  uint64_t getSequence() const { return sequence_; }
+
+  /**
+   * @brief Set the insertion sequence number
+   *
+   * @param sequence Monotonic value; larger means queued later
+   */
+  void setSequence(uint64_t sequence) { sequence_ = sequence; }
+
 protected:
   uint32_t scheduledTime_ = 0;  ///< Scheduled execution time in seconds
+  uint64_t sequence_ = 0;       ///< Insertion order, for equal-time tie-breaks
 };
 
 } // namespace simulator
