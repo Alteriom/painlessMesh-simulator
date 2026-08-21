@@ -36,8 +36,9 @@ simulator calls stopped is not necessarily a node that stopped, a topology the
 scenario declares was not the topology it ran on, a link the simulator says it
 restored was not yet carrying traffic when the next event needed it, a probe
 meant to measure the mesh was quietly reshaping it, a run that dropped an event
-still called itself a success, and the same link event meant two different
-things depending on how it was spelled.
+still called itself a success, the same link event meant two different things
+depending on how it was spelled, and a declared-but-empty topology quietly ran
+a random mesh instead.
 
 ## Findings
 
@@ -552,6 +553,29 @@ redundant-link dedup: the refused pair's far node is left *isolated* in its own
 component, so an unguarded restore genuinely would connect it -- the guard is
 what stops it, and removing the guard fails the test.
 
+### 24. An empty declared topology fell back to a random mesh (medium)
+
+Raised by `chatgpt-codex-connector` on the eighth review pass. Correct.
+
+`planTopology()` skips invalid custom links (self-links, unknown nodes) and can
+return an empty plan with a warning. The run's connectivity branch then read
+"empty plan" as "no topology given" and built the historical random tree. So a
+custom topology of only self-links -- `connections: [["n1", "n1"]]`, which
+validation accepted -- ran silently with random links the author never wrote,
+instead of being rejected.
+
+Fixed on both sides. Validation now rejects a self-link (`"Connection links a
+node to itself"`), so the common case fails at load with a clear message rather
+than running anything. And the random-tree fallback is now gated on whether a
+`topology:` block was *declared*, not on whether the plan came out empty: a
+declared topology that plans no links is an error (or, for a single node,
+simply nothing to wire), never a licence to substitute a random mesh. The two
+guards are independent -- validation catches the concrete case early, the
+`declared` gate catches any other way a declared topology could plan empty.
+
+A unit test pins the validation rejection; it fails when the self-link check is
+removed.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -593,10 +617,10 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 129 test cases, 1481 assertions, all passing (was 107/1333 before
+- Unit tests: 129 test cases, 1483 assertions, all passing (was 107/1333 before
   this work; 117/1406 before finding 13; 118/1419 before findings 14-16;
   122/1454 before findings 17-18; 124/1462 before finding 19; 126/1465 before
-  findings 20-21; 127/1472 before findings 22-23).
+  findings 20-21; 127/1472 before findings 22-23; 1481 before finding 24).
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.
@@ -636,6 +660,9 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
   fails. Both reworked from a first cut that passed regardless -- the topology
   assertion was seed-dependent, and the restore pair was reachable through a
   third node, so painlessMesh's own dedup, not the guard, was refusing it.
+- Finding 24: with the self-link validation check removed, the self-link
+  rejection test fails, and `connections: [["n1","n1"]]` runs a random tree
+  again.
 
 CI on PR #59 confirmed the Docker-based jobs: lint, both Docker builds, unit
 tests and the new behavioural integration gate all pass on GitHub runners.

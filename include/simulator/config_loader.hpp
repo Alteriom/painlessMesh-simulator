@@ -126,6 +126,7 @@ struct NodeTemplate {
  * @brief Network topology configuration
  */
 struct TopologyConfig {
+  bool declared = false;                     ///< A topology: block was present
   TopologyType type = TopologyType::RANDOM;  ///< Topology type
   boost::optional<std::string> hub;            ///< Hub node ID (for star topology)
   float density = 0.3f;                      ///< Connection density (for random)

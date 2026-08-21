@@ -234,12 +234,27 @@ int main(int argc, char* argv[]) {
       std::cout << "[WARN] topology: " << warning << std::endl;
     }
     size_t wired = 0;
-    if (plan.links.empty()) {
-      // No topology declared, or too few nodes to link: keep the historical
-      // random tree so a scenario without a topology block behaves as before.
+    if (plan.links.empty() && !config.topology.declared) {
+      // No topology block at all: keep the historical random tree so a scenario
+      // without one behaves as before. A *declared* topology that plans no
+      // links is a different thing -- an error, handled below -- not a licence
+      // to substitute unrelated random links for what the author wrote.
       manager.establishConnectivity();
       std::cout << "[INFO] Mesh connectivity established (random tree)"
                 << std::endl;
+    } else if (plan.links.empty()) {
+      // Declared, but nothing to wire: e.g. a custom topology whose only links
+      // were invalid, or a single-node scenario. Do not paper over it.
+      if (config.nodes.size() < 2) {
+        std::cout << "[INFO] Single node; no connectivity to establish"
+                  << std::endl;
+      } else {
+        std::cerr << "[ERROR] Topology '"
+                  << topologyTypeName(config.topology.type)
+                  << "' was declared but planned no links; refusing to fall "
+                  << "back to a random mesh" << std::endl;
+        return 1;
+      }
     } else {
       wired = manager.establishConnectivity(plan.links);
       std::cout << "[INFO] Mesh connectivity established (topology="

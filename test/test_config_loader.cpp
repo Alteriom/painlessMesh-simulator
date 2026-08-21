@@ -482,6 +482,48 @@ topology:
     }
     REQUIRE(has_hub_error);
   }
+
+  SECTION("custom topology with a self-link is rejected") {
+    // A self-link wires nothing; the planner skips it, and a custom topology of
+    // only self-links would otherwise fall through to the random-tree default
+    // -- running unrelated links under a declaration the author wrote. It must
+    // fail validation instead.
+    std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+  - id: "node-2"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+
+topology:
+  type: "custom"
+  connections:
+    - ["node-1", "node-1"]
+    )";
+
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+
+    REQUIRE(config.has_value());
+    auto errors = loader.getValidationErrors(*config);
+
+    bool has_self_link_error = false;
+    for (const auto& err : errors) {
+      if (err.message.find("itself") != std::string::npos) {
+        has_self_link_error = true;
+        break;
+      }
+    }
+    REQUIRE(has_self_link_error);
+  }
 }
 
 TEST_CASE("ConfigLoader parses events", "[config_loader]") {

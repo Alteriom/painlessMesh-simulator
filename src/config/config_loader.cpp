@@ -111,6 +111,7 @@ boost::optional<ScenarioConfig> ConfigLoader::loadFromString(const std::string& 
     // Parse topology section
     if (hasKey(root, "topology")) {
       config.topology = parseTopology(root["topology"]);
+      config.topology.declared = true;
     }
     
     // Parse events section
@@ -781,6 +782,17 @@ void ConfigLoader::validateTopology(const TopologyConfig& config,
         err.field = "topology.connections";
         err.message = "Connection references non-existent node: " + conn.second;
         err.suggestion = "Ensure all connection nodes exist";
+        errors.push_back(err);
+      }
+      if (conn.first == conn.second) {
+        // A self-link wires nothing. Left to the planner it is silently
+        // skipped, and a custom topology of only self-links would fall through
+        // to the random-tree default -- running unrelated links under a
+        // declaration the author wrote deliberately. Reject it here instead.
+        ValidationError err;
+        err.field = "topology.connections";
+        err.message = "Connection links a node to itself: " + conn.first;
+        err.suggestion = "A connection must join two different nodes";
         errors.push_back(err);
       }
     }
