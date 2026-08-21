@@ -331,7 +331,15 @@ public:
    * @param nodeId Node that has just come back up
    * @return Number of links re-established
    */
-  size_t reconnectNode(uint32_t nodeId);
+  /**
+   * @brief Outcome of a reconnectNode() call
+   */
+  struct ReconnectResult {
+    size_t reconnected = 0;  ///< Links re-established
+    size_t failed = 0;       ///< Eligible links whose handshake did not settle
+  };
+
+  ReconnectResult reconnectNode(uint32_t nodeId);
 
   /**
    * @brief Whether a link is currently marked severed by a scenario event

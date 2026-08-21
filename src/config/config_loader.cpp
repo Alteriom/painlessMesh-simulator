@@ -843,6 +843,33 @@ void ConfigLoader::validateEvent(const EventConfig& config,
     }
   }
 
+  // Reject a link event whose two endpoints are the same node. resolveLink()
+  // would still schedule it, dropLink() would record a phantom self-pair and
+  // close zero endpoints, and the run would exit 0 -- a no-op masquerading as a
+  // link event.
+  if (config.action == EventAction::CONNECTION_DROP ||
+      config.action == EventAction::CONNECTION_RESTORE ||
+      config.action == EventAction::CONNECTION_DEGRADE ||
+      config.action == EventAction::BREAK_LINK ||
+      config.action == EventAction::RESTORE_LINK) {
+    std::string a;
+    std::string b;
+    if (config.targets.size() >= 2) {
+      a = config.targets[0];
+      b = config.targets[1];
+    } else {
+      a = config.from;
+      b = config.to;
+    }
+    if (!a.empty() && a == b) {
+      ValidationError err;
+      err.field = "event";
+      err.message = "Link event connects a node to itself: " + a;
+      err.suggestion = "A link event must name two different nodes";
+      errors.push_back(err);
+    }
+  }
+
   // Validate partition groups partition the WHOLE mesh. partitionNetwork() only
   // cuts pairs that cross group boundaries, so a node left out of every group
   // keeps bridging the two sides -- e.g. A--X--B with groups [[A],[B]] cuts no

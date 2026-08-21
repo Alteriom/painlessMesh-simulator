@@ -565,6 +565,45 @@ events:
   REQUIRE(config->events[1].action == EventAction::START_NODE);
 }
 
+TEST_CASE("ConfigLoader rejects a self-referential link event",
+          "[config_loader]") {
+  // resolveLink() would schedule a connection_drop n1<->n1; dropLink() records a
+  // phantom self-pair and closes zero endpoints. It must fail validation.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_drop
+    from: "node-1"
+    to: "node-1"
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_self = false;
+  for (const auto& e : errors) {
+    if (e.message.find("connects a node to itself") != std::string::npos) {
+      has_self = true;
+    }
+  }
+  REQUIRE(has_self);
+}
+
 TEST_CASE("ConfigLoader validates partition groups cover every node",
           "[config_loader]") {
   // partitionNetwork() only cuts pairs crossing group boundaries, so a node

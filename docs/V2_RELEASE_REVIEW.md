@@ -861,6 +861,35 @@ nodes. A new gate step (1b) builds a cyclic-drop scenario and asserts
 `--validate-only` rejects it. Verified that both a cyclic-links and a star
 leaf-drop scenario now exit non-zero under `--validate-only`.
 
+### 41. A self-referential link event ran as a no-op (medium)
+
+Raised by `chatgpt-codex-connector` on the nineteenth review pass. Correct.
+
+`eventPairs()` silently skips a link event whose endpoints resolve to the same
+node (`from == to`), but `EventFactory::resolveLink()` still schedules it. So a
+`connection_drop` from `n1` to `n1` passed `--validate-only`, recorded a phantom
+self-drop, closed zero endpoints, and exited 0.
+
+Validation now rejects a link event (`connection_drop`/`restore`/`degrade`,
+`break_link`/`restore_link`) whose two endpoints are the same node -- reading
+the pair from `targets` or `from`/`to`, as `resolveLink()` does. A unit test and
+an end-to-end `--validate-only` run confirm the rejection.
+
+### 42. A failed node reconnection was reported as a clean rejoin (medium)
+
+`reconnectNode()` returned a single count, collapsing a genuine settlement
+failure (an eligible peer whose handshake did not settle) into the same zero it
+uses for the legitimate skips -- severed, peer down, already live. So
+`start_node`/`restart_node` reported a clean rejoin and the run exited 0 with the
+node still detached.
+
+`reconnectNode()` now returns `{reconnected, failed}`, counting a `connectNodes()`
+false for an eligible peer as a failure. `NodeStartEvent` and `NodeRestartEvent`
+throw when `failed > 0` -- counted by `processEvents()`, non-zero exit via
+finding 21 -- exactly as `ConnectionRestoreEvent` now does for a failed restore.
+Like findings 20-21 and 39 the failure branch cannot occur on loopback, so it is
+covered by the struct plumbing and a clean-rejoin unit test (`failed == 0`).
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -902,12 +931,12 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 139 test cases, 1573 assertions, all passing. Findings 14-24 and
-  26-39 each added coverage (30 and 40 are gate-script/entry-point; 39's Failed
-  branch is loopback-undefined, so unit-covered on the success path); finding 25
-  is a seed-resolution change in the entry point, verified by running two
-  seedless scenarios and observing different drawn seeds, with the gate
-  scenarios pinned so CI stays deterministic.
+- Unit tests: 141 test cases, 1578 assertions, all passing. Findings 14-24 and
+  26-42 each added coverage (30 and 40 are gate-script/entry-point; the failure
+  branches of 39 and 42 are loopback-undefined, so unit-covered on the success
+  path); finding 25 is a seed-resolution change in the entry point, verified by
+  running two seedless scenarios and observing different drawn seeds, with the
+  gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.
 - Behavioural gate: passes on the fixed build, fails with 7 problems on the
   build that preceded findings 1-8.

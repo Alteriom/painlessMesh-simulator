@@ -503,13 +503,13 @@ TEST_CASE("NodeManager severs and restores links", "[node_manager][topology]") {
 
   SECTION("reconnectNode will not bridge a severed link") {
     manager.dropLink(32001, 32002);
-    REQUIRE(manager.reconnectNode(32001) == 0);
+    REQUIRE(manager.reconnectNode(32001).reconnected == 0);
     REQUIRE(manager.isLinkSevered(32001, 32002));
   }
 
   SECTION("reconnectNode does nothing for a node that is not running") {
     manager.getNode(32001)->stop();
-    REQUIRE(manager.reconnectNode(32001) == 0);
+    REQUIRE(manager.reconnectNode(32001).reconnected == 0);
   }
 }
 
@@ -580,7 +580,7 @@ TEST_CASE("NodeManager reattaches a restarted node", "[node_manager][topology]")
   // stop() closes the node's connections; nothing used to put them back.
   manager.getNode(34001)->stop();
   manager.getNode(34001)->start();
-  REQUIRE(manager.reconnectNode(34001) == 1);
+  REQUIRE(manager.reconnectNode(34001).reconnected == 1);
   REQUIRE_FALSE(manager.isLinkSevered(34001, 34002));
 }
 
@@ -612,6 +612,34 @@ TEST_CASE("connectNodes leaves the link live, not merely requested",
   // completed, this is false and every same-tick caller is broken.
   REQUIRE(manager.getNode(8801)->isConnectedTo(8802));
   REQUIRE(manager.getNode(8802)->isConnectedTo(8801));
+
+  manager.stopAll();
+}
+
+TEST_CASE("reconnectNode reports no failure on a clean rejoin",
+          "[node_manager][topology]") {
+  // The reconnected/failed split lets start_node fail on a genuine settlement
+  // failure while treating severed/down/already-live as clean. A normal rejoin
+  // reports failed == 0.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19913;
+  for (uint32_t id : {8913u, 8914u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8913, 8914));
+
+  manager.getNode(8913)->stop();
+  manager.getNode(8913)->start();
+  const auto rejoin = manager.reconnectNode(8913);
+  REQUIRE(rejoin.reconnected == 1);
+  REQUIRE(rejoin.failed == 0);
 
   manager.stopAll();
 }
@@ -812,7 +840,7 @@ TEST_CASE("a node that starts after a heal rejoins without a second heal",
 
   // The node returns and reconnectNode() re-establishes the released edge.
   manager.getNode(8882)->start();
-  REQUIRE(manager.reconnectNode(8882) == 1);
+  REQUIRE(manager.reconnectNode(8882).reconnected == 1);
   REQUIRE(manager.getNode(8881)->isConnectedTo(8882));
 
   manager.stopAll();

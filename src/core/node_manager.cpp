@@ -338,17 +338,17 @@ size_t NodeManager::healNetwork() {
   return restored;
 }
 
-size_t NodeManager::reconnectNode(uint32_t nodeId) {
+NodeManager::ReconnectResult NodeManager::reconnectNode(uint32_t nodeId) {
+  ReconnectResult result;
   auto node = getNode(nodeId);
   if (!node || !node->isRunning()) {
-    return 0;
+    return result;
   }
   auto peers = topology_.find(nodeId);
   if (peers == topology_.end()) {
-    return 0;
+    return result;
   }
 
-  size_t reconnected = 0;
   // Copy: connectNodes() writes to topology_, which would invalidate the
   // iteration over the very set we are walking.
   const std::set<uint32_t> peer_ids = peers->second;
@@ -362,9 +362,16 @@ size_t NodeManager::reconnectNode(uint32_t nodeId) {
     // view as "already connected" leaves the node permanently detached. If the
     // link really is live, the node's own view says so.
     if (node->isConnectedTo(peer_id)) continue;
-    if (connectNodes(nodeId, peer_id)) ++reconnected;
+    // This peer is eligible and should reconnect. A false here is a genuine
+    // settlement failure, distinct from the severed/down/already-live skips
+    // above -- the caller surfaces it rather than reporting a clean rejoin.
+    if (connectNodes(nodeId, peer_id)) {
+      ++result.reconnected;
+    } else {
+      ++result.failed;
+    }
   }
-  return reconnected;
+  return result;
 }
 
 bool NodeManager::isLinkSevered(uint32_t a, uint32_t b) const {
