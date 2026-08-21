@@ -124,16 +124,21 @@ sed '/^  - time: 26$/,$d' "$part_scenario" > "$tmp/partition_only.yaml"
 
 received_of() { echo "$1" | sed -n 's/^Total messages received: //p'; }
 
-control_out=$("$SIM" --config "$tmp/partition_control.yaml" 2>&1)
-split_out=$("$SIM" --config "$tmp/partition_only.yaml" 2>&1)
-heal_out=$("$SIM" --config "$part_scenario" 2>&1)
+# Capture each exit code: the simulator prints its totals before returning
+# nonzero for a failed scheduled event, so a run that exits 1 could otherwise
+# still supply counts that satisfy the assertions below.
+control_out=$("$SIM" --config "$tmp/partition_control.yaml" 2>&1); control_rc=$?
+split_out=$("$SIM" --config "$tmp/partition_only.yaml" 2>&1); split_rc=$?
+heal_out=$("$SIM" --config "$part_scenario" 2>&1); heal_rc=$?
 
 control_rx=$(received_of "$control_out")
 split_rx=$(received_of "$split_out")
 cut_links=$(echo "$heal_out" | sed -n 's/.*(\([0-9]*\) mesh link(s) cut).*/\1/p' | head -1)
 restored_links=$(echo "$heal_out" | sed -n 's/.*(\([0-9]*\) mesh link(s) restored).*/\1/p' | head -1)
 
-if [ -z "${control_rx:-}" ] || [ "$control_rx" -lt 20 ]; then
+if [ "$control_rc" -ne 0 ] || [ "$split_rc" -ne 0 ] || [ "$heal_rc" -ne 0 ]; then
+  fail "a partition/heal probe exited nonzero (control=$control_rc split=$split_rc heal=$heal_rc)"
+elif [ -z "${control_rx:-}" ] || [ "$control_rx" -lt 20 ]; then
   fail "partition control run received ${control_rx:-0} messages, too few to compare against"
 elif [ -z "${split_rx:-}" ]; then
   fail "partitioned run reported no receive total"

@@ -684,6 +684,21 @@ per pair of events. Unit tests cover a restore deferring to a heal, both for a
 purely partitioned edge and for one that is both dropped and partitioned; the
 overlapping-edge and pending-cut tests from 27/28 still hold.
 
+### 30. The partition gate step ignored the simulator's exit code (medium)
+
+Raised by `chatgpt-codex-connector` on the thirteenth review pass. Correct.
+
+Gate step 5 ran three simulator invocations (control, split, heal) and discarded
+their exit statuses; the script does not use `set -e`. Since finding 21 made the
+simulator print its totals and *then* exit non-zero on a failed scheduled event,
+a partition or heal run that exited 1 could still supply receive and link counts
+that satisfied the step's assertions -- a green gate over a broken run. The other
+steps already capture and reject a non-zero code; step 5 was the one that did
+not.
+
+Step 5 now captures each probe's exit code and fails if any is non-zero, before
+reading their counts. Verified the whole gate still passes on the fixed build.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
