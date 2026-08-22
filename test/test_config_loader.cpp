@@ -566,6 +566,56 @@ events:
   REQUIRE(config->events[1].action == EventAction::START_NODE);
 }
 
+TEST_CASE("ConfigLoader rejects a delayed restart whose start overflows the clock",
+          "[config_loader]") {
+  // Infinite duration (0) skips the duration bound, but scheduleAll() adds time
+  // + delay as uint32; a sum past UINT32_MAX wraps and the start fires before
+  // the stop. Reject the overflow regardless of duration.
+  ScenarioConfig config;
+  config.simulation.duration = 0;  // infinite
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n; n.id = "node-" + std::to_string(id); n.nodeId = id;
+    n.mesh_prefix = "M"; n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::MESH;
+  EventConfig restart;
+  restart.action = EventAction::RESTART_NODE;
+  restart.target = "node-1001";
+  restart.time = 4000000000u;
+  restart.delay = 1000000000u;  // sum > UINT32_MAX
+  config.events.push_back(restart);
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+  bool has = false;
+  for (const auto& e : errors) {
+    if (e.message.find("overflows the 32-bit") != std::string::npos) has = true;
+  }
+  REQUIRE(has);
+}
+
+TEST_CASE("ConfigLoader rejects a NaN random-topology density",
+          "[config_loader]") {
+  ScenarioConfig config;
+  config.simulation.duration = 20;
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n; n.id = "node-" + std::to_string(id); n.nodeId = id;
+    n.mesh_prefix = "M"; n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::RANDOM;
+  config.topology.density = std::numeric_limits<float>::quiet_NaN();
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+  bool has = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Density must be a finite value") != std::string::npos) has = true;
+  }
+  REQUIRE(has);
+}
+
 TEST_CASE("ConfigLoader rejects a delayed restart that finishes after the run",
           "[config_loader]") {
   // A restart_node schedules its start at time + delay. If that lands past the

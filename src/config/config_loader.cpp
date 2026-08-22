@@ -746,10 +746,11 @@ void ConfigLoader::validateTopology(const TopologyConfig& config,
   
   // Validate density for random topology
   if (config.type == TopologyType::RANDOM) {
-    if (config.density < 0.0f || config.density > 1.0f) {
+    if (!std::isfinite(config.density) ||
+        config.density < 0.0f || config.density > 1.0f) {
       ValidationError err;
       err.field = "topology.density";
-      err.message = "Density must be between 0.0 and 1.0";
+      err.message = "Density must be a finite value between 0.0 and 1.0";
       err.suggestion = "Use 0.3 for sparse, 0.7 for dense networks";
       errors.push_back(err);
     }
@@ -830,11 +831,21 @@ void ConfigLoader::validateEvent(const EventConfig& config,
   // fires and the node stays stopped while the run still reports success. The
   // event-time check above only sees the original time, so bound the computed
   // start here -- overflow-safe, since both are uint32.
-  if (config.action == EventAction::RESTART_NODE && config.delay > 0 &&
-      simulation_duration > 0) {
+  if (config.action == EventAction::RESTART_NODE && config.delay > 0) {
     const uint64_t start_at =
         static_cast<uint64_t>(config.time) + config.delay;
-    if (start_at > simulation_duration) {
+    // scheduleAll() computes the start time as uint32, so a sum past UINT32_MAX
+    // wraps to an earlier timestamp -- the start would fire before the stop.
+    // Reject the overflow regardless of whether the run has a finite duration.
+    if (start_at > UINT32_MAX) {
+      ValidationError err;
+      err.field = "event.delay";
+      err.message = "Restart start (time " + std::to_string(config.time) +
+                    " + delay " + std::to_string(config.delay) +
+                    ") overflows the 32-bit event clock";
+      err.suggestion = "Use a smaller time or delay";
+      errors.push_back(err);
+    } else if (simulation_duration > 0 && start_at > simulation_duration) {
       ValidationError err;
       err.field = "event.delay";
       err.message = "Restart start (time " + std::to_string(config.time) +

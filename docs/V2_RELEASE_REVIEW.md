@@ -1262,6 +1262,31 @@ or the generic "action not implemented". A misspelled or unrelated action falls
 to `other` and fails. Verified: all three shipped scenarios skip against their
 named action, and `partial_heal` misspelled as `partial_hel` fails the gate.
 
+### 65. A delayed-restart timestamp could overflow the event clock (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-fifth review pass, against
+finding 45. Correct.
+
+Finding 45 bounded `time + delay` against the duration -- but only for a finite
+duration. For `duration: 0` (infinite) the guard was skipped, while
+`scheduleAll()` computes the start time as `uint32`, so a sum past `UINT32_MAX`
+wrapped to an earlier timestamp and the start fired before the stop.
+
+Validation now rejects `time + delay > UINT32_MAX` (computed in `uint64`)
+regardless of the duration, in addition to the finite-duration bound; and
+`scheduleAll()` saturates the addition as defense. Verified: a `duration: 0`
+restart at `4e9` with delay `1e9` exits `2` under `--validate-only`.
+
+### 66. A NaN random density reached a size_t cast (medium)
+
+Consistent with findings 59 and 66. `topology.density: .nan` passed the
+`< 0 || > 1` range check (both false for NaN), and `planTopology()` -- now that
+it wires the mesh -- cast `NaN` to `size_t` for the edge target, which is
+undefined behaviour.
+
+Validation now requires `std::isfinite(density)` for a `random` topology. A
+`.nan` density exits `2` under `--validate-only`.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1303,8 +1328,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 159 test cases, 1619 assertions, all passing. Findings 14-24 and
-  26-63 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 161 test cases, 1621 assertions, all passing. Findings 14-24 and
+  26-66 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

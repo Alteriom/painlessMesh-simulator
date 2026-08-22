@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "simulator/event_factory.hpp"
 
 #include "simulator/events/connection_degrade_event.hpp"
@@ -158,9 +159,12 @@ size_t EventFactory::scheduleAll(
         const uint32_t node = resolveTarget(config, idToNodeId);
         scheduler.scheduleEvent(
             std::unique_ptr<Event>(new NodeStopEvent(node, true)), config.time);
+        const uint64_t start_at =
+            static_cast<uint64_t>(config.time) + config.delay;
         scheduler.scheduleEvent(
             std::unique_ptr<Event>(new NodeStartEvent(node)),
-            config.time + config.delay);
+            start_at > UINT32_MAX ? UINT32_MAX
+                                  : static_cast<uint32_t>(start_at));
         scheduled += 2;
         continue;
       }
