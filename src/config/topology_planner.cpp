@@ -642,18 +642,6 @@ std::vector<std::string> validateEventTimeline(
     const std::vector<NodeConfigExtended>& nodes) {
   std::vector<std::string> problems;
 
-  // If the timeline contains an action whose lifecycle effect this walker does
-  // not model, its running-state view would be unreliable and could flag a
-  // false positive. Skip rather than guess: an UNKNOWN action already fails
-  // validation on its own, and add/remove change the node set out from under us.
-  for (const auto& e : events) {
-    if (e.action == EventAction::UNKNOWN ||
-        e.action == EventAction::ADD_NODES ||
-        e.action == EventAction::REMOVE_NODE) {
-      return problems;
-    }
-  }
-
   auto key = [](uint32_t a, uint32_t b) {
     return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
   };
@@ -676,6 +664,19 @@ std::vector<std::string> validateEventTimeline(
   std::set<uint32_t> running = allNodes;
   std::set<std::pair<uint32_t, uint32_t>> dropped;      // connection_drop / break_link
   std::set<std::pair<uint32_t, uint32_t>> partitionCut; // active partition, until heal
+
+  // An action whose lifecycle effect this walker does not model (UNKNOWN, or
+  // add/remove, which move the node set) makes the state it could have touched
+  // unreliable. The walker used to give up on the whole timeline the moment one
+  // appeared anywhere in the list, which discarded the deterministic failures
+  // among the supported events too -- including steps that ran *before* it with
+  // fully known state. Instead, mark what such a step could have changed as
+  // unknown and keep walking: a check is suppressed only while the state it
+  // reads is unknown, and a later event naming a node or link outright makes
+  // that piece known again. (issue 63)
+  std::set<uint32_t> unknownNodes;
+  std::set<std::pair<uint32_t, uint32_t>> unknownEdges;
+  bool unknownNodeSet = false;
 
   auto edgeLive = [&](uint32_t a, uint32_t b) {
     const auto k = key(a, b);
@@ -734,15 +735,22 @@ std::vector<std::string> validateEventTimeline(
     switch (e.action) {
       case EventAction::STOP_NODE:
       case EventAction::CRASH_NODE:
-        if (resolveId(nodes, e.target, a)) running.erase(a);
+        if (resolveId(nodes, e.target, a)) {
+          running.erase(a);
+          unknownNodes.erase(a);  // this event settles the node's state
+        }
         break;
       case EventAction::START_NODE:
-        if (resolveId(nodes, e.target, a)) running.insert(a);
+        if (resolveId(nodes, e.target, a)) {
+          running.insert(a);
+          unknownNodes.erase(a);
+        }
         break;
       case EventAction::RESTART_NODE:
         if (resolveId(nodes, e.target, a)) {
           if (step.isDelayedStart) running.insert(a);   // start half
           else running.erase(a);                        // stop half
+          unknownNodes.erase(a);
         }
         break;
       case EventAction::CONNECTION_DROP:
@@ -750,7 +758,10 @@ std::vector<std::string> validateEventTimeline(
         uint32_t x = 0, y = 0;
         const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
         const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
-        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.insert(key(x, y));
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) {
+          dropped.insert(key(x, y));
+          unknownEdges.erase(key(x, y));
+        }
         break;
       }
       case EventAction::CONNECTION_RESTORE:
@@ -758,7 +769,10 @@ std::vector<std::string> validateEventTimeline(
         uint32_t x = 0, y = 0;
         const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
         const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
-        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.erase(key(x, y));
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) {
+          dropped.erase(key(x, y));
+          unknownEdges.erase(key(x, y));
+        }
         break;
       }
       case EventAction::PARTITION_NETWORK: {
@@ -770,10 +784,20 @@ std::vector<std::string> validateEventTimeline(
           for (size_t j = i + 1; j < groups.size(); ++j) {
             for (uint32_t x : groups[i])
               for (uint32_t y : groups[j])
-                if (declared.count(key(x, y))) partitionCut.insert(key(x, y));
+                if (declared.count(key(x, y))) {
+                  partitionCut.insert(key(x, y));
+                  unknownEdges.erase(key(x, y));  // this cut settles the edge
+                }
           }
         }
-        if (topologyWired && componentCount() != groups.size()) {
+        // componentCount() reads the whole graph, so it is only meaningful when
+        // every node's running state, every declared edge and the node set
+        // itself are known. An earlier unmodelled step leaves at least one of
+        // those open, and a component count guessed from it would fail a
+        // scenario that is merely not implemented yet.
+        const bool stateKnown = !unknownNodeSet && unknownNodes.empty() &&
+                                unknownEdges.empty();
+        if (topologyWired && stateKnown && componentCount() != groups.size()) {
           problems.push_back(
               "network_partition " + describe(e) + " requests " +
               std::to_string(groups.size()) +
@@ -787,8 +811,22 @@ std::vector<std::string> validateEventTimeline(
       case EventAction::HEAL_PARTITION:
         partitionCut.clear();
         break;
+      case EventAction::UNKNOWN:
+      case EventAction::ADD_NODES:
+      case EventAction::REMOVE_NODE:
+        // No lifecycle model exists for these. An UNKNOWN action is an
+        // arbitrary string -- it could start, stop or relink anything -- and
+        // add/remove change the node set. Treat every node and declared edge as
+        // unknown from here on rather than guessing, and keep walking so the
+        // remaining supported events are still checked against whatever the
+        // timeline settles afterwards.
+        unknownNodes = allNodes;
+        unknownEdges = declared;
+        unknownNodeSet = true;
+        break;
       case EventAction::INJECT_MESSAGE:
-        if (resolveId(nodes, e.from, a) && !running.count(a)) {
+        if (resolveId(nodes, e.from, a) && !unknownNodes.count(a) &&
+            !running.count(a)) {
           problems.push_back(
               "inject_message " + describe(e) + " sends from node '" + e.from +
               "', which is stopped at that point in the timeline; the runtime "

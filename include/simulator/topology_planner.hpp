@@ -118,6 +118,14 @@ std::string topologyTypeName(TopologyType type);
  * - an `inject_message` whose sender is stopped at that point in the timeline
  *   (matches the runtime "injection refused" throw).
  *
+ * An action the walker has no lifecycle model for -- an unrecognised one, or
+ * `add_nodes` / `remove_node`, which move the node set -- does not abandon the
+ * timeline. It marks the state it could have changed as unknown, and only the
+ * checks reading that state are suspended; steps before it, and any node or
+ * link a later event names outright, are still judged. So a scenario carrying
+ * an unimplemented action still gets its supported events validated, while a
+ * component count that would have to be guessed is never reported.
+ *
  * @param events The scenario's events (declaration order; equal times keep it)
  * @param wiredLinks The links planTopology() will actually wire (its `links`)
  * @param nodes The scenario's nodes, for id resolution and the full node set

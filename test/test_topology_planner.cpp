@@ -629,9 +629,10 @@ TEST_CASE("validateEventTimeline rejects sequences that must fail at runtime",
     REQUIRE(problems.empty());
   }
 
-  SECTION("an unmodelled action skips the check rather than guess") {
-    // start_all_nodes parses as UNKNOWN; the walker cannot track it, so it must
-    // not flag a false positive (the unknown action fails validation on its own).
+  SECTION("an unmodelled action suspends the checks that depend on it") {
+    // start_all_nodes parses as UNKNOWN; it could have restarted n2, so the
+    // component count the partition needs is no longer knowable and must not
+    // be guessed at (the unknown action fails validation on its own).
     EventConfig unknown; unknown.time = 6; unknown.action = EventAction::UNKNOWN;
     unknown.action_raw = "start_all_nodes";
     EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
@@ -639,5 +640,62 @@ TEST_CASE("validateEventTimeline rejects sequences that must fail at runtime",
     const auto problems =
         validateEventTimeline({stopEvent(5, "n2"), unknown, part}, line, nodes);
     REQUIRE(problems.empty());
+  }
+
+  SECTION("a broken step before an unmodelled action is still reported") {
+    // The walker used to scan the whole list up front and return on any
+    // unmodelled action, discarding even the steps that ran before it with
+    // fully known state. Those are deterministic failures and must survive.
+    // (issue 63)
+    EventConfig inj; inj.time = 10; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    EventConfig unknown; unknown.time = 100; unknown.action = EventAction::UNKNOWN;
+    unknown.action_raw = "start_all_nodes";
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n1"), inj, unknown}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("inject_message") != std::string::npos);
+  }
+
+  SECTION("an explicit event after an unmodelled one makes its target known again") {
+    // start_all_nodes leaves every node's running state unknown, but the later
+    // stop_node names n1 outright, so the injection after it is once again a
+    // certain failure.
+    EventConfig unknown; unknown.time = 5; unknown.action = EventAction::UNKNOWN;
+    unknown.action_raw = "start_all_nodes";
+    EventConfig inj; inj.time = 20; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    const auto problems =
+        validateEventTimeline({unknown, stopEvent(10, "n1"), inj}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("inject_message") != std::string::npos);
+  }
+
+  SECTION("an unmodelled action clears a stop the walker had recorded") {
+    // The mirror image: start_all_nodes may have brought n1 back, so the walker
+    // must not claim the later injection fails.
+    EventConfig unknown; unknown.time = 10; unknown.action = EventAction::UNKNOWN;
+    unknown.action_raw = "start_all_nodes";
+    EventConfig inj; inj.time = 20; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n1"), unknown, inj}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("add_nodes suspends the component count but not the injection check") {
+    // add_nodes changes the node set out from under componentCount(), so the
+    // partition -- which a prior stop_node would otherwise break -- is not
+    // judged. An injection from a node an explicit stop_node named afterwards
+    // still is, so exactly one problem comes back rather than none or two.
+    EventConfig add; add.time = 10; add.action = EventAction::ADD_NODES;
+    EventConfig part; part.time = 30; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};  // n2 is down: 3 components, not 2
+    EventConfig inj; inj.time = 40; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    const auto problems = validateEventTimeline(
+        {stopEvent(5, "n2"), add, part, stopEvent(35, "n1"), inj}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("inject_message") != std::string::npos);
   }
 }
