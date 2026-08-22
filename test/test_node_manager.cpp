@@ -1089,6 +1089,71 @@ TEST_CASE("a suspended firmware's loop() does not run during wiring",
   manager.stopAll();
 }
 
+namespace {
+// Firmware that records its connection callbacks and, for each one, whether the
+// firmware was suspended at the moment it fired. Exercises the finding-70 gate:
+// onNewConnection/onChangedConnections must never run over the half-wired mesh
+// while suspended, yet must still be replayed once the topology settles.
+class ConnCallbackFirmware : public simulator::firmware::FirmwareBase {
+public:
+  ConnCallbackFirmware() : FirmwareBase("ConnCallback") {}
+  void setup() override {}
+  void loop() override {}
+  void onReceive(uint32_t, String&) override {}
+  void onNewConnection(uint32_t nodeId) override {
+    ++new_connections;
+    if (isSuspended()) fired_while_suspended = true;
+    peers.push_back(nodeId);
+  }
+  void onChangedConnections() override {
+    ++changed_connections;
+    if (isSuspended()) fired_while_suspended = true;
+  }
+  int new_connections = 0;
+  int changed_connections = 0;
+  bool fired_while_suspended = false;
+  std::vector<uint32_t> peers;
+};
+}  // namespace
+
+TEST_CASE("firmware connection callbacks are deferred during wiring, then replayed",
+          "[node_manager][topology]") {
+  // FirmwareBase::suspend() gates tasks, sends and loop(), but the mesh's
+  // onNewConnection/onChangedConnections callbacks routed through VirtualNode
+  // ran unconditionally -- so firmware mutated topology state over a half-built
+  // mesh before start_time. They are now deferred while suspended and replayed
+  // by resumeFirmware(); the firmware must observe its neighbours exactly once,
+  // and never while suspended.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  if (!firmware::FirmwareFactory::instance().isRegistered("ConnCallback")) {
+    firmware::FirmwareFactory::instance().registerFirmware("ConnCallback",
+      []() { return std::make_unique<ConnCallbackFirmware>(); });
+  }
+  for (uint32_t id : {9401u, 9402u, 9403u}) {
+    NodeConfig c;
+    c.nodeId = id; c.meshPrefix = "TestMesh"; c.meshPassword = "password";
+    c.meshPort = 19401; c.firmware = "ConnCallback";
+    manager.createNode(c);
+  }
+  manager.startAll();
+  manager.establishConnectivity({{9401, 9402}, {9402, 9403}});
+
+  for (uint32_t id : {9401u, 9402u, 9403u}) {
+    auto* fw = dynamic_cast<ConnCallbackFirmware*>(manager.getNode(id)->getFirmware());
+    REQUIRE(fw != nullptr);
+    // The core guarantee: no callback ran while the firmware was suspended.
+    REQUIRE_FALSE(fw->fired_while_suspended);
+  }
+  // The middle node was wired to both peers; the deferred callbacks were not
+  // lost -- they were replayed, so the firmware learned its settled neighbours.
+  auto* mid = dynamic_cast<ConnCallbackFirmware*>(manager.getNode(9402)->getFirmware());
+  REQUIRE(mid != nullptr);
+  REQUIRE(mid->new_connections >= 1);
+  REQUIRE(mid->changed_connections >= 1);
+  manager.stopAll();
+}
+
 TEST_CASE("establishConnectivity does not let firmware send while wiring",
           "[node_manager][topology]") {
   // Wiring settles each link by pumping the shared scheduler, which also runs

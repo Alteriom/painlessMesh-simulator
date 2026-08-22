@@ -142,10 +142,10 @@ void VirtualNode::start() {
   setupFirmware();
 
   // Put the firmware's periodic tasks back to work. They were disabled for the
-  // duration of the downtime; on a first start there is nothing to resume.
-  if (firmware_) {
-    firmware_->resume();
-  }
+  // duration of the downtime; on a first start there is nothing to resume. Go
+  // through resumeFirmware() so any connection callbacks deferred during a
+  // reconnect settle are replayed (finding 70).
+  resumeFirmware();
   
   running_ = true;
   
@@ -338,35 +338,80 @@ void VirtualNode::onReceive(uint32_t from, std::string& msg) {
   metrics_.messages_received++;
   metrics_.bytes_received += msg.size();
   
-  // Route to firmware if loaded
-  if (firmware_ && firmware_initialized_) {
+  // Route to firmware if loaded. A message arriving while the firmware is
+  // suspended for startup wiring is handshake/control traffic before the
+  // timeline begins -- real firmware would not process it pre-boot, and it is
+  // not a timeline inject (those run after connectivity settles), so it is
+  // dropped rather than queued. Metrics above still account for the transport.
+  if (firmware_ && firmware_initialized_ && !firmware_->isSuspended()) {
     String msgStr(msg.c_str());
     firmware_->onReceive(from, msgStr);
   }
-  
+
   // Optional: Log received message for debugging
   // std::cout << "Node " << node_id_ << " received message from " << from 
   //           << " (" << msg.size() << " bytes)" << std::endl;
 }
 
 void VirtualNode::onNewConnection(uint32_t nodeId) {
-  // Route to firmware if loaded
+  // Route to firmware if loaded. While suspended for startup wiring, defer the
+  // edge-triggered notification instead of running it over the half-built mesh;
+  // resumeFirmware() replays it once the topology has settled (finding 70).
   if (firmware_ && firmware_initialized_) {
-    firmware_->onNewConnection(nodeId);
+    if (firmware_->isSuspended()) {
+      pending_new_connections_.push_back(nodeId);
+    } else {
+      firmware_->onNewConnection(nodeId);
+    }
   }
-  
+
   // Optional: Log new connection
   // std::cout << "Node " << node_id_ << " connected to " << nodeId << std::endl;
 }
 
 void VirtualNode::onChangedConnections() {
-  // Route to firmware if loaded
+  // Route to firmware if loaded. See onNewConnection(): a topology change seen
+  // while suspended is collapsed into a single replay on resume (finding 70).
   if (firmware_ && firmware_initialized_) {
-    firmware_->onChangedConnections();
+    if (firmware_->isSuspended()) {
+      pending_changed_connections_ = true;
+    } else {
+      firmware_->onChangedConnections();
+    }
   }
-  
+
   // Optional: Log topology change
   // std::cout << "Node " << node_id_ << " topology changed" << std::endl;
+}
+
+void VirtualNode::resumeFirmware() {
+  if (!firmware_) {
+    return;
+  }
+  firmware_->resume();
+
+  // If the firmware was never initialized there is nothing to replay; drop any
+  // stale queue defensively so a later boot starts clean.
+  if (!firmware_initialized_) {
+    pending_new_connections_.clear();
+    pending_changed_connections_ = false;
+    return;
+  }
+
+  // Replay the topology the firmware missed while suspended, in order: each new
+  // neighbour, then a single onChangedConnections() summarising the settle. A
+  // new connection always implies a topology change, so replay that too even if
+  // onChangedConnections() itself never fired while suspended.
+  const bool replay_changed =
+      pending_changed_connections_ || !pending_new_connections_.empty();
+  for (uint32_t peer : pending_new_connections_) {
+    firmware_->onNewConnection(peer);
+  }
+  pending_new_connections_.clear();
+  pending_changed_connections_ = false;
+  if (replay_changed) {
+    firmware_->onChangedConnections();
+  }
 }
 
 uint64_t VirtualNode::getUptime() const {

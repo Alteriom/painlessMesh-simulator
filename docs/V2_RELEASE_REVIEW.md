@@ -1332,6 +1332,28 @@ still ran several times over a partially-wired mesh during startup.
 from findings 13 and 67 is complete. A unit test with a firmware that counts its
 `loop()` calls asserts zero during wiring; removing the gate makes it non-zero.
 
+### 70. Suspension did not gate the firmware connection callbacks (medium)
+
+Raised against finding 69. The `loop()` gate closed one path, but the mesh's
+`onNewConnection`/`onChangedConnections` callbacks routed through `VirtualNode`
+still fired unconditionally. Every `settleLink()` pumps the loopback handshake,
+which drives those callbacks -- so firmware such as `LibraryValidationFirmware`
+mutated connection/topology state (and arbitrary custom callbacks did arbitrary
+work) over a half-wired mesh before `start_time`.
+
+These callbacks are edge-triggered, so gating alone would have dropped the
+firmware's view of the topology it booted into. They are now *deferred* while
+suspended and *replayed* once wiring settles: `onNewConnection` is queued per
+peer and `onChangedConnections` collapsed to a single flag, replayed by the new
+`VirtualNode::resumeFirmware()` -- through which both the node's own `start()`
+and `NodeManager`'s startup-wiring resume now go. `onReceive` is gated but not
+queued: a message arriving mid-wiring is pre-boot handshake traffic, never a
+timeline inject (those run after connectivity settles), so replaying it would be
+wrong. A unit test records, for every callback, whether the firmware was
+suspended when it fired, and asserts it never was while still confirming the
+neighbours were replayed; removing the gate makes a callback fire while
+suspended and the test fails.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1373,8 +1395,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 163 test cases, 1636 assertions, all passing. Findings 14-24 and
-  26-69 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 164 test cases, 1645 assertions, all passing. Findings 14-24 and
+  26-70 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

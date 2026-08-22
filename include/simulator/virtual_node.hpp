@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cstdint>
+#include <vector>
 #include <chrono>
 #include <string>
 #include <map>
@@ -323,6 +324,21 @@ public:
    */
   firmware::FirmwareBase* getFirmware() const;
 
+  /**
+   * @brief Resume the firmware and replay any connection callbacks that were
+   *        deferred while it was suspended.
+   *
+   * onNewConnection/onChangedConnections are edge-triggered. While the firmware
+   * is suspended for startup wiring (findings 67/69/70) they must not run over
+   * the half-built mesh -- but they also must not be lost, or the firmware
+   * would never learn the topology it booted into. They are queued during
+   * suspension and replayed here, so the firmware observes its settled
+   * neighbours exactly as it would after a real boot. Use this instead of
+   * calling FirmwareBase::resume() directly whenever a mesh may have been wired
+   * while suspended.
+   */
+  void resumeFirmware();
+
 private:
   uint32_t node_id_;                   ///< Unique node identifier
   std::unique_ptr<MeshTest> mesh_;     ///< Mesh instance wrapper
@@ -338,6 +354,11 @@ private:
   // Firmware support
   std::unique_ptr<firmware::FirmwareBase> firmware_;  ///< Loaded firmware instance
   bool firmware_initialized_{false};   ///< Firmware initialization state
+
+  // Connection callbacks deferred while the firmware is suspended for startup
+  // wiring, replayed by resumeFirmware(). See resumeFirmware() and finding 70.
+  std::vector<uint32_t> pending_new_connections_;  ///< Peers seen while suspended
+  bool pending_changed_connections_{false};        ///< A topology change was suppressed
   
   /**
    * @brief Initializes and sets up firmware

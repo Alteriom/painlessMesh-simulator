@@ -136,10 +136,14 @@ namespace {
 // directly and is deliberately not affected.
 void setFirmwareSuspended(NodeManager& mgr, bool suspend) {
   for (const auto& node : mgr.getAllNodes()) {
-    auto* fw = node->getFirmware();
-    if (!fw) continue;
-    if (suspend) fw->suspend();
-    else fw->resume();
+    if (!node->getFirmware()) continue;
+    if (suspend) {
+      node->getFirmware()->suspend();
+    } else {
+      // Resume through the node so the connection callbacks deferred while the
+      // mesh was being wired are replayed against the settled topology.
+      node->resumeFirmware();
+    }
   }
 }
 }  // namespace
