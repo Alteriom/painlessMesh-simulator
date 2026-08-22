@@ -331,6 +331,31 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner measures induced, not global, group connectivity",
+          "[topology][events]") {
+  // Groups [[n0,n1,n3],[n2]] and [[n1,n2,n3],[n0]]. If group connectivity is
+  // read from the global union-find, the second group looks connected via the
+  // external node n0 and the solver stops early, so the final induced check
+  // rejects it. The tree n0-n1, n1-n2, n1-n3 satisfies both; the planner must
+  // find it.
+  const auto nodes = makeNodes(4);  // n1..n4 -> treat as n0..n3
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig p1;
+  p1.action = EventAction::PARTITION_NETWORK;
+  p1.groups = {{"n1", "n2", "n4"}, {"n3"}};
+
+  EventConfig p2;
+  p2.action = EventAction::PARTITION_NETWORK;
+  p2.groups = {{"n2", "n3", "n4"}, {"n1"}};
+
+  const auto plan = planTopology(topology, nodes, {p1, p2}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+  REQUIRE(isConnected(plan.links, nodes.size()));
+}
+
 TEST_CASE("Topology planner solves overlapping groups jointly, not greedily",
           "[topology][events]") {
   // Harder overlap: [[z,x,y],[w]] then [[x,y],[z,w]] on a 4-node mesh. A greedy

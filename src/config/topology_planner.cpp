@@ -131,13 +131,38 @@ std::vector<uint32_t> resolveGroup(const std::vector<std::string>& group,
   return ids;
 }
 
-/// True iff every node in @p group is in the same component of @p parent.
-bool groupConnected(std::map<uint32_t, uint32_t>& parent,
-                    const std::vector<uint32_t>& group) {
+/// True iff @p group is connected using ONLY the picked edges internal to it.
+/// A partition cuts every cross-group link, so a group's connectivity must be
+/// measured on its induced subgraph -- a path through an external node does not
+/// count, and mistaking it for connectivity (the global union-find does) stops
+/// the solver adding the internal edges the group actually needs.
+bool groupInduceConnected(const std::vector<PlannedLink>& picked,
+                          const std::vector<uint32_t>& group) {
   if (group.size() < 2) return true;
-  const uint32_t root = findRoot(parent, group.front());
+  std::map<uint32_t, uint32_t> gp;
+  for (uint32_t id : group) gp[id] = id;
+  for (const auto& link : picked) {
+    const bool a_in = std::find(group.begin(), group.end(), link.first) != group.end();
+    const bool b_in = std::find(group.begin(), group.end(), link.second) != group.end();
+    if (a_in && b_in) gp[findRoot(gp, link.first)] = findRoot(gp, link.second);
+  }
+  const uint32_t root = findRoot(gp, group.front());
   return std::all_of(group.begin(), group.end(),
-                     [&](uint32_t id) { return findRoot(parent, id) == root; });
+                     [&](uint32_t id) { return findRoot(gp, id) == root; });
+}
+
+/// Root of @p id restricted to a group's induced picked edges. Used to pick an
+/// edge that bridges two INDUCED components of the group.
+uint32_t inducedRoot(const std::vector<PlannedLink>& picked,
+                     const std::vector<uint32_t>& group, uint32_t id) {
+  std::map<uint32_t, uint32_t> gp;
+  for (uint32_t g : group) gp[g] = g;
+  for (const auto& link : picked) {
+    const bool a_in = std::find(group.begin(), group.end(), link.first) != group.end();
+    const bool b_in = std::find(group.begin(), group.end(), link.second) != group.end();
+    if (a_in && b_in) gp[findRoot(gp, link.first)] = findRoot(gp, link.second);
+  }
+  return findRoot(gp, id);
 }
 
 /// Choose intra-group edges that keep every partition group internally
@@ -202,10 +227,16 @@ std::vector<size_t> solveGroupConnectivity(
     while (progress) {
       progress = false;
       for (size_t g : order) {
-        if (groupConnected(parent, groups[g])) continue;
-        // Add one intra-group edge bridging two components.
+        if (groupInduceConnected(picked, groups[g])) continue;
+        // Add one intra-group edge that bridges two INDUCED components of the
+        // group and does not close a global cycle (the final tree is acyclic).
         for (const auto& link : intra[g]) {
-          if (findRoot(parent, link.first) != findRoot(parent, link.second)) {
+          const bool bridges_group =
+              inducedRoot(picked, groups[g], link.first) !=
+              inducedRoot(picked, groups[g], link.second);
+          const bool no_global_cycle =
+              findRoot(parent, link.first) != findRoot(parent, link.second);
+          if (bridges_group && no_global_cycle) {
             parent[findRoot(parent, link.first)] = findRoot(parent, link.second);
             picked.push_back(link);
             progress = true;
@@ -216,7 +247,7 @@ std::vector<size_t> solveGroupConnectivity(
     }
     std::vector<size_t> unsolved;
     for (size_t g = 0; g < groups.size(); ++g) {
-      if (!groupConnected(parent, groups[g])) unsolved.push_back(g);
+      if (!groupInduceConnected(picked, groups[g])) unsolved.push_back(g);
     }
     if (unsolved.empty()) {
       chosen = picked;

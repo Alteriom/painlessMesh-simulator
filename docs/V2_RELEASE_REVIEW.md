@@ -1149,6 +1149,34 @@ event saturates rather than wraps, so the arithmetic is sound even if the event
 is constructed directly. A unit test and a `--validate-only` run confirm the
 rejection.
 
+### 58. Group connectivity was measured globally, not induced (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-first review pass, against
+finding 55's solver. Correct.
+
+`solveGroupConnectivity()` checked group connectivity on the *global* union-find,
+so a path through a node *outside* the group made the group look connected and
+stopped it receiving the internal edges it needed. On `[[n0,n1,n3],[n2]]` and
+`[[n1,n2,n3],[n0]]` the solver could pick `n0-n1, n1-n2, n0-n3` and regard the
+second group connected via the external `n0`; the final induced check then
+rejected it, though `n0-n1, n1-n2, n1-n3` satisfies both.
+
+The solver now measures *induced* connectivity -- a group is connected only via
+picked edges internal to it -- and adds an edge only when it bridges two induced
+components of the group (and closes no global cycle), matching the authoritative
+final check. The reviewer's example now validates; with the global check it fails
+`--validate-only`.
+
+### 59. A NaN packet loss passed validation (medium)
+
+`connection_degrade`'s `packet_loss` range check (finding 44) used `< 0 || > 1`,
+both false for a NaN, so YAML `.nan` passed validation while
+`PacketLossConfig::isValid()` rejected it and `setPacketLoss()` threw at runtime.
+
+Validation now requires `std::isfinite` as well as the range, for `packet_loss`
+and for `set_network_quality`'s `quality`. A `.nan` degrade exits `2` under
+`--validate-only`.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1190,8 +1218,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 154 test cases, 1607 assertions, all passing. Findings 14-24 and
-  26-57 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 156 test cases, 1610 assertions, all passing. Findings 14-24 and
+  26-59 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

@@ -10,6 +10,7 @@
 
 #include "simulator/config_loader.hpp"
 #include <fstream>
+#include <limits>
 #include <sstream>
 
 using namespace simulator;
@@ -606,6 +607,43 @@ events:
   REQUIRE(has_overrun);
 }
 
+TEST_CASE("ConfigLoader rejects a non-finite connection_degrade packet loss",
+          "[config_loader]") {
+  // A NaN packet_loss passes both range comparisons (they are false for NaN) but
+  // PacketLossConfig rejects it at runtime. Built in code because yaml-cpp's
+  // string loader does not convert `.nan` uniformly; the fix is in the
+  // validation logic, which this exercises directly.
+  ScenarioConfig config;
+  config.simulation.name = "Test";
+  config.simulation.duration = 60;
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n;
+    n.id = "node-" + std::to_string(id);
+    n.nodeId = id;
+    n.mesh_prefix = "M";
+    n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::MESH;
+  EventConfig degrade;
+  degrade.time = 10;
+  degrade.action = EventAction::CONNECTION_DEGRADE;
+  degrade.from = "node-1001";
+  degrade.to = "node-1002";
+  degrade.latency = 100;
+  degrade.packet_loss = std::numeric_limits<float>::quiet_NaN();
+  config.events.push_back(degrade);
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+
+  bool has_loss = false;
+  for (const auto& e : errors) {
+    if (e.message.find("finite value") != std::string::npos) has_loss = true;
+  }
+  REQUIRE(has_loss);
+}
+
 TEST_CASE("ConfigLoader rejects a connection_degrade latency that overflows when doubled",
           "[config_loader]") {
   // ConnectionDegradeEvent sets max = latency * 2; a value above UINT32_MAX/2
@@ -679,7 +717,7 @@ events:
 
   bool has_loss = false;
   for (const auto& e : errors) {
-    if (e.message.find("Packet loss must be between") != std::string::npos) {
+    if (e.message.find("Packet loss must be a finite value") != std::string::npos) {
       has_loss = true;
     }
   }

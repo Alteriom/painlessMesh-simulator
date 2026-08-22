@@ -8,6 +8,7 @@
 
 // IMPORTANT: Include platform_compat.hpp FIRST on Windows
 #include <cstdint>
+#include <cmath>
 #include "simulator/platform_compat.hpp"
 
 #include "simulator/config_loader.hpp"
@@ -866,7 +867,8 @@ void ConfigLoader::validateEvent(const EventConfig& config,
   
   // Validate network quality
   if (config.action == EventAction::SET_NETWORK_QUALITY) {
-    if (config.quality < 0.0f || config.quality > 1.0f) {
+    if (!std::isfinite(config.quality) ||
+        config.quality < 0.0f || config.quality > 1.0f) {
       ValidationError err;
       err.field = "event.quality";
       err.message = "Network quality must be between 0.0 and 1.0";
@@ -880,10 +882,11 @@ void ConfigLoader::validateEvent(const EventConfig& config,
   // clear validation error; left to runtime it fails the timeline only once the
   // event fires, mid-run. (latency is a uint and needs no bound.)
   if (config.action == EventAction::CONNECTION_DEGRADE) {
-    if (config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
+    if (!std::isfinite(config.packet_loss) ||
+        config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
       ValidationError err;
       err.field = "event.packet_loss";
-      err.message = "Packet loss must be between 0.0 and 1.0";
+      err.message = "Packet loss must be a finite value between 0.0 and 1.0";
       err.suggestion = "Use 0.0 for no loss, 1.0 to drop everything";
       errors.push_back(err);
     }
