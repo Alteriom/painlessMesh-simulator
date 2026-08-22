@@ -188,7 +188,8 @@ uint32_t inducedRoot(const std::vector<PlannedLink>& picked,
 /// @return groups (as index lists into @p groups) that could not be connected
 std::vector<size_t> solveGroupConnectivity(
     const std::vector<std::vector<uint32_t>>& groups,
-    const std::vector<PlannedLink>& declared, uint32_t seed,
+    const std::vector<PlannedLink>& declared,
+    const std::vector<PlannedLink>& hardPreferred,
     std::vector<PlannedLink>& chosen) {
   // Intra-group declared edges, per group.
   std::vector<std::vector<PlannedLink>> intra(groups.size());
@@ -214,7 +215,27 @@ std::vector<size_t> solveGroupConnectivity(
   // partial, which the final feasibility check treats as infeasible (safe).
   size_t steps = 0;
   const size_t kStepBudget = 200000;
+
+  // Seed the search with the hard-preferred (event link) edges. spanningSubset()
+  // keeps those ahead of the group edges, so the solver must build ON TOP of
+  // them or its group edges can be displaced by a link it did not account for.
+  // Only edges that are declared candidates and do not close a cycle among
+  // themselves are seeded.
   std::vector<PlannedLink> picked;
+  {
+    std::map<uint32_t, uint32_t> parent;
+    for (const auto& l : declared) { parent[l.first] = l.first; parent[l.second] = l.second; }
+    for (const auto& want : hardPreferred) {
+      const bool is_declared = std::any_of(declared.begin(), declared.end(),
+          [&](const PlannedLink& l) { return samePair(l, want); });
+      if (!is_declared) continue;
+      if (parent.find(want.first) == parent.end() ||
+          parent.find(want.second) == parent.end()) continue;
+      if (findRoot(parent, want.first) == findRoot(parent, want.second)) continue;
+      parent[findRoot(parent, want.first)] = findRoot(parent, want.second);
+      picked.push_back(want);
+    }
+  }
 
   std::function<bool()> search = [&]() -> bool {
     if (++steps > kStepBudget) return false;
@@ -541,8 +562,7 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   // The returned unsolved-group list is advisory; the authoritative
   // feasibility check runs on the final plan.links below, so a group the solver
   // could not connect is caught there regardless.
-  (void)solveGroupConnectivity(groups, candidates,
-                               seed != 0 ? seed : kDefaultSeed, groupEdges);
+  (void)solveGroupConnectivity(groups, candidates, preferred, groupEdges);
 
   plan.links = spanningSubset(candidates, preferred, groupEdges, plan.warnings,
                               plan.unwireable_preferred);

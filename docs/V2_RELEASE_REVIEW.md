@@ -1225,6 +1225,24 @@ reconnects on start, finding 31). Like the sibling findings the failure branch
 cannot occur on loopback, so it is covered by the struct plumbing and a
 clean-heal unit test (`failed == 0`).
 
+### 63. Partition solving ignored hard-preferred links (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-third review pass, against
+finding 60. Correct.
+
+The backtracking solver received only the groups and candidate edges, while
+`spanningSubset()` then inserts the hard-preferred event links *ahead* of the
+solver's group edges. A link event on `n2-n3` with partitions `[[n0],[n1,n2,n3]]`
+and `[[n0,n1,n3],[n2]]`: the solver picks `n1-n2, n1-n3, n0-n1`, the link keeps
+`n2-n3` and displaces `n1-n3`, and the final check rejects the second partition
+-- though `n2-n3, n1-n3, n0-n1` satisfies the link and both partitions.
+
+`solveGroupConnectivity()` now **seeds** its search with the hard-preferred
+forest (the declared, non-cyclic event-link edges), so it builds its group edges
+on top of the links `spanningSubset()` will keep. The reviewer's example now
+validates; passing an empty hard-preferred set to the solver reproduces the
+rejection, and the plan keeps the link-event pair. A unit test covers it.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1266,8 +1284,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 158 test cases, 1615 assertions, all passing. Findings 14-24 and
-  26-62 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 159 test cases, 1619 assertions, all passing. Findings 14-24 and
+  26-63 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

@@ -331,6 +331,37 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner seeds partition solving with hard-preferred links",
+          "[topology][events]") {
+  // A link event on n2-n3 is force-kept by spanningSubset ahead of the group
+  // edges. If the solver ignores it, it picks n1-n3 which the link then
+  // displaces, wrongly failing the [[n0,n1,n3],[n2]] partition. Seeding the
+  // search with n2-n3 makes it build the compatible tree n2-n3, n1-n3, n0-n1.
+  const auto nodes = makeNodes(4);  // n1..n4 -> n0..n3
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig drop;  // hard-preferred link on n3-n4 (i.e. n2-n3)
+  drop.action = EventAction::CONNECTION_DROP;
+  drop.from = "n3";
+  drop.to = "n4";
+
+  EventConfig p1;
+  p1.action = EventAction::PARTITION_NETWORK;
+  p1.groups = {{"n1"}, {"n2", "n3", "n4"}};
+
+  EventConfig p2;
+  p2.action = EventAction::PARTITION_NETWORK;
+  p2.groups = {{"n1", "n2", "n4"}, {"n3"}};
+
+  const auto plan = planTopology(topology, nodes, {drop, p1, p2}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+  REQUIRE(plan.unwireable_preferred.empty());
+  REQUIRE(hasLink(plan.links, 1003, 1004));  // the link-event pair survives
+  REQUIRE(isConnected(plan.links, nodes.size()));
+}
+
 TEST_CASE("Topology planner backtracks over intra-group edge choices",
           "[topology][events]") {
   // [[n0,n2,n3],[n1]] and [[n1,n2,n3],[n0]] fail any greedy edge pick (0-2,1-2
