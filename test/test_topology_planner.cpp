@@ -331,6 +331,30 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner solves overlapping groups jointly, not greedily",
+          "[topology][events]") {
+  // Harder overlap: [[z,x,y],[w]] then [[x,y],[z,w]] on a 4-node mesh. A greedy
+  // clique keeps z-x, z-y and rejects x-y as cyclic, wrongly flagging [x,y]
+  // infeasible; the tree z-x, x-y, z-w satisfies both. The joint solver must
+  // find it.
+  const auto nodes = makeNodes(4);  // n1=z, n2=x, n3=y, n4=w
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig p1;
+  p1.action = EventAction::PARTITION_NETWORK;
+  p1.groups = {{"n1", "n2", "n3"}, {"n4"}};
+
+  EventConfig p2;
+  p2.action = EventAction::PARTITION_NETWORK;
+  p2.groups = {{"n2", "n3"}, {"n1", "n4"}};
+
+  const auto plan = planTopology(topology, nodes, {p1, p2}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+  REQUIRE(isConnected(plan.links, nodes.size()));
+}
+
 TEST_CASE("Topology planner keeps overlapping partition groups connected",
           "[topology][events]") {
   // Reviewer's case: a 4-node mesh with two partition events whose groups

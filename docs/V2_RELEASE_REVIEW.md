@@ -1098,6 +1098,30 @@ declared topology genuinely has no intra-group edges to keep (a `star` group
 excluding the hub). A unit test asserts the reviewer's overlapping-groups case
 plans a connected tree with no infeasibility.
 
+### 55. Overlapping partition groups needed joint solving, not a flat clique (medium)
+
+Raised by `chatgpt-codex-connector` on the twenty-ninth review pass, against
+finding 54. Correct -- offering the clique was still consumed by the same greedy
+union-find. Groups `[[z,x,y],[w]]` then `[[x,y],[z,w]]` gave `z-x, z-y, x-y,
+z-w`; the reduction kept `z-x, z-y`, dropped `x-y` as cyclic, and reported
+`[x,y]` infeasible -- though `z-x, x-y, z-w` satisfies both events.
+
+Group connectivity is now solved as a constraint set, not by flattening edges
+into the reduction. `solveGroupConnectivity()` processes groups
+most-constrained-first (smallest) and adds one bridging intra-group edge per
+group per round, round-robin, so no group monopolises the shared forest; it
+tries several seeded group orderings and takes the first that connects every
+group. Its chosen edges become the soft preferences the spanning tree keeps.
+This is the connected-subtree-constraints problem (NP-hard for arbitrary
+subsets), so it is a strong multi-restart heuristic rather than a complete
+solver, and the authoritative per-group feasibility check still runs on the
+final plan -- a group the heuristic cannot connect is flagged, never silently
+mis-wired.
+
+The reviewer's example now validates: with the flat clique it fails
+`--validate-only` (*"partition group [x, y] is not internally connected"*); with
+the solver it succeeds. A unit test covers the overlapping case.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1139,8 +1163,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 152 test cases, 1603 assertions, all passing. Findings 14-24 and
-  26-54 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 153 test cases, 1605 assertions, all passing. Findings 14-24 and
+  26-55 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

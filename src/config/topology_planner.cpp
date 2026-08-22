@@ -118,51 +118,120 @@ uint32_t findRoot(std::map<uint32_t, uint32_t>& parent, uint32_t x) {
   return x;
 }
 
-/// Edges that keep each partition group internally connected. A network_partition
-/// cuts only cross-group links, so if the spanning tree does not already connect
-/// a group internally, partitioning it fragments that group into extra
-/// components -- e.g. a 4-node mesh reduced to a star around n1, partitioned
-/// [[n1,n2],[n3,n4]], leaves n3 and n4 with no edge between them and yields
-/// three components, not two. Emitting a spanning path within each group as a
-/// preference makes the reduction keep those edges, so the partition produces
-/// exactly the requested components.
-std::vector<PlannedLink> partitionGroupEdges(
-    const std::vector<EventConfig>& events,
-    const std::vector<NodeConfigExtended>& nodes) {
-  std::vector<PlannedLink> edges;
-  for (const auto& event : events) {
-    if (event.action != EventAction::PARTITION_NETWORK) {
-      continue;
+/// Resolve a partition group's string ids to node ids present in the scenario.
+std::vector<uint32_t> resolveGroup(const std::vector<std::string>& group,
+                                   const std::vector<NodeConfigExtended>& nodes) {
+  std::vector<uint32_t> ids;
+  for (const auto& id : group) {
+    uint32_t resolved = 0;
+    if (resolveId(nodes, id, resolved)) {  // unknown ids flagged in validation
+      ids.push_back(resolved);
     }
-    for (const auto& group : event.groups) {
-      // Resolve the group to node ids present in the scenario.
-      std::vector<uint32_t> ids;
-      for (const auto& id : group) {
-        uint32_t resolved = 0;
-        if (resolveId(nodes, id, resolved)) {  // unknown ids flagged in validation
-          ids.push_back(resolved);
-        }
-      }
-      // Emit EVERY intra-group pair, not just a single path. A fixed path chosen
-      // per group in event order is greedy: with overlapping partition events it
-      // can drop an edge as cyclic and reject a topology that does have a valid
-      // spanning tree keeping all groups connected. Offering the whole
-      // intra-group clique lets spanningSubset()'s union-find pick a consistent
-      // set -- for any group not yet connected, some intra-group pair bridges
-      // two of its components and is kept.
-      for (size_t i = 0; i < ids.size(); ++i) {
-        for (size_t j = i + 1; j < ids.size(); ++j) {
-          if (ids[i] != ids[j]) {
-            edges.emplace_back(ids[i], ids[j]);
+  }
+  return ids;
+}
+
+/// True iff every node in @p group is in the same component of @p parent.
+bool groupConnected(std::map<uint32_t, uint32_t>& parent,
+                    const std::vector<uint32_t>& group) {
+  if (group.size() < 2) return true;
+  const uint32_t root = findRoot(parent, group.front());
+  return std::all_of(group.begin(), group.end(),
+                     [&](uint32_t id) { return findRoot(parent, id) == root; });
+}
+
+/// Choose intra-group edges that keep every partition group internally
+/// connected, as a consistent forest -- the hard part of finding a spanning
+/// tree in which each group is a subtree.
+///
+/// A greedy union-find that consumes one group's edges before the next
+/// over-commits: connecting {z,x,y} as a star at z makes x-y cyclic, so a later
+/// group {x,y} looks infeasible even though the tree z-x, x-y keeps both. So
+/// this does NOT flatten cliques. It processes groups most-constrained first
+/// (smallest), and adds ONE bridging intra-group edge per group per round,
+/// round-robin, so no single group monopolises the shared forest. Several group
+/// orderings are tried (deterministic, seeded) and the first that connects every
+/// group wins. Groups still unconnected after every attempt are returned as
+/// infeasible -- the topology genuinely has no intra-group edges to keep (a star
+/// group excluding the hub).
+///
+/// @param groups Resolved partition groups
+/// @param declared The declared candidate edges
+/// @param seed Reproducibility seed for the shuffle retries
+/// @param chosen [out] the intra-group edges to keep
+/// @return groups (as index lists into @p groups) that could not be connected
+std::vector<size_t> solveGroupConnectivity(
+    const std::vector<std::vector<uint32_t>>& groups,
+    const std::vector<PlannedLink>& declared, uint32_t seed,
+    std::vector<PlannedLink>& chosen) {
+  // Intra-group declared edges, per group.
+  std::vector<std::vector<PlannedLink>> intra(groups.size());
+  for (size_t g = 0; g < groups.size(); ++g) {
+    const auto& members = groups[g];
+    for (const auto& link : declared) {
+      const bool a_in = std::find(members.begin(), members.end(), link.first) != members.end();
+      const bool b_in = std::find(members.begin(), members.end(), link.second) != members.end();
+      if (a_in && b_in) intra[g].push_back(link);
+    }
+  }
+
+  // Candidate orderings: smallest-group-first, then a few seeded shuffles.
+  std::vector<std::vector<size_t>> orderings;
+  std::vector<size_t> bySize(groups.size());
+  for (size_t i = 0; i < groups.size(); ++i) bySize[i] = i;
+  std::stable_sort(bySize.begin(), bySize.end(),
+                   [&](size_t a, size_t b) { return groups[a].size() < groups[b].size(); });
+  orderings.push_back(bySize);
+  std::mt19937 rng(seed != 0 ? seed : kDefaultSeed);
+  for (int t = 0; t < 8; ++t) {
+    auto o = bySize;
+    std::shuffle(o.begin(), o.end(), rng);
+    orderings.push_back(o);
+  }
+
+  std::vector<size_t> bestUnsolved;
+  bool first = true;
+  for (const auto& order : orderings) {
+    std::map<uint32_t, uint32_t> parent;
+    for (const auto& link : declared) {
+      parent[link.first] = link.first;
+      parent[link.second] = link.second;
+    }
+    std::vector<PlannedLink> picked;
+    bool progress = true;
+    while (progress) {
+      progress = false;
+      for (size_t g : order) {
+        if (groupConnected(parent, groups[g])) continue;
+        // Add one intra-group edge bridging two components.
+        for (const auto& link : intra[g]) {
+          if (findRoot(parent, link.first) != findRoot(parent, link.second)) {
+            parent[findRoot(parent, link.first)] = findRoot(parent, link.second);
+            picked.push_back(link);
+            progress = true;
+            break;
           }
         }
       }
     }
+    std::vector<size_t> unsolved;
+    for (size_t g = 0; g < groups.size(); ++g) {
+      if (!groupConnected(parent, groups[g])) unsolved.push_back(g);
+    }
+    if (unsolved.empty()) {
+      chosen = picked;
+      return {};
+    }
+    if (first || unsolved.size() < bestUnsolved.size()) {
+      bestUnsolved = unsolved;
+      chosen = picked;
+      first = false;
+    }
   }
-  return edges;
+  return bestUnsolved;
 }
 
-/// Reduce a declared graph to a spanning forest, preferring @p preferred edges
+/// Reduce a declared graph to a spanning forest/// Reduce a declared graph to a spanning forest, preferring @p preferred edges
 ///
 /// painlessMesh converges to a spanning tree whatever it is handed, so this
 /// picks which tree deterministically instead of leaving it to a race between
@@ -374,16 +443,34 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   // as candidates (they are valid node pairs) makes the guarantee real for
   // every topology type; spanningSubset() still prefers them into the tree.
   const auto preferred = eventPairs(events, nodes);
-  const auto groupEdges = partitionGroupEdges(events, nodes);
+
+  // Resolve every partition group once, and the full set of intra-group pairs
+  // (for the random-topology candidate merge below).
+  std::vector<std::vector<uint32_t>> groups;
+  std::vector<PlannedLink> allGroupPairs;
+  for (const auto& event : events) {
+    if (event.action != EventAction::PARTITION_NETWORK) continue;
+    for (const auto& g : event.groups) {
+      auto ids = resolveGroup(g, nodes);
+      for (size_t i = 0; i < ids.size(); ++i) {
+        for (size_t j = i + 1; j < ids.size(); ++j) {
+          if (ids[i] != ids[j]) allGroupPairs.emplace_back(ids[i], ids[j]);
+        }
+      }
+      groups.push_back(std::move(ids));
+    }
+  }
+
   std::vector<PlannedLink> candidates = declared;
 
   // For a `random` topology only, add an event-named pair the random draw did
-  // not include, so a connection_drop has a live link to cut, and add
-  // intra-partition-group edges so each group stays internally connected. The
-  // other modes declare an explicit, intentional graph: inserting an event's
-  // pair there would change the topology and slip an undeclared edge past
-  // restoreLink()'s guard. An event naming a non-edge of an explicit topology is
-  // a config error left to fail at runtime, not papered over here.
+  // not include, so a connection_drop has a live link to cut, and add every
+  // intra-partition-group pair so the solver below has edges to keep each group
+  // connected. The other modes declare an explicit, intentional graph:
+  // inserting an event's pair there would change the topology and slip an
+  // undeclared edge past restoreLink()'s guard. An event naming a non-edge of an
+  // explicit topology is a config error left to fail at runtime, not papered
+  // over here.
   if (topology.type == TopologyType::RANDOM) {
     auto add_missing = [&](const std::vector<PlannedLink>& wants) {
       for (const auto& want : wants) {
@@ -396,7 +483,7 @@ TopologyPlan planTopology(const TopologyConfig& topology,
       }
     };
     add_missing(preferred);
-    add_missing(groupEdges);
+    add_missing(allGroupPairs);
   } else {
     // An explicit topology (mesh/star/ring/custom) is wired exactly as declared.
     // A link event naming a pair that is not one of its edges has nothing to act
@@ -419,6 +506,15 @@ TopologyPlan planTopology(const TopologyConfig& topology,
       }
     }
   }
+
+  // Solve group connectivity jointly (not greedily) to choose which intra-group
+  // edges to keep, then hand those to spanningSubset() as soft preferences.
+  std::vector<PlannedLink> groupEdges;
+  // The returned unsolved-group list is advisory; the authoritative
+  // feasibility check runs on the final plan.links below, so a group the solver
+  // could not connect is caught there regardless.
+  (void)solveGroupConnectivity(groups, candidates,
+                               seed != 0 ? seed : kDefaultSeed, groupEdges);
 
   plan.links = spanningSubset(candidates, preferred, groupEdges, plan.warnings,
                               plan.unwireable_preferred);
