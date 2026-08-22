@@ -117,12 +117,12 @@ void NodeManager::stopAll() {
 void NodeManager::updateAll() {
   // Process scheduler tasks
   scheduler_->execute();
-  
+
   // Update each node
   for (auto& pair : nodes_) {
     pair.second->update();
   }
-  
+
   // Poll IO context to process network events
   io_.poll();
 }
@@ -221,7 +221,13 @@ bool NodeManager::settleLink(uint32_t a, uint32_t b) {
   }
   auto restore = [&]() {
     for (auto& p : prior) {
-      if (!p.second) p.first->resumeFirmware();  // resume only what we suspended
+      if (p.second) continue;  // was already suspended -- leave it suspended
+      // Resume the firmware's tasks, but do NOT replay its deferred connection
+      // callbacks here: a runtime settle runs mid event-batch, and replaying now
+      // would fire onNewConnection/onChangedConnections between two same-second
+      // events. The replay is left queued for the next VirtualNode::update(),
+      // which runs after the whole batch. (findings 75, 77)
+      if (auto* fw = p.first->getFirmware()) fw->resume();
     }
   };
 
@@ -470,14 +476,19 @@ std::vector<std::vector<uint32_t>> NodeManager::getConnectedComponents() const {
       auto cur = getNode(current);
       for (uint32_t peer : peers->second) {
         if (!unvisited.count(peer)) continue;
+        auto pr = getNode(peer);
         // Measure the LIVE mesh, not the recorded intent. topology_ keeps an
         // edge on record even while it is down, and isLinkSevered() only knows
         // about explicit drops and partition cuts -- but a stopped or crashed
-        // node closes its connections with no severance marker, so a path
-        // through a downed node read as connected. isConnectedTo() reflects the
-        // actual socket, so stopping an articulation node splits its group here
-        // just as it does in the running mesh. (finding 76)
-        if (!cur || !cur->isConnectedTo(peer)) continue;
+        // node closes its connections with no severance marker (finding 76). And
+        // a running peer can hold a stale connection object to a stopped node
+        // until the next IO poll, so a one-sided isConnectedTo() would still
+        // merge them (finding 78). Require both endpoints running AND the link
+        // live from BOTH views, so a downed node splits its group here exactly
+        // as it does in the running mesh.
+        if (!cur || !pr) continue;
+        if (!cur->isRunning() || !pr->isRunning()) continue;
+        if (!cur->isConnectedTo(peer) || !pr->isConnectedTo(current)) continue;
         unvisited.erase(peer);
         frontier.push_back(peer);
       }

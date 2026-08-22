@@ -585,13 +585,19 @@ TEST_CASE("NodeManager partitions and heals the recorded topology",
     // recorded-topology traversal they did (stop leaves no severance marker),
     // which would let a stop-then-partition experiment pass with fewer fragments
     // than the live mesh actually has.
-    bool together = false;
-    for (const auto& comp : components) {
-      const bool has1 = std::find(comp.begin(), comp.end(), 33001u) != comp.end();
-      const bool has3 = std::find(comp.begin(), comp.end(), 33003u) != comp.end();
-      if (has1 && has3) together = true;
-    }
-    REQUIRE_FALSE(together);
+    auto share = [&](uint32_t x, uint32_t y) {
+      for (const auto& comp : components) {
+        const bool hx = std::find(comp.begin(), comp.end(), x) != comp.end();
+        const bool hy = std::find(comp.begin(), comp.end(), y) != comp.end();
+        if (hx && hy) return true;
+      }
+      return false;
+    };
+    REQUIRE_FALSE(share(33001, 33003));
+    // The running peer 33001 can hold a stale connection to the stopped 33002
+    // until the next IO poll; a one-sided liveness check would still merge them.
+    // Both endpoints must be running for the edge to count. (finding 78)
+    REQUIRE_FALSE(share(33001, 33002));
     REQUIRE(components.size() > 1);  // the mesh fragmented
   }
 }
@@ -1211,6 +1217,49 @@ TEST_CASE("firmware connection callbacks are deferred during wiring, then replay
   REQUIRE(mid != nullptr);
   REQUIRE(mid->new_connections >= 1);
   REQUIRE(mid->changed_connections >= 1);
+  manager.stopAll();
+}
+
+TEST_CASE("a runtime settle defers its connection callbacks to the next update",
+          "[node_manager][topology]") {
+  // A runtime heal/restore/rejoin settles mid-event-batch. Its onNewConnection/
+  // onChangedConnections callbacks must NOT replay at the end of the settle
+  // (which is still between two same-second events) -- they are deferred to the
+  // next update(), which runs after the whole batch. (finding 77)
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  if (!firmware::FirmwareFactory::instance().isRegistered("ConnCallback")) {
+    firmware::FirmwareFactory::instance().registerFirmware("ConnCallback",
+      []() { return std::make_unique<ConnCallbackFirmware>(); });
+  }
+  for (uint32_t id : {9501u, 9502u, 9503u}) {
+    NodeConfig c;
+    c.nodeId = id; c.meshPrefix = "TestMesh"; c.meshPassword = "password";
+    c.meshPort = 19501; c.firmware = "ConnCallback";
+    manager.createNode(c);
+  }
+  manager.startAll();
+  // Wire only 9501-9502; leave 9503 isolated so joining it later is a genuinely
+  // new connection (a redundant edge closing a cycle would just be declined).
+  manager.establishConnectivity({{9501, 9502}});
+  manager.updateAll();  // flush the startup replay to a known baseline
+  auto* joiner = dynamic_cast<ConnCallbackFirmware*>(manager.getNode(9503)->getFirmware());
+  REQUIRE(joiner != nullptr);
+  REQUIRE(joiner->new_connections == 0);  // 9503 was isolated
+
+  // A runtime settle joins 9503 to the mesh. onNewConnection fires while the
+  // firmware is suspended for the settle, so it is deferred -- NOT replayed when
+  // the settle restores at the end (still mid-event-batch).
+  REQUIRE(manager.connectNodes(9502, 9503));
+  REQUIRE(joiner->new_connections == 0);   // deferred, not replayed at settle end
+  REQUIRE_FALSE(joiner->fired_while_suspended);
+
+  // The next update() (which the run loop runs after the whole event batch)
+  // replays it, so the firmware learns its new neighbour then -- not between
+  // two same-second events.
+  manager.updateAll();
+  REQUIRE(joiner->new_connections >= 1);
+  REQUIRE_FALSE(joiner->fired_while_suspended);
   manager.stopAll();
 }
 

@@ -229,6 +229,11 @@ void VirtualNode::update() {
   // this path directly; a firmware doing work in loop() must be quiet too while
   // its node is down or startup is still wiring (findings 13, 67).
   if (firmware_ && firmware_initialized_ && !firmware_->isSuspended()) {
+    // First replay any connection callbacks deferred while the firmware was
+    // suspended for a link settle, so the firmware observes its settled
+    // neighbours at its first update after resuming -- never mid-event-batch,
+    // where a runtime settle's restore runs (findings 70, 77).
+    flushPendingConnectionCallbacks();
     firmware_->loop();
   }
   
@@ -384,15 +389,10 @@ void VirtualNode::onChangedConnections() {
   // std::cout << "Node " << node_id_ << " topology changed" << std::endl;
 }
 
-void VirtualNode::resumeFirmware() {
-  if (!firmware_) {
-    return;
-  }
-  firmware_->resume();
-
+void VirtualNode::flushPendingConnectionCallbacks() {
   // If the firmware was never initialized there is nothing to replay; drop any
   // stale queue defensively so a later boot starts clean.
-  if (!firmware_initialized_) {
+  if (!firmware_ || !firmware_initialized_) {
     pending_new_connections_.clear();
     pending_changed_connections_ = false;
     return;
@@ -412,6 +412,18 @@ void VirtualNode::resumeFirmware() {
   if (replay_changed) {
     firmware_->onChangedConnections();
   }
+}
+
+void VirtualNode::resumeFirmware() {
+  if (!firmware_) {
+    return;
+  }
+  firmware_->resume();
+  // Replay the deferred callbacks immediately on an explicit resume (startup
+  // wiring and node start -- finding 70). A runtime link settle does NOT come
+  // through here: it resumes the firmware's tasks directly and leaves the
+  // replay for the next update(), so it never fires mid-event-batch (finding 77).
+  flushPendingConnectionCallbacks();
 }
 
 uint64_t VirtualNode::getUptime() const {

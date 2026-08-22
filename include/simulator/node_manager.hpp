@@ -143,7 +143,7 @@ public:
    * to advance the simulation state.
    */
   void updateAll();
-  
+
   /**
    * @brief Establish mesh connectivity between nodes
    * 

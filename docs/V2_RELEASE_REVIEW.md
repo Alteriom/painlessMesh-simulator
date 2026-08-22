@@ -1463,6 +1463,50 @@ splits its group here exactly as it does in the running mesh. A unit test stops
 an articulation node on a wired line and asserts the two nodes it bridged no
 longer share a component; the old recorded-topology traversal put them together.
 
+### 77. Callback replay after a settle still ran mid-batch (medium)
+
+Raised against finding 75. Suspending firmware for the *settle* was not enough:
+`settleLink()`'s restore resumed firmware -- and `resumeFirmware()` synchronously
+replays the deferred `onNewConnection`/`onChangedConnections` callbacks and
+re-enables sends -- at the *end* of the settle, which is still inside
+`processEvents()` for the timestamp. So a heal/restore/rejoin callback could send
+or mutate state between two same-second events (before a following stop or
+partition), despite finding 68's ordering guarantee.
+
+The callback replay is now deferred to the settling node's next `update()`,
+which runs after the whole event batch, rather than at the end of the settle. A
+runtime settle resumes the firmware's scheduler *tasks* directly (so its cadence
+is untouched) but leaves the deferred `onNewConnection`/`onChangedConnections`
+queued; `VirtualNode::update()` replays them just before `loop()`, the first time
+the firmware runs unsuspended -- which the run loop reaches only after every due
+event has executed. Startup wiring still replays eagerly on resume
+(`resumeFirmware()`), preserving finding 70. A unit test joins an isolated node
+at runtime and asserts the callback is *not* replayed when the settle restores,
+only on the next `update()`; replaying synchronously at settle end fails it.
+
+(An earlier attempt suspended firmware around the whole `processEvents()` batch
+instead. That regressed the partition gate: `FirmwareBase::resume()` re-enables
+tasks via `Task::enable()`, which resets their timing, so suspending and resuming
+every timestamp re-fired every periodic task and inflated deliveries ~20x. The
+run loop's firmware cadence must not be perturbed -- deferring only the replay
+does not touch it.)
+
+### 78. A stale connection to a stopped node still merged components (medium)
+
+Raised against finding 76. Checking only `cur->isConnectedTo(peer)` was
+one-sided: a running peer can hold a stale connection object to a stopped node
+until the next IO poll (the `reconnectNode()` path documents this), so stopping
+`B` and then requesting `[[A,B],[C],[D]]` could still count `A-B` as connected
+and pass three components even though `A-B` is already down and the first group
+is not connected.
+
+The traversal now requires both endpoints to be **running** and the link live
+from **both** views (`cur->isConnectedTo(peer)` and `peer->isConnectedTo(cur)`),
+so a stale one-sided socket no longer merges a stopped node into a live
+component. The finding-76 unit test gains an assertion that the stopped node does
+not share a component with its still-running neighbour; the one-sided check put
+them together.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1504,8 +1548,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 166 test cases, 1681 assertions, all passing. Findings 14-24 and
-  26-76 each added coverage (30 and 73 are gate-script/entry-point; the failure
+- Unit tests: 167 test cases, 1689 assertions, all passing. Findings 14-24 and
+  26-78 each added coverage (30 and 73 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined and 74 is UB-hardening, so those
   are unit-covered on the success path; 72 is a documentation correction);
   finding 25 is a seed-resolution change in the entry point, verified by

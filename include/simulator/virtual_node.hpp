@@ -355,11 +355,19 @@ private:
   std::unique_ptr<firmware::FirmwareBase> firmware_;  ///< Loaded firmware instance
   bool firmware_initialized_{false};   ///< Firmware initialization state
 
-  // Connection callbacks deferred while the firmware is suspended for startup
-  // wiring, replayed by resumeFirmware(). See resumeFirmware() and finding 70.
+  // Connection callbacks deferred while the firmware is suspended for a link
+  // settle. Replayed by resumeFirmware() on an explicit resume, or by the next
+  // update() after a runtime settle. See findings 70 and 77.
   std::vector<uint32_t> pending_new_connections_;  ///< Peers seen while suspended
   bool pending_changed_connections_{false};        ///< A topology change was suppressed
-  
+
+  /**
+   * @brief Replay any connection callbacks deferred while the firmware was
+   *        suspended, then clear the queue. Caller ensures the firmware is in a
+   *        state where the callbacks should run (resumed, not suspended).
+   */
+  void flushPendingConnectionCallbacks();
+
   /**
    * @brief Initializes and sets up firmware
    * 
