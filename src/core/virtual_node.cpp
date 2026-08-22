@@ -224,8 +224,11 @@ void VirtualNode::update() {
     mesh_->update();
   }
   
-  // Call firmware loop
-  if (firmware_ && firmware_initialized_) {
+  // Call firmware loop -- but not while suspended. suspend() disables the
+  // firmware's scheduler tasks and blocks its send helpers, yet loop() runs on
+  // this path directly; a firmware doing work in loop() must be quiet too while
+  // its node is down or startup is still wiring (findings 13, 67).
+  if (firmware_ && firmware_initialized_ && !firmware_->isSuspended()) {
     firmware_->loop();
   }
   

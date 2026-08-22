@@ -382,18 +382,21 @@ int main(int argc, char* argv[]) {
     uint32_t update_count = 0;
     
     while (running) {
-      // Update all nodes
-      manager.updateAll();
-      update_count++;
-      
       // Calculate elapsed time
       auto now = std::chrono::steady_clock::now();
       auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
 
-      // Fire any scenario events that have come due
+      // Fire any scenario events that have come due BEFORE advancing the nodes,
+      // so the declared timestamp is the actual state boundary: a stop_node or
+      // partition at t takes effect before any firmware traffic at t, rather
+      // than one update() tick after it.
       if (event_scheduler.hasPendingEvents()) {
         event_scheduler.processEvents(static_cast<uint32_t>(elapsed), manager, network);
       }
+
+      // Update all nodes
+      manager.updateAll();
+      update_count++;
       
       // Progress reporting every 5 seconds
       if (elapsed > 0 && elapsed % 5 == 0 && elapsed != last_report) {

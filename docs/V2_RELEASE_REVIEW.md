@@ -1306,6 +1306,32 @@ deliberately unaffected -- the mesh is live then. Verified: a 6-node mesh with a
 (it sent several before). A unit test asserts `messages_sent == 0` after wiring
 and that firmware is live again.
 
+### 68. Events took effect one tick after their timestamp (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-seventh review pass. Correct.
+
+The run loop called `updateAll()` -- advancing every node and firmware once for
+the timestamp -- *before* `processEvents()`. So a `stop_node` or
+`partition_network` at `t`, or a send coinciding with a later outage, emitted
+traffic and moved metrics for that tick before the outage took effect.
+
+The loop now computes the elapsed time and processes the due events *before*
+advancing the nodes, so the declared timestamp is the actual state boundary.
+Verified: a `stop_node` at `t=0` leaves that node with `sent=0` (it sent once
+before the reorder); a running peer still sends.
+
+### 69. Suspension did not gate the firmware loop (medium)
+
+Raised against finding 67. `FirmwareBase::suspend()` disables the firmware's
+scheduler tasks and blocks its send helpers, but `VirtualNode::update()` called
+`firmware_->loop()` unconditionally. A firmware doing work in `loop()` -- or
+sending directly through its `mesh_` pointer, bypassing the helper guard --
+still ran several times over a partially-wired mesh during startup.
+
+`update()` now skips `loop()` while the firmware is suspended, so the suspension
+from findings 13 and 67 is complete. A unit test with a firmware that counts its
+`loop()` calls asserts zero during wiring; removing the gate makes it non-zero.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1347,8 +1373,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 162 test cases, 1630 assertions, all passing. Findings 14-24 and
-  26-67 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 163 test cases, 1636 assertions, all passing. Findings 14-24 and
+  26-69 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

@@ -1045,6 +1045,50 @@ TEST_CASE("MessageInjectEvent fails when the injection is refused",
   manager.stopAll();
 }
 
+namespace {
+// Firmware that sends from loop() (not a scheduler Task), to exercise the loop
+// suspension gate.
+class LoopCounterFirmware : public simulator::firmware::FirmwareBase {
+public:
+  LoopCounterFirmware() : FirmwareBase("LoopCounter") {}
+  void setup() override {}
+  void loop() override { ++loops; }  // work that the send-helper guard cannot stop
+  void onReceive(uint32_t, String&) override {}
+  void onNewConnection(uint32_t) override {}
+  void onChangedConnections() override {}
+  int loops = 0;
+};
+}  // namespace
+
+TEST_CASE("a suspended firmware's loop() does not run during wiring",
+          "[node_manager][topology]") {
+  // FirmwareBase::suspend() disables tasks and helper sends, but VirtualNode::
+  // update() also calls firmware_->loop() directly. A firmware that works in
+  // loop() must be quiet while startup is still wiring.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  if (!firmware::FirmwareFactory::instance().isRegistered("LoopCounter")) {
+    firmware::FirmwareFactory::instance().registerFirmware("LoopCounter",
+      []() { return std::make_unique<LoopCounterFirmware>(); });
+  }
+  for (uint32_t id : {9301u, 9302u, 9303u}) {
+    NodeConfig c;
+    c.nodeId = id; c.meshPrefix = "TestMesh"; c.meshPassword = "password";
+    c.meshPort = 19301; c.firmware = "LoopCounter";
+    manager.createNode(c);
+  }
+  manager.startAll();
+  manager.establishConnectivity({{9301, 9302}, {9302, 9303}});
+
+  // loop() was gated on suspension, so it did not run during wiring.
+  for (uint32_t id : {9301u, 9302u, 9303u}) {
+    auto* fw = dynamic_cast<LoopCounterFirmware*>(manager.getNode(id)->getFirmware());
+    REQUIRE(fw != nullptr);
+    REQUIRE(fw->loops == 0);
+  }
+  manager.stopAll();
+}
+
 TEST_CASE("establishConnectivity does not let firmware send while wiring",
           "[node_manager][topology]") {
   // Wiring settles each link by pumping the shared scheduler, which also runs
