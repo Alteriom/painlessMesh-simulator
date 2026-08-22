@@ -1287,6 +1287,25 @@ undefined behaviour.
 Validation now requires `std::isfinite(density)` for a `random` topology. A
 `.nan` density exits `2` under `--validate-only`.
 
+### 67. Firmware ran while startup connectivity was still settling (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-sixth review pass. Correct.
+
+`main()` starts every node -- which resumes its firmware tasks (finding 13) --
+and *then* wires the mesh. `establishConnectivity()` settles each link by
+pumping the shared scheduler, which also runs those firmware tasks. So a
+short-interval firmware, or a scenario with many/slow links, sent messages and
+moved metrics during topology construction, over a partially-wired mesh, before
+the timeline began.
+
+`establishConnectivity()` (both overloads) now suspends every node's firmware
+before wiring and resumes it after, using the finding-13 suspend/resume. Runtime
+rewiring (heal/restore/reconnect) goes through `connectNodes()` directly and is
+deliberately unaffected -- the mesh is live then. Verified: a 6-node mesh with a
+100 ms firmware interval sends zero broadcasts before "connectivity established"
+(it sent several before). A unit test asserts `messages_sent == 0` after wiring
+and that firmware is live again.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1328,8 +1347,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 161 test cases, 1621 assertions, all passing. Findings 14-24 and
-  26-66 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 162 test cases, 1630 assertions, all passing. Findings 14-24 and
+  26-67 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

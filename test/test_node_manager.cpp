@@ -11,6 +11,8 @@
 #include "simulator/node_manager.hpp"
 #include "simulator/virtual_node.hpp"
 #include "simulator/events/message_inject_event.hpp"
+#include "simulator/firmware/firmware_factory.hpp"
+#include "simulator/firmware/simple_broadcast_firmware.hpp"
 #include "simulator/network_simulator.hpp"
 #include <stdexcept>
 #include <boost/asio.hpp>
@@ -1040,5 +1042,43 @@ TEST_CASE("MessageInjectEvent fails when the injection is refused",
   MessageInjectEvent refused(9101, 9102, "from a stopped node");
   REQUIRE_THROWS_AS(refused.execute(manager, network), std::runtime_error);
 
+  manager.stopAll();
+}
+
+TEST_CASE("establishConnectivity does not let firmware send while wiring",
+          "[node_manager][topology]") {
+  // Wiring settles each link by pumping the shared scheduler, which also runs
+  // firmware tasks. Firmware must stay suspended during startup wiring, or a
+  // short-interval firmware sends over a half-wired mesh before the timeline.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  if (!firmware::FirmwareFactory::instance().isRegistered("SimpleBroadcast")) {
+    firmware::FirmwareFactory::instance().registerFirmware("SimpleBroadcast",
+      []() { return std::make_unique<firmware::SimpleBroadcastFirmware>(); });
+  }
+  std::vector<std::pair<uint32_t, uint32_t>> links;
+  for (uint32_t id : {9201u, 9202u, 9203u}) {
+    NodeConfig c;
+    c.nodeId = id;
+    c.meshPrefix = "TestMesh";
+    c.meshPassword = "password";
+    c.meshPort = 19201;
+    c.firmware = "SimpleBroadcast";
+    c.firmwareConfig["broadcast_interval"] = "1";  // as fast as possible
+    manager.createNode(c);
+  }
+  manager.startAll();
+  manager.establishConnectivity({{9201, 9202}, {9202, 9203}});
+
+  // No node sent while wiring.
+  for (uint32_t id : {9201u, 9202u, 9203u}) {
+    REQUIRE(manager.getNode(id)->getMetrics().messages_sent == 0);
+  }
+  // Firmware is live again afterwards.
+  for (uint32_t id : {9201u, 9202u, 9203u}) {
+    auto* fw = manager.getNode(id)->getFirmware();
+    REQUIRE(fw != nullptr);
+    REQUIRE_FALSE(fw->isSuspended());
+  }
   manager.stopAll();
 }

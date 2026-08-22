@@ -11,6 +11,7 @@
 
 #include "simulator/node_manager.hpp"
 #include "simulator/virtual_node.hpp"
+#include "simulator/firmware/firmware_base.hpp"
 #include <stdexcept>
 #include <cstdlib>
 #include <algorithm>
@@ -126,6 +127,23 @@ void NodeManager::updateAll() {
   io_.poll();
 }
 
+namespace {
+// Suspend/resume every node's firmware around startup wiring. establish
+// connectivity settles each link by pumping the shared scheduler, which also
+// runs firmware tasks -- so without this a short-interval firmware would send
+// messages and move metrics over a half-wired mesh, before the timeline starts.
+// Runtime rewiring (heal/restore/reconnect) goes through connectNodes()
+// directly and is deliberately not affected.
+void setFirmwareSuspended(NodeManager& mgr, bool suspend) {
+  for (const auto& node : mgr.getAllNodes()) {
+    auto* fw = node->getFirmware();
+    if (!fw) continue;
+    if (suspend) fw->suspend();
+    else fw->resume();
+  }
+}
+}  // namespace
+
 void NodeManager::establishConnectivity() {
   if (nodes_.empty()) {
     return;
@@ -140,21 +158,25 @@ void NodeManager::establishConnectivity() {
   
   // Connect each node (starting from the second) to a random previous node
   // This creates a connected tree topology
+  setFirmwareSuspended(*this, true);
   for (size_t i = 1; i < node_list.size(); ++i) {
     // Connect to a random node among the previously added nodes
     size_t target_idx = std::rand() % i;
     connectNodes(node_list[i]->getNodeId(), node_list[target_idx]->getNodeId());
   }
+  setFirmwareSuspended(*this, false);
 }
 
 size_t NodeManager::establishConnectivity(
     const std::vector<std::pair<uint32_t, uint32_t>>& links) {
+  setFirmwareSuspended(*this, true);
   size_t wired = 0;
   for (const auto& link : links) {
     if (connectNodes(link.first, link.second)) {
       ++wired;
     }
   }
+  setFirmwareSuspended(*this, false);
   return wired;
 }
 
