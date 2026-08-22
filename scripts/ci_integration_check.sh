@@ -55,7 +55,11 @@ for scenario in "$SCENARIO_DIR"/*.yaml; do
     # it -- fail. A YAML error that stops the parse entirely leaves no
     # "  - " lines, so it also fails.
     errs=$(echo "$out" | grep -E '^  - ')
-    other=$(echo "$errs" | grep -v 'Unknown event action')
+    # Both diagnostics an unsupported action now produces -- the validation
+    # "Unknown event action" and the scheduling "action not implemented" -- are
+    # expected for an allowlisted scenario. Anything else (an unregistered
+    # firmware, a cyclic link, an infeasible partition) is a real regression.
+    other=$(echo "$errs" | grep -vE 'Unknown event action|action not implemented')
     if [ -n "$errs" ] && [ -z "$other" ]; then
       echo "  SKIP: $(basename "$scenario") (known unsupported event action)"
     else

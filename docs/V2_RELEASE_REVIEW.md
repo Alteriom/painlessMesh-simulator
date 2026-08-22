@@ -1177,6 +1177,54 @@ Validation now requires `std::isfinite` as well as the range, for `packet_loss`
 and for `set_network_quality`'s `quality`. A `.nan` degrade exits `2` under
 `--validate-only`.
 
+### 60. Partition solving needed backtracking over edge choices (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-second review pass, against
+finding 55/58. Correct.
+
+The solver varied only group *order*; within a group it still greedily took the
+first eligible edge. `[[n0,n2,n3],[n1]]` and `[[n1,n2,n3],[n0]]` fail in either
+order -- picking `0-2, 1-2` then `0-3` or `1-3` -- though `0-2, 1-2, 2-3`
+satisfies both.
+
+`solveGroupConnectivity()` is now a bounded **backtracking** search: it tries
+each eligible intra-group edge (one that bridges two induced components of the
+group and closes no global cycle) and recurses, undoing on failure, so the
+*choice* of edge varies, not just the order. It is complete within a step budget
+(200k); on overflow it returns the best partial, which the final feasibility
+check treats as infeasible -- safe. The reviewer's example now validates; capping
+the budget to one step reproduces the rejection.
+
+### 61. Allowlisted-scenario errors hid behind the short-circuit (medium)
+
+Raised against finding 48. `main()` returned on the first configuration problem
+(the unknown-action validation error), so its firmware and topology feasibility
+checks never ran -- an allowlisted scenario that also had an unregistered
+firmware or a cyclic link surfaced only the unknown-action diagnostic, and the
+gate skipped it.
+
+The validation phase now **collects every problem** -- validation errors,
+unwireable links, infeasible partitions, unregistered firmware, unschedulable
+events -- into one list and reports them together, rather than returning on the
+first. The gate skips an allowlisted scenario only when every reported line is
+the expected unsupported-action diagnostic (`Unknown event action` or `action
+not implemented`); any other now surfaces alongside it and fails the gate.
+Verified: an allowlisted scenario with an unregistered firmware fails, a clean
+allowlisted one is skipped.
+
+### 62. A failed partition heal was logged as success (medium)
+
+Consistent with findings 39/42/53. `healNetwork()` retained a cut that both
+endpoints were up for but whose handshake did not settle, and returned only the
+restored count, so `NetworkHealEvent` logged success and the run exited 0 with
+the partition unresolved.
+
+`healNetwork()` now returns `{restored, failed}`; `NetworkHealEvent` throws when
+`failed > 0` (a cut pending only because a node is down is not counted -- that
+reconnects on start, finding 31). Like the sibling findings the failure branch
+cannot occur on loopback, so it is covered by the struct plumbing and a
+clean-heal unit test (`failed == 0`).
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1218,8 +1266,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 156 test cases, 1610 assertions, all passing. Findings 14-24 and
-  26-59 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 158 test cases, 1615 assertions, all passing. Findings 14-24 and
+  26-62 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

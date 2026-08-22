@@ -555,7 +555,7 @@ TEST_CASE("NodeManager partitions and heals the recorded topology",
 
   SECTION("healing puts the mesh back together") {
     manager.partitionNetwork({{33001, 33002}, {33003, 33004}});
-    const size_t restored = manager.healNetwork();
+    const size_t restored = manager.healNetwork().restored;
     REQUIRE(restored == 1);
     REQUIRE_FALSE(manager.isLinkSevered(33002, 33003));
     REQUIRE(manager.getConnectedComponents().size() == 1);
@@ -703,7 +703,7 @@ TEST_CASE("an explicit drop on a partition-crossing edge survives the heal",
     // 8872 <-> 8873 is both dropped and a partition boundary.
     manager.partitionNetwork({{8871, 8872}, {8873}});
     REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
-    REQUIRE(manager.healNetwork() >= 0);
+    REQUIRE(manager.healNetwork().restored >= 0);
     // Explicit drop wins: the edge stays down and stays severed after the heal.
     REQUIRE_FALSE(manager.getNode(8872)->isConnectedTo(8873));
     REQUIRE(manager.isLinkSevered(8872, 8873));
@@ -790,7 +790,7 @@ TEST_CASE("a restore does not bridge an edge an active partition still cuts",
     REQUIRE(manager.isLinkSevered(8892, 8893));
 
     // The heal is what brings it back.
-    REQUIRE(manager.healNetwork() == 1);
+    REQUIRE(manager.healNetwork().restored == 1);
     REQUIRE(manager.getNode(8892)->isConnectedTo(8893));
   }
 
@@ -805,11 +805,35 @@ TEST_CASE("a restore does not bridge an edge an active partition still cuts",
     REQUIRE(manager.isLinkSevered(8892, 8893));
 
     // Now that only the partition reason remains, the heal reconnects it.
-    REQUIRE(manager.healNetwork() == 1);
+    REQUIRE(manager.healNetwork().restored == 1);
     REQUIRE(manager.getNode(8892)->isConnectedTo(8893));
     REQUIRE_FALSE(manager.isLinkSevered(8892, 8893));
   }
 
+  manager.stopAll();
+}
+
+TEST_CASE("healNetwork reports no failure on a clean heal",
+          "[node_manager][heal]") {
+  // The restored/failed split lets heal_partition surface a heal that did not
+  // complete. A normal heal reports failed == 0.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NodeConfig base;
+  base.meshPrefix = "TestMesh";
+  base.meshPassword = "password";
+  base.meshPort = 19921;
+  for (uint32_t id : {8921u, 8922u}) {
+    NodeConfig config = base;
+    config.nodeId = id;
+    manager.createNode(config);
+  }
+  manager.startAll();
+  REQUIRE(manager.connectNodes(8921, 8922));
+  manager.partitionNetwork({{8921}, {8922}});
+  const auto heal = manager.healNetwork();
+  REQUIRE(heal.restored == 1);
+  REQUIRE(heal.failed == 0);
   manager.stopAll();
 }
 
@@ -838,7 +862,7 @@ TEST_CASE("a node that starts after a heal rejoins without a second heal",
   REQUIRE_FALSE(manager.getNode(8881)->isConnectedTo(8882));
 
   manager.getNode(8882)->stop();
-  REQUIRE(manager.healNetwork() == 0);         // nothing to reconnect right now
+  REQUIRE(manager.healNetwork().restored == 0);         // nothing to reconnect right now
   REQUIRE_FALSE(manager.isLinkSevered(8881, 8882));  // but the partition is over
 
   // The node returns and reconnectNode() re-establishes the released edge.
@@ -869,7 +893,7 @@ TEST_CASE("a heal retries a genuine transient with both nodes up",
   manager.startAll();
   REQUIRE(manager.connectNodes(8883, 8884));
   manager.partitionNetwork({{8883}, {8884}});
-  REQUIRE(manager.healNetwork() == 1);  // both up: heals immediately
+  REQUIRE(manager.healNetwork().restored == 1);  // both up: heals immediately
   REQUIRE(manager.getNode(8883)->isConnectedTo(8884));
 
   manager.stopAll();
@@ -907,7 +931,7 @@ TEST_CASE("healNetwork does not restore an explicitly dropped link",
   manager.partitionNetwork({{8861, 8862, 8863}, {8864}});
   REQUIRE_FALSE(manager.getNode(8863)->isConnectedTo(8864));
 
-  const size_t restored = manager.healNetwork();
+  const size_t restored = manager.healNetwork().restored;
 
   // The partition edge heals; the explicit drop stays down and stays severed.
   REQUIRE(manager.getNode(8863)->isConnectedTo(8864));
@@ -981,7 +1005,7 @@ TEST_CASE("A healed link carries traffic before the next event runs",
   manager.partitionNetwork({{8811}, {8812}});
   REQUIRE_FALSE(manager.getNode(8811)->isConnectedTo(8812));
 
-  REQUIRE(manager.healNetwork() == 1);
+  REQUIRE(manager.healNetwork().restored == 1);
   // Immediately after the heal returns, as a same-second event would see it.
   REQUIRE(manager.getNode(8811)->isConnectedTo(8812));
   REQUIRE(manager.getNode(8811)->injectMessage(8812, "same second"));

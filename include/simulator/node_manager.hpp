@@ -323,7 +323,15 @@ public:
    *
    * @return Number of links reconnected
    */
-  size_t healNetwork();
+  /**
+   * @brief Outcome of a healNetwork() call
+   */
+  struct HealResult {
+    size_t restored = 0;  ///< Partition cuts re-established
+    size_t failed = 0;    ///< Both endpoints up but the handshake did not settle
+  };
+
+  HealResult healNetwork();
 
   /**
    * @brief Re-attach a node to its recorded peers after a start or restart

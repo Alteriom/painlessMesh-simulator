@@ -9,6 +9,7 @@
 #include "simulator/topology_planner.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <random>
 #include <string>
@@ -200,66 +201,62 @@ std::vector<size_t> solveGroupConnectivity(
     }
   }
 
-  // Candidate orderings: smallest-group-first, then a few seeded shuffles.
-  std::vector<std::vector<size_t>> orderings;
-  std::vector<size_t> bySize(groups.size());
-  for (size_t i = 0; i < groups.size(); ++i) bySize[i] = i;
-  std::stable_sort(bySize.begin(), bySize.end(),
+  // Order groups most-constrained-first (smallest) for a shallow search.
+  std::vector<size_t> order(groups.size());
+  for (size_t i = 0; i < groups.size(); ++i) order[i] = i;
+  std::stable_sort(order.begin(), order.end(),
                    [&](size_t a, size_t b) { return groups[a].size() < groups[b].size(); });
-  orderings.push_back(bySize);
-  std::mt19937 rng(seed != 0 ? seed : kDefaultSeed);
-  for (int t = 0; t < 8; ++t) {
-    auto o = bySize;
-    std::shuffle(o.begin(), o.end(), rng);
-    orderings.push_back(o);
-  }
 
-  std::vector<size_t> bestUnsolved;
-  bool first = true;
-  for (const auto& order : orderings) {
-    std::map<uint32_t, uint32_t> parent;
-    for (const auto& link : declared) {
-      parent[link.first] = link.first;
-      parent[link.second] = link.second;
+  // Backtracking search: it is not enough to vary group order -- the choice of
+  // WHICH intra-group edge to keep matters (connecting {0,2,3} as 0-2,0-3 blocks
+  // a later {1,2,3}, but 0-2,2-3 does not). So try each eligible edge and recurse,
+  // undoing on failure. Bounded by a step budget; on overflow it returns the best
+  // partial, which the final feasibility check treats as infeasible (safe).
+  size_t steps = 0;
+  const size_t kStepBudget = 200000;
+  std::vector<PlannedLink> picked;
+
+  std::function<bool()> search = [&]() -> bool {
+    if (++steps > kStepBudget) return false;
+    // First group (in constrained order) not yet induced-connected.
+    size_t target = groups.size();
+    for (size_t g : order) {
+      if (!groupInduceConnected(picked, groups[g])) { target = g; break; }
     }
-    std::vector<PlannedLink> picked;
-    bool progress = true;
-    while (progress) {
-      progress = false;
-      for (size_t g : order) {
-        if (groupInduceConnected(picked, groups[g])) continue;
-        // Add one intra-group edge that bridges two INDUCED components of the
-        // group and does not close a global cycle (the final tree is acyclic).
-        for (const auto& link : intra[g]) {
-          const bool bridges_group =
-              inducedRoot(picked, groups[g], link.first) !=
-              inducedRoot(picked, groups[g], link.second);
-          const bool no_global_cycle =
-              findRoot(parent, link.first) != findRoot(parent, link.second);
-          if (bridges_group && no_global_cycle) {
-            parent[findRoot(parent, link.first)] = findRoot(parent, link.second);
-            picked.push_back(link);
-            progress = true;
-            break;
-          }
-        }
+    if (target == groups.size()) return true;  // all connected
+
+    for (const auto& link : intra[target]) {
+      const bool bridges_group =
+          inducedRoot(picked, groups[target], link.first) !=
+          inducedRoot(picked, groups[target], link.second);
+      if (!bridges_group) continue;
+      // Reject if it would close a global cycle (the final tree is acyclic).
+      std::map<uint32_t, uint32_t> parent;
+      for (const auto& l : declared) {
+        parent[l.first] = l.first; parent[l.second] = l.second;
       }
+      for (const auto& l : picked) parent[findRoot(parent, l.first)] = findRoot(parent, l.second);
+      if (findRoot(parent, link.first) == findRoot(parent, link.second)) continue;
+
+      picked.push_back(link);
+      if (search()) return true;
+      picked.pop_back();
     }
-    std::vector<size_t> unsolved;
+    return false;
+  };
+
+  std::vector<size_t> unsolvedFinal;
+  if (search()) {
+    chosen = picked;
+  } else {
+    // No solution within budget (or genuinely infeasible). Report the groups
+    // that the best partial could not connect.
+    chosen = picked;
     for (size_t g = 0; g < groups.size(); ++g) {
-      if (!groupInduceConnected(picked, groups[g])) unsolved.push_back(g);
-    }
-    if (unsolved.empty()) {
-      chosen = picked;
-      return {};
-    }
-    if (first || unsolved.size() < bestUnsolved.size()) {
-      bestUnsolved = unsolved;
-      chosen = picked;
-      first = false;
+      if (!groupInduceConnected(picked, groups[g])) unsolvedFinal.push_back(g);
     }
   }
-  return bestUnsolved;
+  return unsolvedFinal;
 }
 
 /// Reduce a declared graph to a spanning forest/// Reduce a declared graph to a spanning forest, preferring @p preferred edges

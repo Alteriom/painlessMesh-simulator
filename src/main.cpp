@@ -117,76 +117,65 @@ int main(int argc, char* argv[]) {
     
     // Validate configuration
     std::cout << "[INFO] Validating configuration..." << std::endl;
-    auto errors = loader.getValidationErrors(config);
-    
-    if (!errors.empty()) {
-      std::cerr << "[ERROR] Configuration validation failed:\n";
-      for (const auto& error : errors) {
-        std::cerr << "  - " << error.field << ": " << error.message;
-        if (!error.suggestion.empty()) {
-          std::cerr << " (Suggestion: " << error.suggestion << ")";
-        }
-        std::cerr << std::endl;
-      }
-      return 2;
+    // Collect EVERY configuration problem before deciding, so a single
+    // --validate-only pass surfaces all of them together. Short-circuiting on
+    // the first (e.g. an unknown event action) hid firmware and topology errors
+    // behind it, which let a CI allowlist that recognised the first diagnostic
+    // skip a scenario that was also broken in another way.
+    std::vector<std::string> problems;
+    for (const auto& error : loader.getValidationErrors(config)) {
+      problems.push_back(error.field + ": " + error.message +
+                         (error.suggestion.empty()
+                              ? std::string()
+                              : " (Suggestion: " + error.suggestion + ")"));
     }
-    
-    std::cout << "[INFO] Configuration valid" << std::endl;
 
-    // Feasibility checks a normal run performs -- run them as part of
-    // validation too, so --validate-only (and the CI validation sweep) reject a
-    // scenario an ordinary invocation would: an event-named link that cannot be
-    // wired (cyclic, or a non-edge of an explicit topology), or an event whose
-    // action has no runtime class. Both are pure over the config, so they cost
-    // nothing here and need no nodes. A fixed seed is fine: neither check
-    // depends on the random draw. The run path repeats these with user-facing
-    // output; here they only speak up to fail.
+    // Feasibility checks a normal run performs -- run them as part of validation
+    // too, and append rather than return, so --validate-only (and the CI sweep)
+    // reject a scenario an ordinary invocation would. All are pure over the
+    // config and need no nodes; a fixed seed is fine since none depends on the
+    // random draw.
     {
       const auto feas = planTopology(config.topology, config.nodes,
                                      config.events, config.simulation.seed);
       if (!feas.unwireable_preferred.empty()) {
-        std::cerr << "[ERROR] " << feas.unwireable_preferred.size()
-                  << " event-named link(s) cannot be wired -- not an edge of "
-                  << "the declared topology, or would close a cycle painlessMesh "
-                  << "will not hold" << std::endl;
-        return 2;  // configuration validation failure
+        problems.push_back(std::to_string(feas.unwireable_preferred.size()) +
+                           " event-named link(s) cannot be wired -- not an edge "
+                           "of the declared topology, or would close a cycle "
+                           "painlessMesh will not hold");
       }
       for (const auto& bad : feas.infeasible_partitions) {
-        std::cerr << "[ERROR] " << bad << std::endl;
+        problems.push_back(bad);
       }
-      if (!feas.infeasible_partitions.empty()) {
-        return 2;  // configuration validation failure
+      for (const auto& node : config.nodes) {
+        if (!node.firmware.empty() &&
+            !firmware::FirmwareFactory::instance().isRegistered(node.firmware)) {
+          problems.push_back("node '" + node.id +
+                             "' names unregistered firmware '" + node.firmware +
+                             "'");
+        }
       }
       std::map<std::string, uint32_t> id_to_node_id;
       for (const auto& node_config : config.nodes) {
         id_to_node_id[node_config.id] = node_config.nodeId;
       }
-      // Firmware names resolve at validation time -- the registry is populated
-      // before the config loads -- so a node naming an unregistered firmware is
-      // a configuration error to catch here (exit 2), not a runtime error to
-      // hit after node creation (exit 1).
-      for (const auto& node : config.nodes) {
-        if (!node.firmware.empty() &&
-            !firmware::FirmwareFactory::instance().isRegistered(node.firmware)) {
-          std::cerr << "[ERROR] node '" << node.id
-                    << "' names unregistered firmware '" << node.firmware << "'"
-                    << std::endl;
-          return 2;  // configuration validation failure
-        }
-      }
-
       EventScheduler probe;
       std::vector<std::string> skipped;
       EventFactory::scheduleAll(config.events, id_to_node_id, probe, skipped);
-      if (!skipped.empty()) {
-        std::cerr << "[ERROR] " << skipped.size()
-                  << " scenario event(s) cannot be scheduled:" << std::endl;
-        for (const auto& sk : skipped) {
-          std::cerr << "  - " << sk << std::endl;
-        }
-        return 2;  // configuration validation failure
+      for (const auto& sk : skipped) {
+        problems.push_back("event cannot be scheduled: " + sk);
       }
     }
+
+    if (!problems.empty()) {
+      std::cerr << "[ERROR] Configuration validation failed:\n";
+      for (const auto& p : problems) {
+        std::cerr << "  - " << p << std::endl;
+      }
+      return 2;
+    }
+
+    std::cout << "[INFO] Configuration valid" << std::endl;
 
     // Handle --validate-only mode
     if (options.validate_only) {

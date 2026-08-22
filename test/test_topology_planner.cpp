@@ -331,6 +331,29 @@ TEST_CASE("event links that form a cycle are reported as unwireable",
   REQUIRE(plan.unwireable_preferred.size() == 1);   // one drop pair could not fit
 }
 
+TEST_CASE("Topology planner backtracks over intra-group edge choices",
+          "[topology][events]") {
+  // [[n0,n2,n3],[n1]] and [[n1,n2,n3],[n0]] fail any greedy edge pick (0-2,1-2
+  // then 0-3/1-3), but 0-2,1-2,2-3 satisfies both. Only backtracking over WHICH
+  // intra-group edge to keep finds it.
+  const auto nodes = makeNodes(4);  // n1..n4 -> n0..n3
+  TopologyConfig topology;
+  topology.type = TopologyType::MESH;
+
+  EventConfig p1;
+  p1.action = EventAction::PARTITION_NETWORK;
+  p1.groups = {{"n1", "n3", "n4"}, {"n2"}};
+
+  EventConfig p2;
+  p2.action = EventAction::PARTITION_NETWORK;
+  p2.groups = {{"n2", "n3", "n4"}, {"n1"}};
+
+  const auto plan = planTopology(topology, nodes, {p1, p2}, 42);
+
+  REQUIRE(plan.infeasible_partitions.empty());
+  REQUIRE(isConnected(plan.links, nodes.size()));
+}
+
 TEST_CASE("Topology planner measures induced, not global, group connectivity",
           "[topology][events]") {
   // Groups [[n0,n1,n3],[n2]] and [[n1,n2,n3],[n0]]. If group connectivity is

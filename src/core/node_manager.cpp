@@ -288,7 +288,7 @@ size_t NodeManager::partitionNetwork(
   return cut;
 }
 
-size_t NodeManager::healNetwork() {
+NodeManager::HealResult NodeManager::healNetwork() {
   // Heal only the links a partition cut. An explicit connection_drop is a
   // deliberate, persistent failure with its own connection_restore -- it is
   // never in partition_cuts_, so it is never touched here.
@@ -298,7 +298,7 @@ size_t NodeManager::healNetwork() {
   // can retry it instead of leaving the mesh partitioned with no state to act
   // on.
   std::set<std::pair<uint32_t, uint32_t>> pending;
-  size_t restored = 0;
+  HealResult result;
   for (const auto& link : partition_cuts_) {
     // Only edges the topology actually had are worth rebuilding; a partition
     // marks every cross pair cut, most of which were never wired. A marker on a
@@ -326,16 +326,18 @@ size_t NodeManager::healNetwork() {
       continue;  // already live
     }
     if (connectNodes(link.first, link.second)) {
-      ++restored;
+      ++result.restored;
     } else {
       // Both endpoints are up but the handshake did not settle -- a genuine
-      // transient. Retain it so a later heal retries; reconnectNode() will not
-      // help here because neither node is restarting.
+      // transient failure. Retain it so a later heal retries; reconnectNode()
+      // will not help here because neither node is restarting. Report it so the
+      // heal event can surface a heal that did not complete.
       pending.insert(link);
+      ++result.failed;
     }
   }
   partition_cuts_ = pending;
-  return restored;
+  return result;
 }
 
 NodeManager::ReconnectResult NodeManager::reconnectNode(uint32_t nodeId) {
