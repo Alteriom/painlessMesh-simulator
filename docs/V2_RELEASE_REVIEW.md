@@ -1376,6 +1376,15 @@ the partitioned pair is live again while the explicitly dropped pair stays down
 -- including the pair-severed-for-both-reasons case, which stays down until both
 reasons clear.
 
+### 72. Status doc listed an implemented action as unimplemented (low)
+
+`DEVELOPMENT_STATUS.md` still listed `inject_message` among the actions that are
+"parsed and validated but with no runtime event class", and counted "nine event
+classes" wired into the run loop. This PR added `MessageInjectEvent`, wired it in
+`EventFactory`, and exercises it in the integration gate. The doc now lists
+`inject_message` among the ten wired event classes and drops it from the
+unimplemented list, so it no longer warns users off a supported action.
+
 ### 73. An interrupted run still reported success (medium)
 
 Raised against the delayed-restart / event-failure exit-code work. On
@@ -1396,15 +1405,6 @@ already ran is a clean stop and still exits 0. A new behavioural gate step
 (step 10) starts a scenario with an event at `t=20`, sends `SIGTERM` at `t≈2`,
 and asserts the process exits non-zero and names the pending timeline; removing
 the check makes it exit 0 and the step fails.
-
-### 72. Status doc listed an implemented action as unimplemented (low)
-
-`DEVELOPMENT_STATUS.md` still listed `inject_message` among the actions that are
-"parsed and validated but with no runtime event class", and counted "nine event
-classes" wired into the run loop. This PR added `MessageInjectEvent`, wired it in
-`EventFactory`, and exercises it in the integration gate. The doc now lists
-`inject_message` among the ten wired event classes and drops it from the
-unimplemented list, so it no longer warns users off a supported action.
 
 ### 74. The validation sweep could reach the planner with a non-finite density (medium)
 
