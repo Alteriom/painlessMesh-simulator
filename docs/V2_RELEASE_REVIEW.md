@@ -1243,6 +1243,25 @@ on top of the links `spanningSubset()` will keep. The reviewer's example now
 validates; passing an empty hard-preferred set to the solver reproduces the
 rejection, and the plan keeps the link-event pair. A unit test covers it.
 
+### 64. The gate matched the diagnostic class, not the specific action (medium)
+
+Raised by `chatgpt-codex-connector` on the thirty-fourth review pass, against
+finding 61's gate filter. Correct.
+
+The filter skipped an allowlisted scenario when every error line was an "Unknown
+event action" or "action not implemented" diagnostic -- the *class*, not the
+specific action each file is allowlisted for. A misspelling
+(`partial_heal` -> `partial_hel`) or an unrelated unknown action still matched
+the class, so the scenario skipped and CI stayed green over a typo.
+
+Each allowlisted filename is now paired with its expected action
+(`expected_unsupported_action()`): `issue_138_cascade_healing` -> `partial_heal`,
+the two partition scenarios -> `start_all_nodes`. The gate skips only when a line
+names *exactly* that action and every reported line is either that named action
+or the generic "action not implemented". A misspelled or unrelated action falls
+to `other` and fails. Verified: all three shipped scenarios skip against their
+named action, and `partial_heal` misspelled as `partial_hel` fails the gate.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up

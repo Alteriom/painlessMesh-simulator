@@ -16,11 +16,17 @@ SCENARIO_DIR="examples/scenarios"
 
 # Scenarios whose event actions have no runtime implementation yet. Listed
 # explicitly so the gap stays visible instead of being rounded off to "passing".
-KNOWN_UNSUPPORTED=(
-  "issue_138_cascade_healing.yaml"     # needs partial_heal
-  "network_partition_test.yaml"        # needs start_all_nodes
-  "split_brain_partition_test.yaml"    # needs start_all_nodes
-)
+# Each allowlisted scenario is paired with the SPECIFIC unsupported action it is
+# allowed to fail on. Matching only the diagnostic class would let a typo
+# (partial_hel) or an unrelated unknown action skip silently.
+expected_unsupported_action() {
+  case "$(basename "$1")" in
+    issue_138_cascade_healing.yaml) echo "partial_heal" ;;
+    network_partition_test.yaml)    echo "start_all_nodes" ;;
+    split_brain_partition_test.yaml) echo "start_all_nodes" ;;
+    *) echo "" ;;
+  esac
+}
 
 failures=0
 tmp=$(mktemp -d)
@@ -35,11 +41,7 @@ if [ ! -x "$SIM" ]; then
 fi
 
 is_known_unsupported() {
-  local name; name="$(basename "$1")"
-  for known in "${KNOWN_UNSUPPORTED[@]}"; do
-    [ "$name" = "$known" ] && return 0
-  done
-  return 1
+  [ -n "$(expected_unsupported_action "$1")" ]
 }
 
 echo "== 1. every shipped scenario must parse and validate =="
@@ -47,23 +49,21 @@ for scenario in "$SCENARIO_DIR"/*.yaml; do
   if out=$("$SIM" --config "$scenario" --validate-only 2>&1); then
     pass "$(basename "$scenario")"
   elif is_known_unsupported "$scenario"; then
-    # The loader now records an unknown action as a validation error rather than
+    # The loader records an unknown action as a validation error rather than
     # aborting the parse, so getValidationErrors() inspects the whole scenario.
-    # Skip ONLY when every reported validation error is the expected
-    # unknown-action one; if any other error remains (unknown node, bad
-    # parameter, malformed YAML that still parses), the allowlist must not hide
-    # it -- fail. A YAML error that stops the parse entirely leaves no
-    # "  - " lines, so it also fails.
+    # Skip ONLY when the failure is the SPECIFIC allowlisted action and nothing
+    # else: a validation line naming exactly that action, and every reported
+    # line being either that named action or the generic "action not
+    # implemented". A misspelled action, an unrelated unknown action, or any
+    # other error (unknown node, unregistered firmware, cyclic link) must fail.
+    exp="$(expected_unsupported_action "$scenario")"
     errs=$(echo "$out" | grep -E '^  - ')
-    # Both diagnostics an unsupported action now produces -- the validation
-    # "Unknown event action" and the scheduling "action not implemented" -- are
-    # expected for an allowlisted scenario. Anything else (an unregistered
-    # firmware, a cyclic link, an infeasible partition) is a real regression.
-    other=$(echo "$errs" | grep -vE 'Unknown event action|action not implemented')
-    if [ -n "$errs" ] && [ -z "$other" ]; then
-      echo "  SKIP: $(basename "$scenario") (known unsupported event action)"
+    has_expected=$(echo "$errs" | grep -cE "Unknown event action: ${exp}([^a-zA-Z0-9_]|\$)")
+    other=$(echo "$errs" | grep -vE "Unknown event action: ${exp}([^a-zA-Z0-9_]|\$)|action not implemented")
+    if [ -n "$errs" ] && [ -z "$other" ] && [ "$has_expected" -ge 1 ]; then
+      echo "  SKIP: $(basename "$scenario") (needs $exp)"
     else
-      fail "$(basename "$scenario") is allowlisted but failed for another reason"
+      fail "$(basename "$scenario") is allowlisted for '$exp' but failed differently"
       echo "${other:-$out}" | grep -E 'ERROR|  - ' | head -3
     fi
   else
