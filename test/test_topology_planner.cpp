@@ -15,6 +15,7 @@
 #include "simulator/topology_planner.hpp"
 
 #include <algorithm>
+#include <limits>
 
 using namespace simulator;
 
@@ -148,6 +149,39 @@ TEST_CASE("Topology planner reduces a declared graph to what the mesh holds",
 
     REQUIRE(plan.links.size() == 3);
     REQUIRE(isConnected(plan.links, nodes.size()));
+  }
+
+  SECTION("a non-finite or out-of-range density does not crash the planner") {
+    // Validation rejects such a density and the run returns 2, but planTopology
+    // also runs during the validation sweep, so it is reached with the bad value
+    // still in hand. static_cast<size_t> of a NaN/inf/negative product is UB;
+    // the density clamps to the [0, 1] fraction it is defined to be. (finding 74)
+    //
+    // This is a success-path/totality guard: the RANDOM plan reduces to a
+    // spanning tree regardless of density, and float->size_t for a non-finite
+    // value is benign on this platform, so the UB is not a deterministic failure
+    // to assert against here. The check pins that planTopology stays total --
+    // never crashes, never returns a wild size -- for any density a caller hands
+    // it, which is the guarantee the clamp exists to provide.
+    for (float bad : {std::numeric_limits<float>::quiet_NaN(),
+                      std::numeric_limits<float>::infinity(),
+                      -std::numeric_limits<float>::infinity(),
+                      -1.0f}) {
+      TopologyConfig topology;
+      topology.type = TopologyType::RANDOM;
+      topology.density = bad;
+      const auto plan = planTopology(topology, nodes, noEvents, 42);
+      // Clamped toward 0 -> just the spanning tree, never a crash or a wild size.
+      REQUIRE(plan.links.size() == nodes.size() - 1);
+      REQUIRE(isConnected(plan.links, nodes.size()));
+    }
+
+    // A density above 1 clamps to a full graph, not something larger.
+    TopologyConfig dense;
+    dense.type = TopologyType::RANDOM;
+    dense.density = 9.0f;
+    const auto plan = planTopology(dense, nodes, noEvents, 42);
+    REQUIRE(plan.links.size() <= nodes.size() * (nodes.size() - 1) / 2);
   }
 
   SECTION("the same seed plans the same graph") {

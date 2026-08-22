@@ -1406,6 +1406,63 @@ classes" wired into the run loop. This PR added `MessageInjectEvent`, wired it i
 `inject_message` among the ten wired event classes and drops it from the
 unimplemented list, so it no longer warns users off a supported action.
 
+### 74. The validation sweep could reach the planner with a non-finite density (medium)
+
+Raised against the finite-density validation fix. Validation records a
+non-finite/out-of-range `density` and the run returns 2 -- but the same entry
+point runs `planTopology()` as a feasibility check *before* acting on those
+collected problems, so the planner is reached with the bad value still in hand.
+The random planner computes `static_cast<size_t>(density * possible + 0.5)`, and
+`static_cast<size_t>` of a NaN, an infinity, or a negative product is undefined
+behaviour -- so `--validate-only` on an already-invalid config could crash or
+behave unpredictably.
+
+The planner now clamps `density` to the `[0, 1]` fraction it is defined to be
+(non-finite or negative → 0, above one → 1) before the conversion, making
+`planTopology()` total for any input while validation stays the authoritative
+rejecter. The unit test is a totality/success-path guard: the RANDOM plan
+reduces to a spanning tree regardless of density and this platform's
+`float → size_t` for a non-finite value is benign, so the UB is not a
+deterministic failure to assert against -- the test pins that the planner never
+crashes or returns a wild size, which is the guarantee the clamp provides.
+
+### 75. Runtime link settlement ran firmware between same-second events (medium)
+
+Raised against the run-loop reorder (finding 68). A runtime `heal_partition`,
+`connection_restore`, or node rejoin settles its link through `settleLink()`,
+which pumps `updateAll()` -- and `updateAll()` runs every node's firmware tasks
+and `loop()`. Because those events execute inside `EventScheduler::processEvents()`
+for a timestamp, a periodic send due at that instant was emitted *between* two
+same-second events, breaking finding 68's promise to process all due events
+before advancing firmware. (Startup wiring was already covered by findings
+67/69/70; this is the runtime counterpart.)
+
+`settleLink()` now suspends every firmware for the duration of the settle,
+preserving each node's prior state so a settle nested inside startup wiring (all
+firmware already suspended) stays suspended and is resumed once by its caller.
+The mesh's own handshake tasks live on the shared scheduler and are not firmware
+tasks, so the handshake still completes. A unit test wires a new link *after*
+startup with a firmware that counts its `loop()` calls and asserts the count
+stays zero across the settle; removing the suspension makes it non-zero.
+
+### 76. Partition component counting used recorded edges, not live connections (medium)
+
+Raised against the severance model. `getConnectedComponents()` -- which
+`NetworkPartitionEvent` uses to assert a partition produced the requested number
+of fragments -- traversed the recorded `topology_` graph filtered only by
+`isLinkSevered()`. But a stopped or crashed node closes its mesh connections
+*without* adding a severance marker, so a path through a downed node still read
+as connected. In a line `A-B-C-D`, stopping articulation node `B` and then
+requesting `[[A,B,C],[D]]` passed the two-component check even though the live
+mesh had `A` and `C` disconnected -- so a combined lifecycle-and-partition
+experiment could exit successfully with more fragments than requested.
+
+The traversal now walks live connections (`VirtualNode::isConnectedTo()`, which
+reads the actual mesh sockets) instead of recorded edges, so a stopped node
+splits its group here exactly as it does in the running mesh. A unit test stops
+an articulation node on a wired line and asserts the two nodes it bridged no
+longer share a component; the old recorded-topology traversal put them together.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1447,12 +1504,11 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 165 test cases, 1662 assertions, all passing. Findings 14-24 and
-  26-71 each added coverage (30, 73 and the entry-point framing of others are
-  gate-script/entry-point; the failure branches of 39 and 42 are
-  loopback-undefined, so unit-covered on the success path; 72 is a documentation
-  correction); finding 25 is a seed-resolution change in the entry point,
-  verified by
+- Unit tests: 166 test cases, 1681 assertions, all passing. Findings 14-24 and
+  26-76 each added coverage (30 and 73 are gate-script/entry-point; the failure
+  branches of 39 and 42 are loopback-undefined and 74 is UB-hardening, so those
+  are unit-covered on the success path; 72 is a documentation correction);
+  finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the
   gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.

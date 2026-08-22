@@ -200,13 +200,40 @@ bool NodeManager::settleLink(uint32_t a, uint32_t b) {
   auto nodeB = getNode(b);
   const auto deadline = std::chrono::steady_clock::now() +
                         std::chrono::milliseconds(kSettleBudgetMs);
+
+  // The settle loop pumps updateAll(), which runs every node's firmware tasks
+  // and loop(). A runtime heal/restore/rejoin settles at event time, mid-way
+  // through EventScheduler::processEvents() for a timestamp -- so a periodic
+  // send due at that instant would emit traffic between two same-second events,
+  // breaking main.cpp's promise to process all due events before advancing
+  // firmware (findings 68/75). The mesh's own handshake tasks live on the
+  // shared scheduler and are NOT firmware tasks, so suspending firmware still
+  // lets the handshake complete. Suspend every firmware for the duration,
+  // preserving each node's prior state so a settle nested inside startup wiring
+  // (already suspended) stays suspended and is resumed once, by the caller.
+  std::vector<std::pair<VirtualNode*, bool>> prior;
+  prior.reserve(nodes_.size());
+  for (auto& pair : nodes_) {
+    auto* fw = pair.second->getFirmware();
+    if (!fw) continue;
+    prior.emplace_back(pair.second.get(), fw->isSuspended());
+    if (!fw->isSuspended()) fw->suspend();
+  }
+  auto restore = [&]() {
+    for (auto& p : prior) {
+      if (!p.second) p.first->resumeFirmware();  // resume only what we suspended
+    }
+  };
+
   while (std::chrono::steady_clock::now() < deadline) {
     updateAll();
     if (nodeA && nodeB && nodeA->isConnectedTo(b) && nodeB->isConnectedTo(a)) {
+      restore();
       return true;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
+  restore();
   return false;
 }
 
@@ -440,9 +467,17 @@ std::vector<std::vector<uint32_t>> NodeManager::getConnectedComponents() const {
 
       auto peers = topology_.find(current);
       if (peers == topology_.end()) continue;
+      auto cur = getNode(current);
       for (uint32_t peer : peers->second) {
         if (!unvisited.count(peer)) continue;
-        if (isLinkSevered(current, peer)) continue;
+        // Measure the LIVE mesh, not the recorded intent. topology_ keeps an
+        // edge on record even while it is down, and isLinkSevered() only knows
+        // about explicit drops and partition cuts -- but a stopped or crashed
+        // node closes its connections with no severance marker, so a path
+        // through a downed node read as connected. isConnectedTo() reflects the
+        // actual socket, so stopping an articulation node splits its group here
+        // just as it does in the running mesh. (finding 76)
+        if (!cur || !cur->isConnectedTo(peer)) continue;
         unvisited.erase(peer);
         frontier.push_back(peer);
       }

@@ -9,6 +9,7 @@
 #include "simulator/topology_planner.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <map>
 #include <random>
@@ -453,8 +454,18 @@ TopologyPlan planTopology(const TopologyConfig& topology,
       }
 
       const size_t possible = ids.size() * (ids.size() - 1) / 2;
+      // Guard the density -> size_t conversion. Validation rejects a non-finite
+      // or out-of-range density and the run returns 2, but planTopology() also
+      // runs during the validation sweep itself (as a feasibility check), so it
+      // is reached with the offending value still in hand. static_cast<size_t>
+      // of a NaN, an infinity, or a negative product is undefined behaviour, so
+      // clamp density to the [0, 1] fraction it is defined to be before the
+      // conversion -- a rejected config must not crash the validator. (finding 74)
+      double density = static_cast<double>(topology.density);
+      if (!std::isfinite(density) || density < 0.0) density = 0.0;
+      if (density > 1.0) density = 1.0;
       const size_t target = static_cast<size_t>(
-          static_cast<double>(topology.density) * static_cast<double>(possible) + 0.5);
+          density * static_cast<double>(possible) + 0.5);
       if (target > declared.size()) {
         // Collect the pairs the tree did not use, shuffle once, and take the
         // shortfall. Shuffling beats rejection sampling: it terminates.

@@ -15,6 +15,7 @@
 #include "simulator/firmware/simple_broadcast_firmware.hpp"
 #include "simulator/network_simulator.hpp"
 #include <stdexcept>
+#include <algorithm>
 #include <boost/asio.hpp>
 
 using namespace simulator;
@@ -569,6 +570,30 @@ TEST_CASE("NodeManager partitions and heals the recorded topology",
     // Four isolated nodes, not the two groups the author asked for.
     REQUIRE(manager.getConnectedComponents().size() == 4);
   }
+
+  SECTION("a stopped articulation node splits its group (finding 76)") {
+    // Stopping 33002 closes its mesh connections with no severance marker, so a
+    // recorded-topology traversal would still walk 33001-33002-33003 as one
+    // component. Measured from live connections, the middle is gone: 33001 is
+    // isolated and only 33003-33004 remain paired.
+    REQUIRE(manager.getConnectedComponents().size() == 1);  // one mesh first
+    manager.getNode(33002)->stop();
+    const auto components = manager.getConnectedComponents();
+
+    // The finding: 33001 and 33003 were connected only through the now-stopped
+    // articulation node, so they must NOT share a component. With the old
+    // recorded-topology traversal they did (stop leaves no severance marker),
+    // which would let a stop-then-partition experiment pass with fewer fragments
+    // than the live mesh actually has.
+    bool together = false;
+    for (const auto& comp : components) {
+      const bool has1 = std::find(comp.begin(), comp.end(), 33001u) != comp.end();
+      const bool has3 = std::find(comp.begin(), comp.end(), 33003u) != comp.end();
+      if (has1 && has3) together = true;
+    }
+    REQUIRE_FALSE(together);
+    REQUIRE(components.size() > 1);  // the mesh fragmented
+  }
 }
 
 TEST_CASE("NodeManager reattaches a restarted node", "[node_manager][topology]") {
@@ -1086,6 +1111,41 @@ TEST_CASE("a suspended firmware's loop() does not run during wiring",
     REQUIRE(fw != nullptr);
     REQUIRE(fw->loops == 0);
   }
+  manager.stopAll();
+}
+
+TEST_CASE("a runtime link settle does not run firmware", "[node_manager][topology]") {
+  // settleLink() pumps updateAll(), which runs every node's firmware tasks and
+  // loop(). A runtime heal/restore/rejoin settles at event time, mid-way through
+  // a timestamp's events -- so firmware must stay quiet for the settle, not emit
+  // traffic between two same-second events (finding 75). Startup wiring already
+  // suspends; this covers a settle after the timeline has started.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  if (!firmware::FirmwareFactory::instance().isRegistered("LoopCounter")) {
+    firmware::FirmwareFactory::instance().registerFirmware("LoopCounter",
+      []() { return std::make_unique<LoopCounterFirmware>(); });
+  }
+  for (uint32_t id : {9601u, 9602u, 9603u}) {
+    NodeConfig c;
+    c.nodeId = id; c.meshPrefix = "TestMesh"; c.meshPassword = "password";
+    c.meshPort = 19601; c.firmware = "LoopCounter";
+    manager.createNode(c);
+  }
+  manager.startAll();
+  manager.establishConnectivity({{9601, 9602}, {9602, 9603}});
+
+  auto loops = [&](uint32_t id) {
+    return dynamic_cast<LoopCounterFirmware*>(manager.getNode(id)->getFirmware())->loops;
+  };
+  // Startup wiring was suspended, so no loop() has run yet.
+  for (uint32_t id : {9601u, 9602u, 9603u}) REQUIRE(loops(id) == 0);
+
+  // Wire a brand-new link after startup. settleLink() pumps updateAll() many
+  // times, but firmware is suspended for the duration, so still no loop() runs.
+  manager.connectNodes(9601, 9603);
+  for (uint32_t id : {9601u, 9602u, 9603u}) REQUIRE(loops(id) == 0);
+
   manager.stopAll();
 }
 
