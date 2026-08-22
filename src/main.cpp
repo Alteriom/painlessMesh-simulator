@@ -161,6 +161,20 @@ int main(int argc, char* argv[]) {
       for (const auto& node_config : config.nodes) {
         id_to_node_id[node_config.id] = node_config.nodeId;
       }
+      // Firmware names resolve at validation time -- the registry is populated
+      // before the config loads -- so a node naming an unregistered firmware is
+      // a configuration error to catch here (exit 2), not a runtime error to
+      // hit after node creation (exit 1).
+      for (const auto& node : config.nodes) {
+        if (!node.firmware.empty() &&
+            !firmware::FirmwareFactory::instance().isRegistered(node.firmware)) {
+          std::cerr << "[ERROR] node '" << node.id
+                    << "' names unregistered firmware '" << node.firmware << "'"
+                    << std::endl;
+          return 2;  // configuration validation failure
+        }
+      }
+
       EventScheduler probe;
       std::vector<std::string> skipped;
       EventFactory::scheduleAll(config.events, id_to_node_id, probe, skipped);

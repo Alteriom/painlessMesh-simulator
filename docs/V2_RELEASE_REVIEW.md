@@ -1122,6 +1122,33 @@ The reviewer's example now validates: with the flat clique it fails
 `--validate-only` (*"partition group [x, y] is not internally connected"*); with
 the solver it succeeds. A unit test covers the overlapping case.
 
+### 56. `--validate-only` did not check firmware names (medium)
+
+Raised by `chatgpt-codex-connector` on the thirtieth review pass. Correct.
+
+The firmware-registration check ran during node creation, after `--validate-only`
+returns, so a scenario naming an unregistered firmware passed validation while an
+ordinary run rejected it -- and with the general-error status `1`, not the
+documented validation status `2`. The registry is populated before the config
+loads, so the name is resolvable during validation.
+
+The validation phase now checks every non-empty firmware name against the
+registry and returns `2` on an unregistered one, before the `--validate-only`
+return. Verified: a node naming `NoSuchFirmware` exits `2` under `--validate-only`.
+
+### 57. Degrade latency overflowed when doubled (medium)
+
+`ConnectionDegradeEvent` sets the max latency to `latency * 2`. A latency above
+`UINT32_MAX / 2` (e.g. `3000000000`) wrapped below the min, and
+`NetworkSimulator::setLatency()` threw only when the event fired, mid-run --
+`--validate-only` approved it.
+
+Validation now rejects a `connection_degrade` latency above `UINT32_MAX / 2`
+(consistent with the packet-loss bound from finding 44), and the doubling in the
+event saturates rather than wraps, so the arithmetic is sound even if the event
+is constructed directly. A unit test and a `--validate-only` run confirm the
+rejection.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1163,8 +1190,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 153 test cases, 1605 assertions, all passing. Findings 14-24 and
-  26-55 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 154 test cases, 1607 assertions, all passing. Findings 14-24 and
+  26-57 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
   path); finding 25 is a seed-resolution change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the

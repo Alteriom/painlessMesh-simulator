@@ -7,6 +7,7 @@
  */
 
 // IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include <cstdint>
 #include "simulator/platform_compat.hpp"
 
 #include "simulator/config_loader.hpp"
@@ -884,6 +885,18 @@ void ConfigLoader::validateEvent(const EventConfig& config,
       err.field = "event.packet_loss";
       err.message = "Packet loss must be between 0.0 and 1.0";
       err.suggestion = "Use 0.0 for no loss, 1.0 to drop everything";
+      errors.push_back(err);
+    }
+    // ConnectionDegradeEvent sets max latency to latency * 2. A value above
+    // UINT32_MAX/2 wraps below the minimum and setLatency() throws only when the
+    // event fires. Reject it up front.
+    if (config.latency > UINT32_MAX / 2) {
+      ValidationError err;
+      err.field = "event.latency";
+      err.message = "Latency " + std::to_string(config.latency) +
+                    "ms is too large; it is doubled for the max and must not "
+                    "exceed " + std::to_string(UINT32_MAX / 2) + "ms";
+      err.suggestion = "Use a smaller latency";
       errors.push_back(err);
     }
   }

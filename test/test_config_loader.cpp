@@ -606,6 +606,45 @@ events:
   REQUIRE(has_overrun);
 }
 
+TEST_CASE("ConfigLoader rejects a connection_degrade latency that overflows when doubled",
+          "[config_loader]") {
+  // ConnectionDegradeEvent sets max = latency * 2; a value above UINT32_MAX/2
+  // wraps below the min and throws only at runtime. It must fail validation.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_degrade
+    from: "node-1"
+    to: "node-2"
+    latency: 3000000000
+    packet_loss: 0.2
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_latency = false;
+  for (const auto& e : errors) {
+    if (e.message.find("too large") != std::string::npos) has_latency = true;
+  }
+  REQUIRE(has_latency);
+}
+
 TEST_CASE("ConfigLoader rejects out-of-range connection_degrade packet loss",
           "[config_loader]") {
   // NetworkSimulator::setPacketLoss() throws on a value outside [0,1]; caught

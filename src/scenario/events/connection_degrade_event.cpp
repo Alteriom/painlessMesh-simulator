@@ -6,6 +6,7 @@
  * @license MIT License
  */
 
+#include <cstdint>
 #include "simulator/events/connection_degrade_event.hpp"
 #include "simulator/node_manager.hpp"
 #include "simulator/network_simulator.hpp"
@@ -26,7 +27,10 @@ void ConnectionDegradeEvent::execute(NodeManager& manager, NetworkSimulator& net
   // Set increased latency
   LatencyConfig latency;
   latency.min_ms = latencyMs_;
-  latency.max_ms = latencyMs_ * 2;
+  // Doubled for the max, saturating rather than wrapping below the min. Values
+  // that would overflow are rejected at validation; this keeps the arithmetic
+  // sound even if the event is constructed directly.
+  latency.max_ms = latencyMs_ > UINT32_MAX / 2 ? UINT32_MAX : latencyMs_ * 2;
   latency.distribution = DistributionType::UNIFORM;
   
   network.setLatency(fromNode_, toNode_, latency);
