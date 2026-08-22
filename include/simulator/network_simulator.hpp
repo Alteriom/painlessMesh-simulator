@@ -324,41 +324,68 @@ public:
    */
   void consumeBandwidth(uint32_t from, uint32_t to, size_t messageSize, uint64_t currentTime);
   
+  // A connection can be severed for two independent reasons, exactly as the
+  // mesh-side NodeManager tracks them: an explicit `connection_drop` and a
+  // `network_partition`. They are held in separate sets so a heal restores only
+  // the partition cuts and an explicit drop still in force keeps the pair down
+  // -- otherwise the model and the mesh diverge, and isConnectionActive()/
+  // enqueueMessage() would treat an explicitly dropped pair as live.
+
   /**
-   * @brief Drops a connection between two nodes
-   * 
-   * Prevents message delivery on the specified connection. Messages sent
-   * on a dropped connection will be silently dropped.
-   * 
+   * @brief Drops a connection between two nodes (explicit `connection_drop`)
+   *
+   * Prevents message delivery on the specified connection. Persists until
+   * restoreConnection(); a partition heal does not clear it.
+   *
    * @param from Source node ID
    * @param to Destination node ID
    */
   void dropConnection(uint32_t from, uint32_t to);
-  
+
   /**
-   * @brief Restores a previously dropped connection
-   * 
-   * Re-enables message delivery on the specified connection.
-   * 
+   * @brief Severs a connection as part of a network partition
+   *
+   * Like dropConnection(), but cleared by healPartitions() rather than
+   * restoreConnection(). Mirrors NodeManager's partition_cuts_.
+   *
+   * @param from Source node ID
+   * @param to Destination node ID
+   */
+  void partitionConnection(uint32_t from, uint32_t to);
+
+  /**
+   * @brief Restores an explicitly dropped connection
+   *
+   * Clears the explicit `connection_drop` reason only. If the pair is also
+   * severed by a partition, it stays down until healPartitions().
+   *
    * @param from Source node ID
    * @param to Destination node ID
    */
   void restoreConnection(uint32_t from, uint32_t to);
-  
+
   /**
-   * @brief Restores all previously dropped connections
-   * 
-   * Re-enables message delivery on all connections that were
-   * previously dropped. Useful for healing network partitions.
+   * @brief Restores all connections severed by a partition
+   *
+   * Clears every partition cut, leaving explicit `connection_drop`s in force.
+   * Used to heal network partitions.
+   */
+  void healPartitions();
+
+  /**
+   * @brief Restores every dropped connection, for both reasons
+   *
+   * Clears explicit drops and partition cuts alike. A blunt reset; prefer
+   * restoreConnection()/healPartitions() so the two reasons stay independent.
    */
   void restoreAllConnections();
-  
+
   /**
-   * @brief Checks if a connection is active (not dropped)
-   * 
+   * @brief Checks if a connection is active (not dropped for any reason)
+   *
    * @param from Source node ID
    * @param to Destination node ID
-   * @return true if connection is active, false if dropped
+   * @return true if active, false if explicitly dropped or partitioned
    */
   bool isConnectionActive(uint32_t from, uint32_t to) const;
 
@@ -408,7 +435,8 @@ private:
   std::map<ConnectionKey, BurstState> burst_state_map_;     ///< Burst state per connection
   
   // Connection state tracking
-  std::set<ConnectionKey> dropped_connections_;             ///< Set of dropped connections
+  std::set<ConnectionKey> dropped_connections_;             ///< Explicit connection_drop cuts; cleared by restoreConnection()
+  std::set<ConnectionKey> partitioned_connections_;         ///< Partition cuts; cleared by healPartitions()
   
   // Random number generation
   std::mt19937 rng_;                                        ///< Random number generator

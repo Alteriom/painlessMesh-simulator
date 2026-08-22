@@ -1354,6 +1354,37 @@ suspended when it fired, and asserts it never was while still confirming the
 neighbours were replayed; removing the gate makes a callback fire while
 suspended and the test fails.
 
+### 71. Heal restored explicitly dropped connections in the network model (medium)
+
+Raised against the coexisting-severance-reasons fix. `NetworkHealEvent` called
+`NetworkSimulator::restoreAllConnections()`, which cleared *every* modelled
+drop. After the mesh-side `NodeManager` learned to keep an explicit
+`connection_drop` severed across a partition heal, the model no longer matched:
+a pair the mesh still held down was marked live in the `NetworkSimulator`, so
+`isConnectionActive()` and messages enqueued through the model treated it as
+restored.
+
+The model now tracks the two severance reasons in separate sets, exactly as the
+`NodeManager` does: `dropConnection()` records an explicit drop (cleared by
+`restoreConnection()`), and a new `partitionConnection()` records a partition
+cut (cleared by a new `healPartitions()`). `isConnectionActive()` is true only
+when a pair is in neither set. `NetworkPartitionEvent` now severs through
+`partitionConnection()` and `NetworkHealEvent` heals through `healPartitions()`,
+so an explicit drop outlives a heal in the model just as it does in the mesh.
+A unit test drops one pair explicitly and partitions another, heals, and asserts
+the partitioned pair is live again while the explicitly dropped pair stays down
+-- including the pair-severed-for-both-reasons case, which stays down until both
+reasons clear.
+
+### 72. Status doc listed an implemented action as unimplemented (low)
+
+`DEVELOPMENT_STATUS.md` still listed `inject_message` among the actions that are
+"parsed and validated but with no runtime event class", and counted "nine event
+classes" wired into the run loop. This PR added `MessageInjectEvent`, wired it in
+`EventFactory`, and exercises it in the integration gate. The doc now lists
+`inject_message` among the ten wired event classes and drops it from the
+unimplemented list, so it no longer warns users off a supported action.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1395,10 +1426,11 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 164 test cases, 1645 assertions, all passing. Findings 14-24 and
-  26-70 each added coverage (30 and 40 are gate-script/entry-point; the failure
+- Unit tests: 165 test cases, 1662 assertions, all passing. Findings 14-24 and
+  26-71 each added coverage (30 and 40 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined, so unit-covered on the success
-  path); finding 25 is a seed-resolution change in the entry point, verified by
+  path; 72 is a documentation correction); finding 25 is a seed-resolution
+  change in the entry point, verified by
   running two seedless scenarios and observing different drawn seeds, with the
   gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.

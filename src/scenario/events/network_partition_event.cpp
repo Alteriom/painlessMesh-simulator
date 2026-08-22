@@ -91,8 +91,10 @@ void NetworkPartitionEvent::dropConnectionsBetweenGroups(
   
   for (const auto& node1 : group1) {
     for (const auto& node2 : group2) {
-      network.dropConnection(node1, node2);
-      network.dropConnection(node2, node1);
+      // Partition cuts, not explicit drops: a later heal clears these while
+      // leaving any coexisting connection_drop in force (mirrors NodeManager).
+      network.partitionConnection(node1, node2);
+      network.partitionConnection(node2, node1);
     }
   }
 }

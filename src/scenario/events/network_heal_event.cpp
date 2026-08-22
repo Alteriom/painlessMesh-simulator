@@ -15,8 +15,11 @@
 namespace simulator {
 
 void NetworkHealEvent::execute(NodeManager& manager, NetworkSimulator& network) {
-  // Restore all previously dropped connections
-  network.restoreAllConnections();
+  // Clear the model's partition cuts only. An explicit connection_drop still in
+  // force must keep its pair severed in the model, exactly as the mesh keeps it
+  // severed below -- restoreAllConnections() would wrongly mark it live and the
+  // two network views would diverge.
+  network.healPartitions();
 
   // Rebuild the mesh links the partition severed.
   const auto heal = manager.healNetwork();

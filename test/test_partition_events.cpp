@@ -350,25 +350,40 @@ TEST_CASE("NetworkHealEvent", "[event][partition]") {
     REQUIRE_THAT(desc, Catch::Matchers::ContainsSubstring("Heal"));
   }
   
-  SECTION("restores all dropped connections") {
-    // Drop some connections manually
-    network.dropConnection(1001, 1002);
-    network.dropConnection(1002, 1001);
-    network.dropConnection(1003, 1004);
-    network.dropConnection(1004, 1003);
-    
+  SECTION("restores connections severed by a partition") {
+    // Sever some connections as a partition would (finding 71: a heal clears
+    // partition cuts, not explicit connection_drops).
+    network.partitionConnection(1001, 1002);
+    network.partitionConnection(1002, 1001);
+    network.partitionConnection(1003, 1004);
+    network.partitionConnection(1004, 1003);
+
     REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
     REQUIRE_FALSE(network.isConnectionActive(1003, 1004));
-    
+
     // Execute heal
     NetworkHealEvent event;
     event.execute(manager, network);
-    
-    // All connections should be restored
+
+    // All partition cuts should be restored
     REQUIRE(network.isConnectionActive(1001, 1002));
     REQUIRE(network.isConnectionActive(1002, 1001));
     REQUIRE(network.isConnectionActive(1003, 1004));
     REQUIRE(network.isConnectionActive(1004, 1003));
+  }
+
+  SECTION("a heal leaves an explicit connection_drop in force") {
+    // The distinction finding 71 turns on: healing a partition must not
+    // resurrect a pair the scenario explicitly dropped.
+    network.dropConnection(1001, 1002);
+    network.dropConnection(1002, 1001);
+    REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
+
+    NetworkHealEvent event;
+    event.execute(manager, network);
+
+    REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
+    REQUIRE_FALSE(network.isConnectionActive(1002, 1001));
   }
   
   SECTION("resets partition IDs to 0") {

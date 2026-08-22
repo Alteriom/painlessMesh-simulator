@@ -26,10 +26,11 @@ CI gate; it is not yet a substitute for hardware.
 - **CLI**: duration, time-scale, log level, output dir, UI mode.
 
 ### Scenario events
-All nine event classes are wired into the run loop through `EventFactory`:
+All ten event classes are wired into the run loop through `EventFactory`:
 `start_node`, `stop_node`, `crash_node`, `restart_node`, `connection_drop`,
 `connection_restore`, `connection_degrade`, `partition_network` (alias
-`network_partition`) and `heal_partition` (alias `network_heal`).
+`network_partition`), `heal_partition` (alias `network_heal`) and
+`inject_message`.
 
 Until this release the event classes existed but nothing constructed them, so
 every scenario ran as a static mesh and its `events:` timeline was silently
@@ -77,7 +78,7 @@ fails rather than running a quietly different test.
 - `partial_heal` (heal a subset of partitions) -- needed by
   `issue_138_cascade_healing.yaml`; `NetworkHealEvent` currently clears every
   partition unconditionally
-- `add_nodes`, `remove_node`, `break_link`, `restore_link`, `inject_message`,
+- `add_nodes`, `remove_node`, `break_link`, `restore_link`,
   `set_network_quality`
 
 ### Not modelled
