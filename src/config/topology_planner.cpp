@@ -705,6 +705,44 @@ std::vector<std::string> validateEventTimeline(
     }
     return comps;
   };
+  // Every node reachable from `src` over live edges. sendSingle() hands the
+  // destination to findRoute(), which walks the sender's own layout, so a
+  // destination outside the sender's live component has no route at all and
+  // the send is refused rather than merely delayed. (issue 62)
+  auto reachableFrom = [&](uint32_t src) {
+    std::set<uint32_t> seen{src};
+    std::vector<uint32_t> frontier{src};
+    while (!frontier.empty()) {
+      const uint32_t cur = frontier.back();
+      frontier.pop_back();
+      auto it = adj.find(cur);
+      if (it == adj.end()) continue;
+      for (uint32_t peer : it->second) {
+        if (seen.count(peer)) continue;
+        if (!edgeLive(cur, peer)) continue;
+        seen.insert(peer);
+        frontier.push_back(peer);
+      }
+    }
+    return seen;
+  };
+  // sendBroadcast() enqueues to the sender's direct connections and reports
+  // how many took the message; with none live it returns false. Reachability
+  // further out does not save it -- there is no first hop to hand it to.
+  auto hasLivePeer = [&](uint32_t src) {
+    auto it = adj.find(src);
+    if (it == adj.end()) return false;
+    return std::any_of(it->second.begin(), it->second.end(),
+                       [&](uint32_t peer) { return edgeLive(src, peer); });
+  };
+  // Whole-graph questions -- the component count, and reachability -- read
+  // every node's running state, every declared edge and the node set itself.
+  // An earlier unmodelled step leaves at least one of those open, and an
+  // answer guessed from it would fail a scenario that is merely not
+  // implemented yet.
+  auto stateKnown = [&]() {
+    return !unknownNodeSet && unknownNodes.empty() && unknownEdges.empty();
+  };
 
   // One or two ordered steps per event; a delayed restart is a stop now and a
   // start at time+delay, exactly as EventFactory schedules it.
@@ -790,14 +828,7 @@ std::vector<std::string> validateEventTimeline(
                 }
           }
         }
-        // componentCount() reads the whole graph, so it is only meaningful when
-        // every node's running state, every declared edge and the node set
-        // itself are known. An earlier unmodelled step leaves at least one of
-        // those open, and a component count guessed from it would fail a
-        // scenario that is merely not implemented yet.
-        const bool stateKnown = !unknownNodeSet && unknownNodes.empty() &&
-                                unknownEdges.empty();
-        if (topologyWired && stateKnown && componentCount() != groups.size()) {
+        if (topologyWired && stateKnown() && componentCount() != groups.size()) {
           problems.push_back(
               "network_partition " + describe(e) + " requests " +
               std::to_string(groups.size()) +
@@ -824,15 +855,45 @@ std::vector<std::string> validateEventTimeline(
         unknownEdges = declared;
         unknownNodeSet = true;
         break;
-      case EventAction::INJECT_MESSAGE:
-        if (resolveId(nodes, e.from, a) && !unknownNodes.count(a) &&
-            !running.count(a)) {
+      case EventAction::INJECT_MESSAGE: {
+        // EventFactory reads the sender from `from`, falling back to `target`;
+        // resolve it the same way or the two disagree about what is checked.
+        const std::string& sender = e.from.empty() ? e.target : e.from;
+        if (!resolveId(nodes, sender, a) || unknownNodes.count(a)) break;
+        if (!running.count(a)) {
           problems.push_back(
-              "inject_message " + describe(e) + " sends from node '" + e.from +
+              "inject_message " + describe(e) + " sends from node '" + sender +
               "', which is stopped at that point in the timeline; the runtime "
               "refuses the injection and fails the run");
+          break;  // the send never happens, so where it was aimed is moot
+        }
+        // A running sender is only half of it: the destination has to still be
+        // reachable through whatever earlier events left of the mesh, or the
+        // send is refused and MessageInjectEvent throws. (issue 62)
+        if (!topologyWired || !stateKnown()) break;
+        // EventFactory maps an absent `to`, "broadcast" and "all" to node 0.
+        if (e.to.empty() || e.to == "broadcast" || e.to == "all") {
+          if (!hasLivePeer(a)) {
+            problems.push_back(
+                "inject_message " + describe(e) + " broadcasts from node '" +
+                sender + "', which has no live peer at that point in the "
+                "timeline; the runtime refuses the broadcast and fails the run");
+          }
+          break;
+        }
+        uint32_t dest = 0;
+        // An unresolvable destination is already a config error of its own, and
+        // a self-addressed send is not a topology question.
+        if (!resolveId(nodes, e.to, dest) || dest == a) break;
+        if (!reachableFrom(a).count(dest)) {
+          problems.push_back(
+              "inject_message " + describe(e) + " sends to node '" + e.to +
+              "', which earlier events leave unreachable from '" + sender +
+              "' (a stopped node, a dropped link or an active partition lies "
+              "between them); the runtime finds no route and fails the run");
         }
         break;
+      }
       default:
         break;
     }

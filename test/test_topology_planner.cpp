@@ -699,3 +699,145 @@ TEST_CASE("validateEventTimeline rejects sequences that must fail at runtime",
     REQUIRE(problems[0].find("inject_message") != std::string::npos);
   }
 }
+
+TEST_CASE("validateEventTimeline checks injection reachability, not just the sender",
+          "[topology_planner][timeline]") {
+  // A running sender is only half of what the runtime needs. sendSingle() asks
+  // findRoute() for a connection whose subtree holds the destination and
+  // sendBroadcast() counts the peers it managed to enqueue to; either returning
+  // false makes MessageInjectEvent throw, so the run exits 1. Earlier topology
+  // events are what take those routes away. (issue 62)
+  const auto nodes = makeNodes(3);  // n1=1001, n2=1002, n3=1003
+  const std::vector<PlannedLink> line{{1001, 1002}, {1002, 1003}};
+
+  auto injectEvent = [](uint32_t t, const std::string& from, const std::string& to) {
+    EventConfig e; e.time = t; e.action = EventAction::INJECT_MESSAGE;
+    e.from = from; e.to = to;
+    return e;
+  };
+  auto dropEvent = [](uint32_t t, const std::string& a, const std::string& b) {
+    EventConfig e; e.time = t; e.action = EventAction::CONNECTION_DROP;
+    e.from = a; e.to = b;
+    return e;
+  };
+
+  SECTION("a destination cut off by an earlier connection_drop") {
+    // The issue's own case: drop B-C on a line A-B-C, then send A -> C.
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n2", "n3"), injectEvent(10, "n1", "n3")}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("inject_message") != std::string::npos);
+    REQUIRE(problems[0].find("unreachable") != std::string::npos);
+  }
+
+  SECTION("a destination the same drop still leaves reachable") {
+    // n1 -> n2 survives the n2-n3 drop; only the far side is cut off.
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n2", "n3"), injectEvent(10, "n1", "n2")}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("a connection_restore before the injection puts the route back") {
+    EventConfig restore; restore.time = 8;
+    restore.action = EventAction::CONNECTION_RESTORE;
+    restore.from = "n2"; restore.to = "n3";
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n2", "n3"), restore, injectEvent(10, "n1", "n3")},
+        line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("a destination stranded by a stopped relay") {
+    // n2 is the only path between n1 and n3, so stopping it strands n3 even
+    // though both endpoints of the injection are running.
+    EventConfig stop; stop.time = 5; stop.action = EventAction::STOP_NODE;
+    stop.target = "n2";
+    const auto problems =
+        validateEventTimeline({stop, injectEvent(10, "n1", "n3")}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("unreachable") != std::string::npos);
+  }
+
+  SECTION("a destination on the far side of an active partition") {
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};
+    const auto problems =
+        validateEventTimeline({part, injectEvent(20, "n1", "n3")}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("unreachable") != std::string::npos);
+  }
+
+  SECTION("the same partition healed before the injection") {
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};
+    EventConfig heal; heal.time = 20; heal.action = EventAction::HEAL_PARTITION;
+    const auto problems = validateEventTimeline(
+        {part, heal, injectEvent(20, "n1", "n3")}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("a broadcast from a sender left with no live peer") {
+    // sendBroadcast() enqueues to direct connections only and returns false
+    // when it reaches none, so a sender with every incident link down fails
+    // even though the rest of the mesh is intact.
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n1", "n2"), injectEvent(10, "n1", "")}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("no live peer") != std::string::npos);
+  }
+
+  SECTION("a broadcast spelled 'broadcast' is the same check") {
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n1", "n2"), injectEvent(10, "n1", "broadcast")},
+        line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("no live peer") != std::string::npos);
+  }
+
+  SECTION("a broadcast from a sender that still has one peer is fine") {
+    // n2 keeps n1 as a peer after the n2-n3 drop; a broadcast only needs one.
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n2", "n3"), injectEvent(10, "n2", "broadcast")},
+        line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("a stopped sender is reported once, not twice") {
+    // The sender being down already refuses the injection; adding a second
+    // problem for the destination it therefore cannot reach is noise.
+    EventConfig stop; stop.time = 5; stop.action = EventAction::STOP_NODE;
+    stop.target = "n1";
+    const auto problems =
+        validateEventTimeline({stop, injectEvent(10, "n1", "n3")}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("is stopped at that point") != std::string::npos);
+  }
+
+  SECTION("the sender spelled as 'target', the way EventFactory accepts it") {
+    EventConfig inj; inj.time = 10; inj.action = EventAction::INJECT_MESSAGE;
+    inj.target = "n1"; inj.to = "n3";  // `target` is EventFactory's sender alias
+    const auto problems =
+        validateEventTimeline({dropEvent(5, "n2", "n3"), inj}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("unreachable") != std::string::npos);
+  }
+
+  SECTION("an unmodelled action suspends the reachability check") {
+    // start_all_nodes could relink anything, so the walker must not claim the
+    // destination is unreachable -- the same rule the component count follows.
+    EventConfig unknown; unknown.time = 7; unknown.action = EventAction::UNKNOWN;
+    unknown.action_raw = "start_all_nodes";
+    const auto problems = validateEventTimeline(
+        {dropEvent(5, "n2", "n3"), unknown, injectEvent(10, "n1", "n3")},
+        line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("an unwired topology is not judged") {
+    // With no planned links there is no adjacency to reason over; every
+    // destination would look unreachable.
+    const auto problems =
+        validateEventTimeline({injectEvent(10, "n1", "n3")}, {}, nodes);
+    REQUIRE(problems.empty());
+  }
+}
