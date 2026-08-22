@@ -330,6 +330,51 @@ else
 fi
 
 echo
+echo "== 10. an interrupted run with events still pending must not report success =="
+# A SIGINT/SIGTERM before the timeline finishes leaves scheduled events unrun.
+# The completion check counted only events that threw, so an interrupted run
+# printed "Simulation completed successfully" and exited 0 -- a gate or
+# experiment would accept a run that stopped halfway. The run must now exit
+# non-zero and name the unrun timeline. (Finding 73.)
+cat > "$tmp/interrupt_pending.yaml" <<'YAML'
+simulation:
+  name: "Interrupt With Pending"
+  duration: 30
+  time_scale: 1.0
+  seed: 20260822
+nodes:
+  - id: "a"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config: { mesh_prefix: "IntMesh", mesh_password: "int12345", mesh_port: 5799, broadcast_interval: "2000", broadcast_message: "x" }
+  - id: "b"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config: { mesh_prefix: "IntMesh", mesh_password: "int12345", mesh_port: 5799, broadcast_interval: "2000", broadcast_message: "x" }
+topology:
+  type: "custom"
+  connections:
+    - ["a", "b"]
+events:
+  - time: 20
+    action: stop_node
+    target: "b"
+    description: "an event well after the interrupt fires"
+YAML
+"$SIM" --config "$tmp/interrupt_pending.yaml" >"$tmp/interrupt.log" 2>&1 &
+sim_pid=$!
+sleep 2                       # let it start, but stay well before the t=20 event
+kill -TERM "$sim_pid"
+wait "$sim_pid"; interrupt_rc=$?
+if [ "$interrupt_rc" -eq 0 ]; then
+  fail "an interrupted run with a pending event exited 0 (reported success)"
+elif ! grep -q 'still pending' "$tmp/interrupt.log"; then
+  fail "interrupted run exited $interrupt_rc but did not report the unrun timeline"
+else
+  pass "interrupted run exited $interrupt_rc and reported the unrun timeline"
+fi
+
+echo
 if [ "$failures" -gt 0 ]; then
   echo "integration check FAILED ($failures problem(s))"
   exit 1

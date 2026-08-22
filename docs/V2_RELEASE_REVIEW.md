@@ -1376,6 +1376,27 @@ the partitioned pair is live again while the explicitly dropped pair stays down
 -- including the pair-severed-for-both-reasons case, which stays down until both
 reasons clear.
 
+### 73. An interrupted run still reported success (medium)
+
+Raised against the delayed-restart / event-failure exit-code work. On
+`SIGINT`/`SIGTERM` the run loop's `while (running)` exits, but the completion
+check considered only events that *threw* (`getFailedCount()`). A signal
+arriving before the timeline finished left arbitrary events unrun, yet the
+process printed *"Simulation completed successfully"* and exited 0 -- a gate or
+experiment would accept a run that stopped halfway. The finite-duration
+delayed-restart case was already bounded; signal-driven shutdown was not.
+
+The signal handler now records the signal number, and after the run the entry
+point treats an interrupted run (`received_signal != 0`, equivalently `!running`
+-- the duration-reached path leaves `running` set) that still
+`hasPendingEvents()` as incomplete: it names the unrun timeline and returns
+`128 + signal` (130 for SIGINT, 143 for SIGTERM), distinct from the validation
+(2) and event-failure (1) codes. An interrupt that arrives after the last event
+already ran is a clean stop and still exits 0. A new behavioural gate step
+(step 10) starts a scenario with an event at `t=20`, sends `SIGTERM` at `t≈2`,
+and asserts the process exits non-zero and names the pending timeline; removing
+the check makes it exit 0 and the step fails.
+
 ### 72. Status doc listed an implemented action as unimplemented (low)
 
 `DEVELOPMENT_STATUS.md` still listed `inject_message` among the actions that are
@@ -1427,10 +1448,11 @@ Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
 - Unit tests: 165 test cases, 1662 assertions, all passing. Findings 14-24 and
-  26-71 each added coverage (30 and 40 are gate-script/entry-point; the failure
-  branches of 39 and 42 are loopback-undefined, so unit-covered on the success
-  path; 72 is a documentation correction); finding 25 is a seed-resolution
-  change in the entry point, verified by
+  26-71 each added coverage (30, 73 and the entry-point framing of others are
+  gate-script/entry-point; the failure branches of 39 and 42 are
+  loopback-undefined, so unit-covered on the success path; 72 is a documentation
+  correction); finding 25 is a seed-resolution change in the entry point,
+  verified by
   running two seedless scenarios and observing different drawn seeds, with the
   gate scenarios pinned so CI stays deterministic.
 - Scenarios: 20 of 23 validate; 3 skipped for unimplemented event actions.

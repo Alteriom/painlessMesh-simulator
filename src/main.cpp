@@ -33,13 +33,20 @@ using namespace simulator;
 // Global flag for graceful shutdown
 static volatile bool running = true;
 
+// The signal that stopped the run, or 0 if it ended on its own. The run loop's
+// duration-reached path leaves `running` set, so `received_signal` (equivalently
+// !running after the loop) is what distinguishes an interrupted run from a
+// completed one -- an interrupt can leave arbitrary events still pending.
+static volatile std::sig_atomic_t received_signal = 0;
+
 /**
  * @brief Signal handler for SIGINT/SIGTERM
- * 
+ *
  * Sets the running flag to false to trigger graceful shutdown.
  */
 void signalHandler(int signal) {
   std::cout << "\n[INFO] Received signal " << signal << ", shutting down gracefully...\n";
+  received_signal = signal;
   running = false;
 }
 
@@ -480,6 +487,19 @@ int main(int argc, char* argv[]) {
                 << " scheduled event(s) failed to execute; the timeline did not "
                 << "run to completion" << std::endl;
       return 1;
+    }
+
+    // A SIGINT/SIGTERM clears `running`; the duration-reached path leaves it
+    // set. If we were interrupted with events still queued, the requested
+    // timeline never finished -- report it rather than exiting 0 as "completed
+    // successfully", which a gate or experiment would accept as a full run. An
+    // interrupt that arrives after the last event already ran is a clean stop.
+    if (received_signal != 0 && event_scheduler.hasPendingEvents()) {
+      std::cerr << "\n[ERROR] Interrupted by signal " << received_signal
+                << " with " << event_scheduler.getPendingEventCount()
+                << " scheduled event(s) still pending; the timeline did not run "
+                << "to completion" << std::endl;
+      return 128 + static_cast<int>(received_signal);
     }
 
     std::cout << "\n[INFO] Simulation completed successfully" << std::endl;
