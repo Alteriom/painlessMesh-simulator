@@ -325,13 +325,52 @@ jobs:
   #     - name: Perform CodeQL Analysis
   #       uses: github/codeql-action/analyze@v3
 
+  # Review-loop governor — caps bot review rounds per PR (AGENTS.md § Review
+  # round budget). The budget mirrors MAX_REVIEW_ITERATIONS = 3 in the
+  # Command Center's pr_review_handler.py; change both together or neither.
+  # Past the budget this fails until a human review approves the PR, so the
+  # terminal state is a human decision instead of a 39th bot round (PR #59).
+  review-budget:
+    name: Review round budget
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Count bot review rounds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          MAX_REVIEW_ROUNDS: 3
+        run: |
+          rounds=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '[.[] | select(.body | test("^\\s*@codex review"; "i"))] | length')
+          echo "Bot review rounds requested on #$PR: $rounds (budget: $MAX_REVIEW_ROUNDS)"
+          if [ "$rounds" -le "$MAX_REVIEW_ROUNDS" ]; then
+            echo "Within budget."
+            exit 0
+          fi
+          approvals=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '[.[] | select(.state == "APPROVED")] | length')
+          if [ "$approvals" -gt 0 ]; then
+            echo "Budget exceeded, but a human review has approved this PR — passing."
+            exit 0
+          fi
+          echo "::error::Review round budget exhausted ($rounds/$MAX_REVIEW_ROUNDS)."
+          echo "Do NOT post another '@codex review'. Post a summary of the open"
+          echo "threads and hand the PR to a human approver; once a human review"
+          echo "approves, re-run this check and it will pass."
+          exit 1
+
   # All checks passed
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint, build-docker, test]
+    needs: [lint, build-docker, test, review-budget]
     if: always()
-    
+
     steps:
       - name: Check all jobs
         run: |
@@ -339,6 +378,12 @@ jobs:
              [[ "${{ needs.build-docker.result }}" != "success" ]] || \
              [[ "${{ needs.test.result }}" != "success" ]]; then
             echo "One or more CI jobs failed"
+            exit 1
+          fi
+          # review-budget is skipped on push events; only a real failure gates.
+          if [[ "${{ needs.review-budget.result }}" != "success" ]] && \
+             [[ "${{ needs.review-budget.result }}" != "skipped" ]]; then
+            echo "Review round budget exhausted — hand this PR to a human approver (see AGENTS.md)."
             exit 1
           fi
           echo "All CI jobs passed successfully!"
