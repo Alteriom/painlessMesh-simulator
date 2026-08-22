@@ -570,3 +570,74 @@ TEST_CASE("Topology planner keeps the links a scenario's events name",
   REQUIRE(hasLink(plan.links, 1001, 1004));
   REQUIRE(isConnected(plan.links, nodes.size()));
 }
+
+TEST_CASE("validateEventTimeline rejects sequences that must fail at runtime",
+          "[topology_planner][timeline]") {
+  // planTopology() checks static feasibility; this walks the lifecycle so a
+  // sequence broken by an earlier event is rejected at --validate-only, not at
+  // run time. (finding 79)
+  const auto nodes = makeNodes(3);  // n1=1001, n2=1002, n3=1003
+  // A line n1 - n2 - n3.
+  const std::vector<PlannedLink> line{{1001, 1002}, {1002, 1003}};
+
+  auto stopEvent = [](uint32_t t, const std::string& target) {
+    EventConfig e; e.time = t; e.action = EventAction::STOP_NODE; e.target = target;
+    return e;
+  };
+
+  SECTION("a partition whose group a prior stop_node split") {
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};  // group {n1,n2} needs n2, which is down
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n2"), part}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("network_partition") != std::string::npos);
+  }
+
+  SECTION("an injection from a sender stopped earlier") {
+    EventConfig inj; inj.time = 10; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n1"), inj}, line, nodes);
+    REQUIRE(problems.size() == 1);
+    REQUIRE(problems[0].find("inject_message") != std::string::npos);
+  }
+
+  SECTION("a partition after stopping a leaf is fine") {
+    // Stop n1 (a leaf); partition [[n2,n3],[n1]] still yields two components:
+    // the stopped n1 as its own, and the connected {n2,n3}.
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n2", "n3"}, {"n1"}};
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n1"), part}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("an injection from a running sender is fine") {
+    EventConfig inj; inj.time = 10; inj.action = EventAction::INJECT_MESSAGE;
+    inj.from = "n1"; inj.to = "n3";
+    const auto problems = validateEventTimeline({inj}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("a restart that brings the node back before the partition is fine") {
+    EventConfig restart; restart.time = 5; restart.action = EventAction::RESTART_NODE;
+    restart.target = "n2"; restart.delay = 2;  // down 5..7, up by t=7
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};  // n2 is running again at t=10
+    const auto problems = validateEventTimeline({restart, part}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+
+  SECTION("an unmodelled action skips the check rather than guess") {
+    // start_all_nodes parses as UNKNOWN; the walker cannot track it, so it must
+    // not flag a false positive (the unknown action fails validation on its own).
+    EventConfig unknown; unknown.time = 6; unknown.action = EventAction::UNKNOWN;
+    unknown.action_raw = "start_all_nodes";
+    EventConfig part; part.time = 10; part.action = EventAction::PARTITION_NETWORK;
+    part.groups = {{"n1", "n2"}, {"n3"}};
+    const auto problems =
+        validateEventTimeline({stopEvent(5, "n2"), unknown, part}, line, nodes);
+    REQUIRE(problems.empty());
+  }
+}

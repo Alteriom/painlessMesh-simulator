@@ -172,6 +172,15 @@ int main(int argc, char* argv[]) {
       for (const auto& sk : skipped) {
         problems.push_back("event cannot be scheduled: " + sk);
       }
+
+      // Scheduling only proves the events construct. Walk the timeline's
+      // lifecycle too, so a sequence guaranteed to fail at runtime -- a
+      // partition whose group an earlier stop_node split, or an injection from a
+      // by-then-stopped sender -- is rejected here rather than at run time.
+      for (const auto& p :
+           validateEventTimeline(config.events, feas.links, config.nodes)) {
+        problems.push_back(p);
+      }
     }
 
     if (!problems.empty()) {

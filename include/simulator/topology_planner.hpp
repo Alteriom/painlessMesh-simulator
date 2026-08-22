@@ -101,6 +101,33 @@ TopologyPlan planTopology(const TopologyConfig& topology,
  */
 std::string topologyTypeName(TopologyType type);
 
+/**
+ * @brief Reject event timelines that are guaranteed to fail at runtime.
+ *
+ * planTopology() checks a scenario's *static* feasibility, but the validation
+ * sweep otherwise only constructs and queues events -- so a timeline that
+ * breaks because of an *earlier* event slips through `--validate-only` and only
+ * fails once the run is underway. This walks the events in scheduled order,
+ * tracking each node's up/down state (and connection drops / partition cuts),
+ * and reports the two deterministic mismatches:
+ *
+ * - a `network_partition` whose groups no longer form exactly that many
+ *   connected components in the live mesh -- e.g. a prior `stop_node` split a
+ *   group by taking down its articulation node (matches the runtime throw in
+ *   NetworkPartitionEvent);
+ * - an `inject_message` whose sender is stopped at that point in the timeline
+ *   (matches the runtime "injection refused" throw).
+ *
+ * @param events The scenario's events (declaration order; equal times keep it)
+ * @param wiredLinks The links planTopology() will actually wire (its `links`)
+ * @param nodes The scenario's nodes, for id resolution and the full node set
+ * @return One problem string per guaranteed-to-fail event; empty if none
+ */
+std::vector<std::string> validateEventTimeline(
+    const std::vector<EventConfig>& events,
+    const std::vector<PlannedLink>& wiredLinks,
+    const std::vector<NodeConfigExtended>& nodes);
+
 } // namespace simulator
 
 #endif // SIMULATOR_TOPOLOGY_PLANNER_HPP

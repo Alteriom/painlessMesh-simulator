@@ -1507,6 +1507,31 @@ component. The finding-76 unit test gains an assertion that the stopped node doe
 not share a component with its still-running neighbour; the one-sided check put
 them together.
 
+### 79. Validation missed lifecycle-dependent event failures (medium)
+
+Raised against the validation sweep. `planTopology()` checks a scenario's
+*static* feasibility, but validation otherwise only constructs and queues the
+events -- so a timeline guaranteed to fail because of an *earlier* event passed
+`--validate-only` and only threw once the run was underway. Two concrete cases:
+a `stop_node B` followed by `partition_network [[A,B],[C]]` on a line `A-B-C`
+(the static plan keeps `A-B`, but at runtime the stopped `B` splits the group
+and the partition throws), and an `inject_message` scheduled after its sender was
+stopped (refused at runtime).
+
+A new `validateEventTimeline()` walks the events in scheduled order, tracking
+each node's up/down state (and connection drops / partition cuts), and reports
+the deterministic mismatches: a `network_partition` whose groups no longer form
+exactly that many live components, and an `inject_message` from a by-then-stopped
+sender. It models the same live-component count the runtime measures, so it does
+not reject a valid scenario -- a partition after stopping a *leaf* still passes,
+and a `restart_node` that brings a node back before the partition passes. A
+timeline containing an action it cannot model (an `UNKNOWN`/unimplemented action,
+or `add_nodes`/`remove_node`, which change the node set) skips the check rather
+than guess, so it never fires a false positive on a scenario that already fails
+validation for another reason. Wired into the entry point's validation sweep so
+`--validate-only` and the CI gate reject these scenarios up front; unit tests
+cover both rejections, all three accept cases, and the skip.
+
 ## Remaining gaps
 
 These are real work, not oversights, and are deliberately left for follow-up
@@ -1548,8 +1573,8 @@ event system that would have caught them never ran.
 Everything above was verified locally against `Feat/next-release` @ `9a9ecab`:
 
 - Build: clean, GCC 12.2, C++14, Boost 1.74.
-- Unit tests: 167 test cases, 1689 assertions, all passing. Findings 14-24 and
-  26-78 each added coverage (30 and 73 are gate-script/entry-point; the failure
+- Unit tests: 168 test cases, 1697 assertions, all passing. Findings 14-24 and
+  26-79 each added coverage (30 and 73 are gate-script/entry-point; the failure
   branches of 39 and 42 are loopback-undefined and 74 is UB-hardening, so those
   are unit-covered on the success path; 72 is a documentation correction);
   finding 25 is a seed-resolution change in the entry point, verified by

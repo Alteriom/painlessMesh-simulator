@@ -10,10 +10,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <random>
+#include <set>
 #include <string>
+#include <utility>
 
 namespace simulator {
 
@@ -631,6 +634,173 @@ TopologyPlan planTopology(const TopologyConfig& topology,
   }
 
   return plan;
+}
+
+std::vector<std::string> validateEventTimeline(
+    const std::vector<EventConfig>& events,
+    const std::vector<PlannedLink>& wiredLinks,
+    const std::vector<NodeConfigExtended>& nodes) {
+  std::vector<std::string> problems;
+
+  // If the timeline contains an action whose lifecycle effect this walker does
+  // not model, its running-state view would be unreliable and could flag a
+  // false positive. Skip rather than guess: an UNKNOWN action already fails
+  // validation on its own, and add/remove change the node set out from under us.
+  for (const auto& e : events) {
+    if (e.action == EventAction::UNKNOWN ||
+        e.action == EventAction::ADD_NODES ||
+        e.action == EventAction::REMOVE_NODE) {
+      return problems;
+    }
+  }
+
+  auto key = [](uint32_t a, uint32_t b) {
+    return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
+  };
+
+  // The full node set and the wired adjacency. A partition is measured on the
+  // whole graph, so a stopped node shows up as its own component -- exactly as
+  // NodeManager::getConnectedComponents() sees it at runtime.
+  std::set<uint32_t> allNodes;
+  for (const auto& n : nodes) allNodes.insert(n.nodeId);
+  std::set<std::pair<uint32_t, uint32_t>> declared;
+  std::map<uint32_t, std::vector<uint32_t>> adj;
+  for (const auto& l : wiredLinks) {
+    declared.insert(key(l.first, l.second));
+    adj[l.first].push_back(l.second);
+    adj[l.second].push_back(l.first);
+  }
+  const bool topologyWired = !wiredLinks.empty();
+
+  // Evolving lifecycle state as the timeline is walked.
+  std::set<uint32_t> running = allNodes;
+  std::set<std::pair<uint32_t, uint32_t>> dropped;      // connection_drop / break_link
+  std::set<std::pair<uint32_t, uint32_t>> partitionCut; // active partition, until heal
+
+  auto edgeLive = [&](uint32_t a, uint32_t b) {
+    const auto k = key(a, b);
+    return declared.count(k) && !dropped.count(k) && !partitionCut.count(k) &&
+           running.count(a) && running.count(b);
+  };
+  auto componentCount = [&]() {
+    std::set<uint32_t> unvisited(allNodes.begin(), allNodes.end());
+    size_t comps = 0;
+    while (!unvisited.empty()) {
+      ++comps;
+      std::vector<uint32_t> frontier{*unvisited.begin()};
+      unvisited.erase(unvisited.begin());
+      while (!frontier.empty()) {
+        const uint32_t cur = frontier.back();
+        frontier.pop_back();
+        auto it = adj.find(cur);
+        if (it == adj.end()) continue;
+        for (uint32_t peer : it->second) {
+          if (!unvisited.count(peer)) continue;
+          if (!edgeLive(cur, peer)) continue;
+          unvisited.erase(peer);
+          frontier.push_back(peer);
+        }
+      }
+    }
+    return comps;
+  };
+
+  // One or two ordered steps per event; a delayed restart is a stop now and a
+  // start at time+delay, exactly as EventFactory schedules it.
+  struct Step { uint32_t time; size_t order; const EventConfig* ev; bool isDelayedStart; };
+  std::vector<Step> steps;
+  for (size_t i = 0; i < events.size(); ++i) {
+    const auto& e = events[i];
+    steps.push_back({e.time, i, &e, false});
+    if (e.action == EventAction::RESTART_NODE) {
+      const uint64_t t = static_cast<uint64_t>(e.time) + e.delay;
+      steps.push_back({t > UINT32_MAX ? UINT32_MAX : static_cast<uint32_t>(t),
+                       i, &e, true});
+    }
+  }
+  std::stable_sort(steps.begin(), steps.end(), [](const Step& a, const Step& b) {
+    if (a.time != b.time) return a.time < b.time;
+    return a.order < b.order;
+  });
+
+  auto describe = [](const EventConfig& e) {
+    return e.description.empty() ? ("at t=" + std::to_string(e.time))
+                                 : ("\"" + e.description + "\"");
+  };
+
+  for (const auto& step : steps) {
+    const auto& e = *step.ev;
+    uint32_t a = 0;
+    switch (e.action) {
+      case EventAction::STOP_NODE:
+      case EventAction::CRASH_NODE:
+        if (resolveId(nodes, e.target, a)) running.erase(a);
+        break;
+      case EventAction::START_NODE:
+        if (resolveId(nodes, e.target, a)) running.insert(a);
+        break;
+      case EventAction::RESTART_NODE:
+        if (resolveId(nodes, e.target, a)) {
+          if (step.isDelayedStart) running.insert(a);   // start half
+          else running.erase(a);                        // stop half
+        }
+        break;
+      case EventAction::CONNECTION_DROP:
+      case EventAction::BREAK_LINK: {
+        uint32_t x = 0, y = 0;
+        const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
+        const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.insert(key(x, y));
+        break;
+      }
+      case EventAction::CONNECTION_RESTORE:
+      case EventAction::RESTORE_LINK: {
+        uint32_t x = 0, y = 0;
+        const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
+        const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.erase(key(x, y));
+        break;
+      }
+      case EventAction::PARTITION_NETWORK: {
+        // Apply the cut this partition makes -- every wired cross-group edge --
+        // then measure, matching NetworkPartitionEvent (cut, then count).
+        std::vector<std::vector<uint32_t>> groups;
+        for (const auto& g : e.groups) groups.push_back(resolveGroup(g, nodes));
+        for (size_t i = 0; i < groups.size(); ++i) {
+          for (size_t j = i + 1; j < groups.size(); ++j) {
+            for (uint32_t x : groups[i])
+              for (uint32_t y : groups[j])
+                if (declared.count(key(x, y))) partitionCut.insert(key(x, y));
+          }
+        }
+        if (topologyWired && componentCount() != groups.size()) {
+          problems.push_back(
+              "network_partition " + describe(e) + " requests " +
+              std::to_string(groups.size()) +
+              " groups but earlier events leave the live mesh in " +
+              std::to_string(componentCount()) +
+              " components; a group is not connected when it runs (e.g. a "
+              "stop_node took down a node the group needs)");
+        }
+        break;
+      }
+      case EventAction::HEAL_PARTITION:
+        partitionCut.clear();
+        break;
+      case EventAction::INJECT_MESSAGE:
+        if (resolveId(nodes, e.from, a) && !running.count(a)) {
+          problems.push_back(
+              "inject_message " + describe(e) + " sends from node '" + e.from +
+              "', which is stopped at that point in the timeline; the runtime "
+              "refuses the injection and fails the run");
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  return problems;
 }
 
 } // namespace simulator
