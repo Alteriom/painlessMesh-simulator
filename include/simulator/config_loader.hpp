@@ -126,6 +126,7 @@ struct NodeTemplate {
  * @brief Network topology configuration
  */
 struct TopologyConfig {
+  bool declared = false;                     ///< A topology: block was present
   TopologyType type = TopologyType::RANDOM;  ///< Topology type
   boost::optional<std::string> hub;            ///< Hub node ID (for star topology)
   float density = 0.3f;                      ///< Connection density (for random)
@@ -151,7 +152,8 @@ enum class EventAction {
   SET_NETWORK_QUALITY, ///< Change network quality
   CONNECTION_DROP,     ///< Drop connection between nodes
   CONNECTION_RESTORE,  ///< Restore dropped connection
-  CONNECTION_DEGRADE   ///< Degrade connection quality
+  CONNECTION_DEGRADE,  ///< Degrade connection quality
+  UNKNOWN              ///< Unrecognised action string; a validation error, not a parse failure
 };
 
 /**
@@ -160,6 +162,7 @@ enum class EventAction {
 struct EventConfig {
   uint32_t time = 0;                     ///< Event time in seconds
   EventAction action;                    ///< Event action type
+  std::string action_raw;                ///< Original action string (for UNKNOWN diagnostics)
   std::string target;                    ///< Target node ID
   std::vector<std::string> targets;      ///< Multiple target node IDs
   std::string description;               ///< Event description

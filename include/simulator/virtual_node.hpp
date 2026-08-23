@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cstdint>
+#include <vector>
 #include <chrono>
 #include <string>
 #include <map>
@@ -232,7 +233,45 @@ public:
    * in a real mesh network.
    */
   void connectTo(VirtualNode& other);
-  
+
+  /**
+   * @brief Closes the live mesh connection to a specific peer
+   *
+   * Scenario link events used to mutate only the standalone NetworkSimulator,
+   * which nothing on the delivery path consults -- so a "dropped" link kept
+   * carrying traffic. This severs the actual painlessMesh connection instead.
+   *
+   * @param peerId Node ID of the peer to disconnect from
+   * @return true if a connection to that peer was found and closed
+   */
+  bool disconnectFrom(uint32_t peerId);
+
+  /**
+   * @brief Checks whether a live mesh connection to a peer exists
+   *
+   * @param peerId Node ID of the peer
+   * @return true if this node currently holds a connection to peerId
+   */
+  bool isConnectedTo(uint32_t peerId) const;
+
+  /**
+   * @brief Number of live mesh connections this node currently holds
+   *
+   * @return Size of the node's connection list (0 if the mesh is gone)
+   */
+  size_t getConnectionCount() const;
+
+  /**
+   * @brief Sends a message on behalf of a scenario `inject_message` event
+   *
+   * @param dest Destination node ID, or 0 to broadcast
+   * @param payload Message body
+   * @return true if the message was handed to the mesh
+   *
+   * Counts against this node's messages_sent, like a firmware send would.
+   */
+  bool injectMessage(uint32_t dest, const std::string& payload);
+
   /**
    * @brief Sets the partition ID for this node
    * 
@@ -285,6 +324,21 @@ public:
    */
   firmware::FirmwareBase* getFirmware() const;
 
+  /**
+   * @brief Resume the firmware and replay any connection callbacks that were
+   *        deferred while it was suspended.
+   *
+   * onNewConnection/onChangedConnections are edge-triggered. While the firmware
+   * is suspended for startup wiring (findings 67/69/70) they must not run over
+   * the half-built mesh -- but they also must not be lost, or the firmware
+   * would never learn the topology it booted into. They are queued during
+   * suspension and replayed here, so the firmware observes its settled
+   * neighbours exactly as it would after a real boot. Use this instead of
+   * calling FirmwareBase::resume() directly whenever a mesh may have been wired
+   * while suspended.
+   */
+  void resumeFirmware();
+
 private:
   uint32_t node_id_;                   ///< Unique node identifier
   std::unique_ptr<MeshTest> mesh_;     ///< Mesh instance wrapper
@@ -292,6 +346,7 @@ private:
   boost::asio::io_context& io_;        ///< IO context reference
   NodeMetrics metrics_;                ///< Performance metrics
   bool running_{false};                ///< Running state flag
+  bool mesh_needs_rebuild_{false};     ///< Set by stop()/crash(); start() must rebuild the mesh
   float network_quality_{1.0f};        ///< Network quality (0.0-1.0)
   uint32_t partition_id_{0};           ///< Partition ID (0 = no partition)
   NodeConfig config_;                  ///< Node configuration
@@ -299,7 +354,20 @@ private:
   // Firmware support
   std::unique_ptr<firmware::FirmwareBase> firmware_;  ///< Loaded firmware instance
   bool firmware_initialized_{false};   ///< Firmware initialization state
-  
+
+  // Connection callbacks deferred while the firmware is suspended for a link
+  // settle. Replayed by resumeFirmware() on an explicit resume, or by the next
+  // update() after a runtime settle. See findings 70 and 77.
+  std::vector<uint32_t> pending_new_connections_;  ///< Peers seen while suspended
+  bool pending_changed_connections_{false};        ///< A topology change was suppressed
+
+  /**
+   * @brief Replay any connection callbacks deferred while the firmware was
+   *        suspended, then clear the queue. Caller ensures the firmware is in a
+   *        state where the callbacks should run (resumed, not suspended).
+   */
+  void flushPendingConnectionCallbacks();
+
   /**
    * @brief Initializes and sets up firmware
    * 

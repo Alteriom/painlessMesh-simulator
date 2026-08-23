@@ -10,6 +10,7 @@
 
 #include "simulator/config_loader.hpp"
 #include <fstream>
+#include <limits>
 #include <sstream>
 
 using namespace simulator;
@@ -482,6 +483,48 @@ topology:
     }
     REQUIRE(has_hub_error);
   }
+
+  SECTION("custom topology with a self-link is rejected") {
+    // A self-link wires nothing; the planner skips it, and a custom topology of
+    // only self-links would otherwise fall through to the random-tree default
+    // -- running unrelated links under a declaration the author wrote. It must
+    // fail validation instead.
+    std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+  - id: "node-2"
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "password"
+
+topology:
+  type: "custom"
+  connections:
+    - ["node-1", "node-1"]
+    )";
+
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+
+    REQUIRE(config.has_value());
+    auto errors = loader.getValidationErrors(*config);
+
+    bool has_self_link_error = false;
+    for (const auto& err : errors) {
+      if (err.message.find("itself") != std::string::npos) {
+        has_self_link_error = true;
+        break;
+      }
+    }
+    REQUIRE(has_self_link_error);
+  }
 }
 
 TEST_CASE("ConfigLoader parses events", "[config_loader]") {
@@ -521,6 +564,383 @@ events:
   REQUIRE(config->events[0].target == "node-1");
   REQUIRE(config->events[1].time == 120);
   REQUIRE(config->events[1].action == EventAction::START_NODE);
+}
+
+TEST_CASE("ConfigLoader rejects a delayed restart whose start overflows the clock",
+          "[config_loader]") {
+  // Infinite duration (0) skips the duration bound, but scheduleAll() adds time
+  // + delay as uint32; a sum past UINT32_MAX wraps and the start fires before
+  // the stop. Reject the overflow regardless of duration.
+  ScenarioConfig config;
+  config.simulation.duration = 0;  // infinite
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n; n.id = "node-" + std::to_string(id); n.nodeId = id;
+    n.mesh_prefix = "M"; n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::MESH;
+  EventConfig restart;
+  restart.action = EventAction::RESTART_NODE;
+  restart.target = "node-1001";
+  restart.time = 4000000000u;
+  restart.delay = 1000000000u;  // sum > UINT32_MAX
+  config.events.push_back(restart);
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+  bool has = false;
+  for (const auto& e : errors) {
+    if (e.message.find("overflows the 32-bit") != std::string::npos) has = true;
+  }
+  REQUIRE(has);
+}
+
+TEST_CASE("ConfigLoader rejects a NaN random-topology density",
+          "[config_loader]") {
+  ScenarioConfig config;
+  config.simulation.duration = 20;
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n; n.id = "node-" + std::to_string(id); n.nodeId = id;
+    n.mesh_prefix = "M"; n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::RANDOM;
+  config.topology.density = std::numeric_limits<float>::quiet_NaN();
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+  bool has = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Density must be a finite value") != std::string::npos) has = true;
+  }
+  REQUIRE(has);
+}
+
+TEST_CASE("ConfigLoader rejects a delayed restart that finishes after the run",
+          "[config_loader]") {
+  // A restart_node schedules its start at time + delay. If that lands past the
+  // duration, the start never fires and the node stays stopped -- while the run
+  // reports success. The plain event-time check only sees the original time.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 20
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 15
+    action: restart_node
+    target: "node-1"
+    delay: 10
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_overrun = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Restart start") != std::string::npos &&
+        e.message.find("exceeds simulation duration") != std::string::npos) {
+      has_overrun = true;
+    }
+  }
+  REQUIRE(has_overrun);
+}
+
+TEST_CASE("ConfigLoader rejects a non-finite connection_degrade packet loss",
+          "[config_loader]") {
+  // A NaN packet_loss passes both range comparisons (they are false for NaN) but
+  // PacketLossConfig rejects it at runtime. Built in code because yaml-cpp's
+  // string loader does not convert `.nan` uniformly; the fix is in the
+  // validation logic, which this exercises directly.
+  ScenarioConfig config;
+  config.simulation.name = "Test";
+  config.simulation.duration = 60;
+  for (uint32_t id : {1001u, 1002u}) {
+    NodeConfigExtended n;
+    n.id = "node-" + std::to_string(id);
+    n.nodeId = id;
+    n.mesh_prefix = "M";
+    n.mesh_password = "p";
+    config.nodes.push_back(n);
+  }
+  config.topology.type = TopologyType::MESH;
+  EventConfig degrade;
+  degrade.time = 10;
+  degrade.action = EventAction::CONNECTION_DEGRADE;
+  degrade.from = "node-1001";
+  degrade.to = "node-1002";
+  degrade.latency = 100;
+  degrade.packet_loss = std::numeric_limits<float>::quiet_NaN();
+  config.events.push_back(degrade);
+
+  ConfigLoader loader;
+  auto errors = loader.getValidationErrors(config);
+
+  bool has_loss = false;
+  for (const auto& e : errors) {
+    if (e.message.find("finite value") != std::string::npos) has_loss = true;
+  }
+  REQUIRE(has_loss);
+}
+
+TEST_CASE("ConfigLoader rejects a connection_degrade latency that overflows when doubled",
+          "[config_loader]") {
+  // ConnectionDegradeEvent sets max = latency * 2; a value above UINT32_MAX/2
+  // wraps below the min and throws only at runtime. It must fail validation.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_degrade
+    from: "node-1"
+    to: "node-2"
+    latency: 3000000000
+    packet_loss: 0.2
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_latency = false;
+  for (const auto& e : errors) {
+    if (e.message.find("too large") != std::string::npos) has_latency = true;
+  }
+  REQUIRE(has_latency);
+}
+
+TEST_CASE("ConfigLoader rejects out-of-range connection_degrade packet loss",
+          "[config_loader]") {
+  // NetworkSimulator::setPacketLoss() throws on a value outside [0,1]; caught
+  // up front it is a clean validation error, not a mid-run timeline failure.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_degrade
+    from: "node-1"
+    to: "node-2"
+    latency: 200
+    packet_loss: 1.5
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_loss = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Packet loss must be a finite value") != std::string::npos) {
+      has_loss = true;
+    }
+  }
+  REQUIRE(has_loss);
+}
+
+TEST_CASE("ConfigLoader records an unknown action without aborting the parse",
+          "[config_loader]") {
+  // An unknown action must be a validation error, not a fail-fast parse throw:
+  // otherwise the rest of the scenario is never validated and an unrelated
+  // regression hides behind it. The config loads; validation reports the
+  // unknown action AND the unrelated error.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 5
+    action: no_such_action
+  - time: 10
+    action: connection_drop
+    from: "node-1"
+    to: "node-1"
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());  // parse did not abort
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_unknown = false;
+  bool has_self_link = false;
+  for (const auto& e : errors) {
+    if (e.message.find("Unknown event action: no_such_action") != std::string::npos)
+      has_unknown = true;
+    if (e.message.find("connects a node to itself") != std::string::npos)
+      has_self_link = true;
+  }
+  REQUIRE(has_unknown);
+  REQUIRE(has_self_link);  // the unrelated error is not masked
+}
+
+TEST_CASE("ConfigLoader rejects a self-referential link event",
+          "[config_loader]") {
+  // resolveLink() would schedule a connection_drop n1<->n1; dropLink() records a
+  // phantom self-pair and closes zero endpoints. It must fail validation.
+  std::string yaml = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+
+topology:
+  type: "mesh"
+
+events:
+  - time: 10
+    action: connection_drop
+    from: "node-1"
+    to: "node-1"
+)";
+
+  ConfigLoader loader;
+  auto config = loader.loadFromString(yaml);
+  REQUIRE(config.has_value());
+  auto errors = loader.getValidationErrors(*config);
+
+  bool has_self = false;
+  for (const auto& e : errors) {
+    if (e.message.find("connects a node to itself") != std::string::npos) {
+      has_self = true;
+    }
+  }
+  REQUIRE(has_self);
+}
+
+TEST_CASE("ConfigLoader validates partition groups cover every node",
+          "[config_loader]") {
+  // partitionNetwork() only cuts pairs crossing group boundaries, so a node
+  // omitted from every group keeps bridging the split -- the event would report
+  // success while traffic still crosses. Every node must be in exactly one
+  // group.
+  const std::string nodes = R"(
+simulation:
+  name: "Test"
+  duration: 60
+
+nodes:
+  - id: "node-1"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-2"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+  - id: "node-3"
+    config: {mesh_prefix: "M", mesh_password: "p"}
+)";
+
+  auto errorsFor = [](const std::string& yaml) {
+    ConfigLoader loader;
+    auto config = loader.loadFromString(yaml);
+    REQUIRE(config.has_value());
+    return loader.getValidationErrors(*config);
+  };
+  auto hasGroupError = [](const std::vector<ValidationError>& errors,
+                          const std::string& needle) {
+    for (const auto& e : errors) {
+      if (e.message.find(needle) != std::string::npos) return true;
+    }
+    return false;
+  };
+
+  SECTION("omitting a node is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1]
+      - [node-2]
+)");
+    REQUIRE(hasGroupError(errors, "omits node 'node-3'"));
+  }
+
+  SECTION("a node in two groups is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2]
+      - [node-2, node-3]
+)");
+    REQUIRE(hasGroupError(errors, "more than one partition group"));
+  }
+
+  SECTION("an empty group is rejected") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2, node-3]
+      - []
+)");
+    REQUIRE(hasGroupError(errors, "empty group"));
+  }
+
+  SECTION("a full partition validates") {
+    const auto errors = errorsFor(nodes + R"(
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [node-1, node-2]
+      - [node-3]
+)");
+    REQUIRE_FALSE(hasGroupError(errors, "omits node"));
+    REQUIRE_FALSE(hasGroupError(errors, "more than one"));
+  }
 }
 
 TEST_CASE("ConfigLoader validates event timing", "[config_loader]") {

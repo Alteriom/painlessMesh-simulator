@@ -14,40 +14,46 @@ nodes:
   # Group 1: Bridge + 2 sensors
   - id: "bridge-1"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
   
   - id: "sensor-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
   
   - id: "sensor-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
   
   # Group 2: Bridge + 2 sensors
   - id: "bridge-2"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
   
   - id: "sensor-3"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
   
   - id: "sensor-4"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "rapid138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "rapid138"
+      mesh_port: 5555
 
 topology:
   type: "mesh"  # Start fully connected

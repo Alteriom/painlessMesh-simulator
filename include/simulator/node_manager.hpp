@@ -14,6 +14,8 @@
 
 #include <memory>
 #include <map>
+#include <set>
+#include <utility>
 #include <vector>
 #include <cstdint>
 #include <boost/asio.hpp>
@@ -141,7 +143,7 @@ public:
    * to advance the simulation state.
    */
   void updateAll();
-  
+
   /**
    * @brief Establish mesh connectivity between nodes
    * 
@@ -152,6 +154,35 @@ public:
    * painlessMesh networks.
    */
   void establishConnectivity();
+
+  /**
+   * @brief Wire exactly the links a scenario's topology asks for
+   *
+   * `topology:` was parsed and validated but never applied -- every run got the
+   * random tree above regardless of what the scenario declared, so once link
+   * events became live they addressed edges that did not exist. Plan the links
+   * with planTopology() and pass them here.
+   *
+   * Each link is recorded in the adjacency map, so drop, partition, heal and
+   * reconnect all operate on the graph the scenario actually declared.
+   *
+   * @param links Node-id pairs to connect
+   * @return Number of links successfully wired
+   */
+  size_t establishConnectivity(const std::vector<std::pair<uint32_t, uint32_t>>& links);
+
+  /**
+   * @brief Pump the mesh until a just-created link settles
+   *
+   * Wiring every declared link in one tight loop makes painlessMesh tear the
+   * whole mesh down: measured on a 4-node full mesh, 6 links wired, 0 live and
+   * not one message delivered in 20s. Given a moment between connects it
+   * instead prunes the redundant edges and keeps a working spanning tree.
+   *
+   * @return true if both endpoints report the connection within the budget;
+   *         false on timeout -- a real failure the caller must not paper over.
+   */
+  bool settleLink(uint32_t a, uint32_t b);
   
   // Queries
   
@@ -161,6 +192,32 @@ public:
    * @return Count of nodes currently managed
    */
   size_t getNodeCount() const { return nodes_.size(); }
+
+  /**
+   * @brief Number of nodes whose configured firmware failed to load
+   *
+   * createNode() deliberately keeps a node alive when its firmware cannot be
+   * resolved, so that an interactive run still shows the rest of the mesh.
+   * That is the wrong default for CI, where a scenario naming firmware which
+   * never loads must not report success. Callers acting as a test gate should
+   * treat any non-zero value here as a failed run.
+   */
+  size_t getFirmwareLoadFailureCount() const { return firmware_load_failures_; }
+
+  /**
+   * @brief Number of nodes currently running
+   *
+   * Distinct from getNodeCount(): a crashed or stopped node is still managed.
+   * Progress output used to report the total here, so a scenario that crashed
+   * half the mesh still printed the full node count as "running".
+   */
+  size_t getRunningCount() const {
+    size_t running = 0;
+    for (const auto& pair : nodes_) {
+      if (pair.second && pair.second->isRunning()) ++running;
+    }
+    return running;
+  }
   
   /**
    * @brief Get a specific node by ID
@@ -199,7 +256,146 @@ public:
    * @return true if node exists, false otherwise
    */
   bool hasNode(uint32_t nodeId) const;
-  
+
+  // --- Topology control -----------------------------------------------------
+  //
+  // establishConnectivity() wires the mesh once, at startup, and nothing
+  // recorded which node was wired to which. That left two holes: a scenario
+  // link event had no way to sever a real connection (it could only mutate the
+  // standalone NetworkSimulator, which no delivery path reads), and a node
+  // restarted mid-run came back isRunning() == true without rejoining the
+  // mesh. The manager now owns the edge list so both are answerable.
+
+  /**
+   * @brief Connect two nodes and record the edge in the topology
+   *
+   * @param fromNode Node that initiates the connection
+   * @param toNode Node that accepts it
+   * @return true if both nodes exist and the connection was initiated
+   */
+  bool connectNodes(uint32_t fromNode, uint32_t toNode);
+
+  /**
+   * @brief Sever the live link between two nodes
+   *
+   * Marks the link severed so a later reconnect will not silently restore it,
+   * then closes the painlessMesh connection from both ends.
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return Number of live connection endpoints actually closed (0, 1 or 2)
+   */
+  size_t dropLink(uint32_t a, uint32_t b);
+
+  /**
+   * @brief Outcome of a restoreLink() call
+   *
+   * Distinguishes a genuine failure to re-establish a link from the several
+   * legitimate reasons a restore does nothing, so a connection_restore event
+   * can fail the run on the former without treating a deferral as an error.
+   */
+  enum class RestoreOutcome {
+    Reestablished,  ///< The link is live again
+    NothingToDo,    ///< Already live, deferred to a heal, a node is down, or undeclared
+    Failed          ///< Both endpoints up but the handshake did not settle
+  };
+
+  /**
+   * @brief Restore a previously severed link
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return what happened -- see RestoreOutcome
+   */
+  RestoreOutcome restoreLink(uint32_t a, uint32_t b);
+
+  /**
+   * @brief Cut every link that crosses a partition boundary
+   *
+   * @param groups Node ID groups; every pair drawn from two different groups
+   *               is severed
+   * @return Number of recorded edges cut
+   */
+  size_t partitionNetwork(const std::vector<std::vector<uint32_t>>& groups);
+
+  /**
+   * @brief Clear every severed link and rebuild the recorded topology
+   *
+   * @return Number of links reconnected
+   */
+  /**
+   * @brief Outcome of a healNetwork() call
+   */
+  struct HealResult {
+    size_t restored = 0;  ///< Partition cuts re-established
+    size_t failed = 0;    ///< Both endpoints up but the handshake did not settle
+  };
+
+  HealResult healNetwork();
+
+  /**
+   * @brief Re-attach a node to its recorded peers after a start or restart
+   *
+   * @param nodeId Node that has just come back up
+   * @return Number of links re-established
+   */
+  /**
+   * @brief Outcome of a reconnectNode() call
+   */
+  struct ReconnectResult {
+    size_t reconnected = 0;  ///< Links re-established
+    size_t failed = 0;       ///< Eligible links whose handshake did not settle
+  };
+
+  ReconnectResult reconnectNode(uint32_t nodeId);
+
+  /**
+   * @brief Whether a link is currently marked severed by a scenario event
+   *
+   * @param a First node ID
+   * @param b Second node ID
+   * @return true if severed
+   */
+  bool isLinkSevered(uint32_t a, uint32_t b) const;
+
+  /**
+   * @brief Recorded peers of a node, whether or not the links are live
+   *
+   * @param nodeId Node to query
+   * @return Peer node IDs (empty if the node is unknown)
+   */
+  std::vector<uint32_t> getRecordedPeers(uint32_t nodeId) const;
+
+  /**
+   * @brief Whether any mesh edge was ever wired
+   *
+   * The recorded topology persists across drops (a drop marks a link severed
+   * but keeps the intended edge), so this is true iff establishConnectivity ran.
+   * A partition's component check is only meaningful once a mesh exists -- an
+   * isolation test that never wires one leaves every node its own component.
+   */
+  bool hasWiredTopology() const { return !topology_.empty(); }
+
+  /**
+   * @brief Total number of live mesh connections across all nodes
+   *
+   * Counts endpoints, so a healthy two-node link contributes 2.
+   *
+   * @return Live connection endpoint count
+   */
+  size_t getTotalConnectionCount() const;
+
+  /**
+   * @brief Groups of node IDs that can still reach each other
+   *
+   * Computed from the recorded topology minus severed links, so it answers
+   * "did that partition event actually split the mesh?" without waiting for
+   * painlessMesh to reconverge.
+   *
+   * @return One sorted vector of node IDs per connected component
+   */
+  std::vector<std::vector<uint32_t>> getConnectedComponents() const;
+
   // Resource limits
   
   /**
@@ -214,7 +410,20 @@ private:
   boost::asio::io_context& io_;                                   ///< IO context reference
   std::unique_ptr<Scheduler> scheduler_;                          ///< Shared scheduler instance
   std::map<uint32_t, std::shared_ptr<VirtualNode>> nodes_;        ///< Map of node ID to node
+  size_t firmware_load_failures_ = 0;                             ///< Nodes whose firmware failed to load
   uint32_t next_node_id_{1000};                                   ///< Next auto-assigned node ID
+  std::map<uint32_t, std::set<uint32_t>> topology_;               ///< Recorded mesh edges, both directions
+  std::set<std::pair<uint32_t, uint32_t>> explicit_drops_;        ///< Cut by connection_drop; persist until connection_restore, (low, high)
+  std::set<std::pair<uint32_t, uint32_t>> partition_cuts_;        ///< Cut by partitionNetwork(); healed by healNetwork(), (low, high)
+
+  /// Closes the live connection between a pair without recording why. dropLink()
+  /// and partitionNetwork() add the appropriate marker around it.
+  size_t severConnection(uint32_t a, uint32_t b);
+
+  /// Normalises a node pair so severance keys are direction-independent.
+  static std::pair<uint32_t, uint32_t> linkKey(uint32_t a, uint32_t b) {
+    return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
+  }
 };
 
 } // namespace simulator

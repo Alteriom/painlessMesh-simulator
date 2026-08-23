@@ -1145,3 +1145,47 @@ TEST_CASE("NetworkSimulator bandwidth with large messages", "[network_simulator]
     REQUIRE(sent == 200);
   }
 }
+
+TEST_CASE("healPartitions preserves explicit connection drops",
+          "[network_simulator][partition]") {
+  // A connection_drop and a network_partition are independent reasons to sever
+  // a pair, tracked separately just as NodeManager tracks them. Healing the
+  // partition must not resurrect an explicit drop, or the model diverges from
+  // the mesh and later isConnectionActive()/enqueueMessage() checks treat an
+  // explicitly dropped pair as live.
+  NetworkSimulator net;
+
+  // 1-2 explicitly dropped; 3-4 severed by a partition.
+  net.dropConnection(1, 2);
+  net.dropConnection(2, 1);
+  net.partitionConnection(3, 4);
+  net.partitionConnection(4, 3);
+
+  REQUIRE_FALSE(net.isConnectionActive(1, 2));
+  REQUIRE_FALSE(net.isConnectionActive(3, 4));
+
+  SECTION("heal restores partition cuts but keeps the explicit drop down") {
+    net.healPartitions();
+    REQUIRE(net.isConnectionActive(3, 4));       // partition cut cleared
+    REQUIRE(net.isConnectionActive(4, 3));
+    REQUIRE_FALSE(net.isConnectionActive(1, 2));  // explicit drop preserved
+    REQUIRE_FALSE(net.isConnectionActive(2, 1));
+  }
+
+  SECTION("a pair severed for both reasons stays down until both clear") {
+    net.partitionConnection(1, 2);  // 1-2 now dropped AND partitioned
+    net.healPartitions();
+    REQUIRE_FALSE(net.isConnectionActive(1, 2));  // explicit drop remains
+    net.restoreConnection(1, 2);
+    REQUIRE(net.isConnectionActive(1, 2));        // now clear
+  }
+
+  SECTION("restoreConnection clears the explicit drop only, not a partition") {
+    net.partitionConnection(1, 2);
+    net.restoreConnection(1, 2);
+    net.restoreConnection(2, 1);
+    REQUIRE_FALSE(net.isConnectionActive(1, 2));  // still partitioned
+    net.healPartitions();
+    REQUIRE(net.isConnectionActive(1, 2));
+  }
+}

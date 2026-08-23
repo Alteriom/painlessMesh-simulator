@@ -58,10 +58,8 @@ public:
     // Configure request task
     request_task_.setInterval(request_interval_);
     
-    // Add task to scheduler
-    if (scheduler_) {
-      scheduler_->addTask(request_task_);
-      request_task_.enable();
+    // Registered through the base so the task stops while the node is down
+    if (registerTask(request_task_)) {
       
       std::cout << "[INFO] Node " << node_id_ 
                 << " EchoClient firmware started, "
@@ -114,14 +112,21 @@ private:
     // Create request message
     String msg = "Request #" + std::to_string(requests_sent_);
     
+    // A false return means the mesh had no route -- do not count it as a
+    // request sent, or the echo ratio reports responses that were never asked
+    // for.
     if (server_node_id_ == 0) {
       // Broadcast mode - send to all nodes
-      mesh_->sendBroadcast(msg);
+      if (!sendBroadcast(msg)) {
+        return;
+      }
       std::cout << "[INFO] Node " << node_id_ << " broadcasting request: " 
                 << msg << std::endl;
     } else {
       // Send to specific server
-      mesh_->sendSingle(server_node_id_, msg);
+      if (!sendSingle(server_node_id_, msg)) {
+        return;
+      }
       std::cout << "[INFO] Node " << node_id_ << " sending request to " 
                 << server_node_id_ << ": " << msg << std::endl;
     }

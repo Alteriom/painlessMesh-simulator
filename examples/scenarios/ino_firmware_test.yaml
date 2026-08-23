@@ -1,0 +1,46 @@
+---
+# .ino wrapper firmware, end to end
+#
+# scripts/ci_integration_check.sh asserts that a run of BasicInoFirmware
+# reports a non-zero send count. basic.ino calls mesh.sendBroadcast() and the
+# wrapper transcribed that literally, bypassing FirmwareBase's accounting hook:
+# a three-node run reported "Total messages sent: 0" while its peers received
+# 44. Traffic moving, invisible to every metric and to this gate.
+#
+# The unit suite cannot cover it -- REGISTER_FIRMWARE's static registration
+# does not reach the test binary and the class has no header to re-register
+# from -- so the coverage lives here.
+
+simulation:
+  name: "Ino Firmware Test"
+  description: "A wrapped .ino firmware's traffic must reach the node metrics"
+  duration: 20
+  time_scale: 1.0
+  seed: 20260821
+
+nodes:
+  - id: "n1"
+    type: "sensor"
+    firmware: "BasicInoFirmware"
+    config:
+      mesh_prefix: "InoMesh"
+      mesh_password: "ino12345"
+      mesh_port: 5855
+  - id: "n2"
+    type: "sensor"
+    firmware: "BasicInoFirmware"
+    config:
+      mesh_prefix: "InoMesh"
+      mesh_password: "ino12345"
+      mesh_port: 5855
+  - id: "n3"
+    type: "sensor"
+    firmware: "BasicInoFirmware"
+    config:
+      mesh_prefix: "InoMesh"
+      mesh_password: "ino12345"
+      mesh_port: 5855
+
+topology:
+  type: "star"
+  hub: "n1"

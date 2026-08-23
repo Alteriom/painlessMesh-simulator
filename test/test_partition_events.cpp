@@ -6,6 +6,7 @@
  * @license MIT License
  */
 
+#include <stdexcept>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
@@ -349,25 +350,40 @@ TEST_CASE("NetworkHealEvent", "[event][partition]") {
     REQUIRE_THAT(desc, Catch::Matchers::ContainsSubstring("Heal"));
   }
   
-  SECTION("restores all dropped connections") {
-    // Drop some connections manually
-    network.dropConnection(1001, 1002);
-    network.dropConnection(1002, 1001);
-    network.dropConnection(1003, 1004);
-    network.dropConnection(1004, 1003);
-    
+  SECTION("restores connections severed by a partition") {
+    // Sever some connections as a partition would (finding 71: a heal clears
+    // partition cuts, not explicit connection_drops).
+    network.partitionConnection(1001, 1002);
+    network.partitionConnection(1002, 1001);
+    network.partitionConnection(1003, 1004);
+    network.partitionConnection(1004, 1003);
+
     REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
     REQUIRE_FALSE(network.isConnectionActive(1003, 1004));
-    
+
     // Execute heal
     NetworkHealEvent event;
     event.execute(manager, network);
-    
-    // All connections should be restored
+
+    // All partition cuts should be restored
     REQUIRE(network.isConnectionActive(1001, 1002));
     REQUIRE(network.isConnectionActive(1002, 1001));
     REQUIRE(network.isConnectionActive(1003, 1004));
     REQUIRE(network.isConnectionActive(1004, 1003));
+  }
+
+  SECTION("a heal leaves an explicit connection_drop in force") {
+    // The distinction finding 71 turns on: healing a partition must not
+    // resurrect a pair the scenario explicitly dropped.
+    network.dropConnection(1001, 1002);
+    network.dropConnection(1002, 1001);
+    REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
+
+    NetworkHealEvent event;
+    event.execute(manager, network);
+
+    REQUIRE_FALSE(network.isConnectionActive(1001, 1002));
+    REQUIRE_FALSE(network.isConnectionActive(1002, 1001));
   }
   
   SECTION("resets partition IDs to 0") {
@@ -578,4 +594,30 @@ TEST_CASE("Partition event with uneven groups", "[event][partition]") {
     // Others can still communicate
     REQUIRE(network.isConnectionActive(1002, 1010));
   }
+}
+
+TEST_CASE("NetworkPartitionEvent fails a fragmenting split even with no cross cut",
+          "[event][partition]") {
+  // A disconnected mesh -- only A--B wired, C and D isolated -- partitioned
+  // [[A,B],[C,D]] cuts no cross edge (cut == 0) yet yields three components. The
+  // check must fire on a wired mesh regardless of the cut count.
+  boost::asio::io_context io;
+  NodeManager manager(io);
+  NetworkSimulator network;
+  NodeConfig a{1101, "TestMesh", "password", 16301};
+  NodeConfig b{1102, "TestMesh", "password", 16301};
+  NodeConfig c{1103, "TestMesh", "password", 16301};
+  NodeConfig d{1104, "TestMesh", "password", 16301};
+  manager.createNode(a);
+  manager.createNode(b);
+  manager.createNode(c);
+  manager.createNode(d);
+  manager.startAll();
+  // Wire only A--B; C and D stay isolated (but the mesh IS wired).
+  REQUIRE(manager.connectNodes(1101, 1102));
+
+  NetworkPartitionEvent event({{1101, 1102}, {1103, 1104}});
+  REQUIRE_THROWS_AS(event.execute(manager, network), std::runtime_error);
+
+  manager.stopAll();
 }

@@ -83,7 +83,7 @@ simulation:
 | `name` | string | *required* | Human-readable simulation name |
 | `description` | string | "" | Optional detailed description |
 | `duration` | uint32 | 0 | Simulation duration in seconds (0 = run indefinitely) |
-| `time_scale` | float | 1.0 | Time scale multiplier (1.0 = real-time, 5.0 = 5x faster) |
+| `time_scale` | float | 1.0 | Node poll-rate multiplier. **Does not shorten the run** -- see the note below |
 | `seed` | uint32 | 0 | Random seed for reproducibility (0 = use random seed) |
 
 #### Example
@@ -93,7 +93,7 @@ simulation:
   name: "Network Resilience Test"
   description: "Tests mesh recovery after multiple node failures"
   duration: 300      # 5 minutes
-  time_scale: 2.0    # Run 2x faster
+  time_scale: 2.0    # Poll nodes 2x more often (run still takes `duration` seconds)
   seed: 12345        # Reproducible results
 ```
 
@@ -101,8 +101,17 @@ simulation:
 
 - **name** is required and must not be empty
 - **time_scale** must be positive (> 0.0)
-- **time_scale** > 1.0 makes simulation faster (good for stress tests)
-- **time_scale** < 1.0 makes simulation slower (good for debugging)
+- **time_scale** > 1.0 polls every node more often (more updates per wall-clock second)
+- **time_scale** < 1.0 polls less often
+
+> **`time_scale` cannot fast-forward a scenario.** It divides the simulation
+> loop's sleep, and nothing else. painlessMesh's TaskScheduler, its ack
+> timeouts and its connection timers all read `millis()`, which the Boost build
+> wires straight to `gettimeofday()` -- there is no virtual clock to advance.
+> So `duration`, every `events:` entry and every mesh timer stay on the wall
+> clock: a 300-second scenario takes 300 seconds at `time_scale: 5.0` exactly
+> as it does at `1.0`. The simulator prints a warning when `time_scale` is not
+> `1.0` to say so. Earlier revisions of this guide claimed otherwise.
 - Setting **seed** ensures identical random behavior across runs
 
 ---
@@ -346,13 +355,41 @@ topology:
 
 #### Topology Types
 
-| Type | Description | Required Parameters |
-|------|-------------|-------------------|
-| `random` | Random connections based on density | `density` |
-| `star` | Star topology with central hub | `hub` |
-| `ring` | Ring topology with sequential connections | `bidirectional` (optional) |
-| `mesh` | Full mesh (all nodes connected) | None |
-| `custom` | Custom connections defined explicitly | `connections` |
+| Type | Declares | Required Parameters |
+|------|----------|-------------------|
+| `random` | `density` of all possible pairs | `density` |
+| `star` | The hub linked to every other node | `hub` |
+| `ring` | Consecutive nodes plus the closing link | `bidirectional` (optional) |
+| `mesh` | Every pair | None |
+| `custom` | Exactly the listed pairs | `connections` |
+
+#### What actually gets wired
+
+painlessMesh holds a **spanning tree**, so a declaration with more links than
+that is reduced to one before anything is wired. This is not a simplification
+for convenience: wiring the 6 links of a 4-node `mesh` in one pass was measured
+to leave the mesh with **0 live links and not one message delivered** over 20
+seconds, because the overlapping handshakes make the library tear everything
+down. Handed the links one at a time it prunes back to a tree by itself.
+
+The run says what it did:
+
+```
+[WARN] topology: mesh declares 6 link(s); painlessMesh holds a spanning tree,
+       so 3 surplus link(s) were not wired
+[INFO] Mesh connectivity established (topology=mesh, 3 of 3 planned link(s)
+       wired, 6 declared)
+```
+
+Which links survive the reduction is deterministic, seeded from
+`simulation.seed`, and pairs named by the scenario's own events are kept first
+— so a `connection_drop` on a declared pair has a live link to cut.
+
+A topology declaration therefore chooses **which tree** the run uses, not how
+densely connected it is. `star` gives you a hub-and-spoke tree, `custom` the
+shape you drew if it is acyclic, `random` a seeded tree. Anything beyond a
+tree — full mesh, a closed ring, `density` above `(n-1)/(n(n-1)/2)` — is
+declared, reported and then reduced.
 
 #### Parameters
 
@@ -373,11 +410,14 @@ topology:
 ```
 
 - Creates random connections between nodes
-- **density** controls how connected the network is:
-  - 0.0 = no connections (isolated nodes)
-  - 0.3 = sparse network (30% of possible connections)
-  - 0.7 = dense network (70% of possible connections)
-  - 1.0 = full mesh (all nodes connected)
+- **density** targets a share of all possible connections:
+  - 0.3 = 30% of possible connections
+  - 0.7 = 70% of possible connections
+  - 1.0 = every pair
+- the plan is always connected first, then filled toward the target: a low
+  density never partitions the mesh before the run starts
+- the target is capped by what painlessMesh holds (a spanning tree), so above
+  roughly `2/n` the extra links are declared and reported, not wired
 
 #### Star Topology
 
@@ -809,7 +849,7 @@ simulation:
   name: "100-Node Stress Test"
   description: "Performance test with 100 nodes and realistic network conditions"
   duration: 300  # Run for 5 minutes
-  time_scale: 5.0  # Run 5x faster than real-time
+  time_scale: 5.0  # Poll nodes 5x more often (run still takes `duration` seconds)
   seed: 54321
 
 network:

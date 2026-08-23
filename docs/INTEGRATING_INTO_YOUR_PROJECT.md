@@ -293,7 +293,7 @@ Create scenario files to test your firmware:
 simulation:
   name: "MyMeshApp Basic Test"
   duration: 60
-  time_scale: 5.0  # Run 5x faster
+  time_scale: 5.0  # 5x the poll rate -- the run still takes `duration` seconds
 
 nodes:
   - id: "node1"
@@ -621,7 +621,7 @@ Test complete mesh scenarios:
 simulation:
   name: "Full Integration Test"
   duration: 300
-  time_scale: 10.0  # Run 10x faster
+  time_scale: 10.0  # 10x the poll rate -- the run still takes `duration` seconds
 
 nodes:
   # Create 20 sensor nodes

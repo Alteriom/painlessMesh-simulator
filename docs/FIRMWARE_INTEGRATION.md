@@ -89,8 +89,9 @@ public:
     task_.set(std::stoul(interval), TASK_FOREVER, [this]() {
       doPeriodicWork();
     });
-    scheduler_->addTask(task_);
-    task_.enable();
+    // Registers and enables the task. Use this rather than
+    // scheduler_->addTask() so the task stops while the node is down.
+    registerTask(task_);
   }
   
   void loop() override {
@@ -208,8 +209,7 @@ Task myTask(5 * TASK_SECOND, TASK_FOREVER, [this]() {
 
 // Add to scheduler in setup()
 void setup() override {
-  scheduler_->addTask(myTask);
-  myTask.enable();
+  registerTask(myTask);
 }
 ```
 
@@ -374,8 +374,7 @@ public:
     sensorTask_.set(30 * TASK_SECOND, TASK_FOREVER, [this]() {
       readAndSendSensor();
     });
-    scheduler_->addTask(sensorTask_);
-    sensorTask_.enable();
+    registerTask(sensorTask_);
   }
   
   void loop() override {}

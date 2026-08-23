@@ -21,7 +21,7 @@ nodes:
   - template: "sensor"
     count: 10
     id_prefix: "sensor-"
-    firmware: "examples/firmware/sensor_node"
+    firmware: "SimpleBroadcast"
     config:
       mesh_prefix: "SimpleMesh"
       mesh_password: "password123"

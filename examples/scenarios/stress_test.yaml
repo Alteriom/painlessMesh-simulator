@@ -21,7 +21,7 @@ nodes:
   - template: "sensor"
     count: 100
     id_prefix: "sensor-"
-    firmware: "examples/firmware/sensor_node"
+    firmware: "SimpleBroadcast"
     config:
       mesh_prefix: "StressMesh"
       mesh_password: "stress_test_password"

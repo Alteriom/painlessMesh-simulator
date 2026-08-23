@@ -2,4 +2,6 @@
 [submodule "external/painlessMesh"]
 path = external/painlessMesh
 url = https://github.com/Alteriom/painlessMesh.git
-branch = main
+# Tracking the v2.0.0 release branch for the duration of the v2.0.0 work.
+# Move back to main once v2.0.0 merges.
+branch = Feat/next-release

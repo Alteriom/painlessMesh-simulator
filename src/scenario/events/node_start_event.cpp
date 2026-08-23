@@ -28,7 +28,19 @@ void NodeStartEvent::execute(NodeManager& manager, NetworkSimulator& network) {
   
   if (!node->isRunning()) {
     node->start();
-    std::cout << "[EVENT] Node " << nodeId_ << " started" << std::endl;
+    // start() brings the node's mesh object back up but wires nothing:
+    // stop()/crash() closed its connections, and establishConnectivity() ran
+    // once before the timeline. Without this the node reports isRunning() while
+    // sending into a mesh it is no longer attached to.
+    const auto rejoin = manager.reconnectNode(nodeId_);
+    if (rejoin.failed > 0) {
+      throw std::runtime_error(
+          "start_node: node " + std::to_string(nodeId_) + " failed to "
+          "re-establish " + std::to_string(rejoin.failed) + " mesh link(s)");
+    }
+    std::cout << "[EVENT] Node " << nodeId_ << " started ("
+              << rejoin.reconnected << " mesh link(s) re-established)"
+              << std::endl;
   } else {
     std::cout << "[EVENT] Node " << nodeId_ << " is already running" << std::endl;
   }

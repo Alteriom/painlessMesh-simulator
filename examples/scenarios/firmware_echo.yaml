@@ -77,6 +77,7 @@ nodes:
 
 topology:
   type: "star"  # Star topology with server at center
+  hub: "server1"  # The echo server sits at the centre
 
 metrics:
   output: "firmware_echo_metrics.csv"

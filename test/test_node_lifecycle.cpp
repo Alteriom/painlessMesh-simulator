@@ -199,6 +199,25 @@ TEST_CASE("NodeStopEvent", "[event][lifecycle]") {
     REQUIRE_THROWS_AS(event.execute(manager, network), std::runtime_error);
   }
   
+  SECTION("graceful stop does not exercise the crash path") {
+    REQUIRE(node->getCrashCount() == 0);
+    NodeStopEvent event(3001, true);
+    event.execute(manager, network);
+    REQUIRE_FALSE(node->isRunning());
+    REQUIRE(node->getCrashCount() == 0);
+  }
+
+  SECTION("forced stop crashes the node") {
+    // graceful: false must exercise the ungraceful path -- crash() -- not do the
+    // same graceful teardown. Otherwise a scenario asking for a forced outage
+    // never gets one and crash_count stays flat.
+    REQUIRE(node->getCrashCount() == 0);
+    NodeStopEvent event(3001, false);
+    event.execute(manager, network);
+    REQUIRE_FALSE(node->isRunning());
+    REQUIRE(node->getCrashCount() == 1);
+  }
+
   SECTION("provides descriptive message with graceful flag") {
     NodeStopEvent event1(3001, true);
     REQUIRE(event1.getDescription() == "Stop node: 3001 (graceful)");

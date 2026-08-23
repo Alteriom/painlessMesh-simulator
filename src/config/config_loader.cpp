@@ -7,6 +7,8 @@
  */
 
 // IMPORTANT: Include platform_compat.hpp FIRST on Windows
+#include <cstdint>
+#include <cmath>
 #include "simulator/platform_compat.hpp"
 
 #include "simulator/config_loader.hpp"
@@ -16,6 +18,7 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
+#include <set>
 
 namespace simulator {
 
@@ -111,6 +114,7 @@ boost::optional<ScenarioConfig> ConfigLoader::loadFromString(const std::string& 
     // Parse topology section
     if (hasKey(root, "topology")) {
       config.topology = parseTopology(root["topology"]);
+      config.topology.declared = true;
     }
     
     // Parse events section
@@ -417,6 +421,7 @@ EventConfig ConfigLoader::parseEvent(const YAML::Node& node) {
   
   std::string action_str = getString(node, "action");
   config.action = stringToEventAction(action_str);
+  config.action_raw = action_str;
   
   config.target = getString(node, "target");
   config.description = getString(node, "description");
@@ -741,10 +746,11 @@ void ConfigLoader::validateTopology(const TopologyConfig& config,
   
   // Validate density for random topology
   if (config.type == TopologyType::RANDOM) {
-    if (config.density < 0.0f || config.density > 1.0f) {
+    if (!std::isfinite(config.density) ||
+        config.density < 0.0f || config.density > 1.0f) {
       ValidationError err;
       err.field = "topology.density";
-      err.message = "Density must be between 0.0 and 1.0";
+      err.message = "Density must be a finite value between 0.0 and 1.0";
       err.suggestion = "Use 0.3 for sparse, 0.7 for dense networks";
       errors.push_back(err);
     }
@@ -783,6 +789,17 @@ void ConfigLoader::validateTopology(const TopologyConfig& config,
         err.suggestion = "Ensure all connection nodes exist";
         errors.push_back(err);
       }
+      if (conn.first == conn.second) {
+        // A self-link wires nothing. Left to the planner it is silently
+        // skipped, and a custom topology of only self-links would fall through
+        // to the random-tree default -- running unrelated links under a
+        // declaration the author wrote deliberately. Reject it here instead.
+        ValidationError err;
+        err.field = "topology.connections";
+        err.message = "Connection links a node to itself: " + conn.first;
+        err.suggestion = "A connection must join two different nodes";
+        errors.push_back(err);
+      }
     }
   }
 }
@@ -799,6 +816,46 @@ void ConfigLoader::validateEvent(const EventConfig& config,
                   "s exceeds simulation duration " + std::to_string(simulation_duration) + "s";
     err.suggestion = "Ensure all event times are within simulation duration";
     errors.push_back(err);
+  }
+
+  if (config.action == EventAction::UNKNOWN) {
+    ValidationError err;
+    err.field = "event.action";
+    err.message = "Unknown event action: " + config.action_raw;
+    err.suggestion = "Use a supported action; see the scenario documentation";
+    errors.push_back(err);
+  }
+
+  // A delayed restart schedules its start at time + delay (see
+  // EventFactory::scheduleAll). If that lands past the run, the start never
+  // fires and the node stays stopped while the run still reports success. The
+  // event-time check above only sees the original time, so bound the computed
+  // start here -- overflow-safe, since both are uint32.
+  if (config.action == EventAction::RESTART_NODE && config.delay > 0) {
+    const uint64_t start_at =
+        static_cast<uint64_t>(config.time) + config.delay;
+    // scheduleAll() computes the start time as uint32, so a sum past UINT32_MAX
+    // wraps to an earlier timestamp -- the start would fire before the stop.
+    // Reject the overflow regardless of whether the run has a finite duration.
+    if (start_at > UINT32_MAX) {
+      ValidationError err;
+      err.field = "event.delay";
+      err.message = "Restart start (time " + std::to_string(config.time) +
+                    " + delay " + std::to_string(config.delay) +
+                    ") overflows the 32-bit event clock";
+      err.suggestion = "Use a smaller time or delay";
+      errors.push_back(err);
+    } else if (simulation_duration > 0 && start_at > simulation_duration) {
+      ValidationError err;
+      err.field = "event.delay";
+      err.message = "Restart start (time " + std::to_string(config.time) +
+                    " + delay " + std::to_string(config.delay) + " = " +
+                    std::to_string(start_at) + "s) exceeds simulation duration " +
+                    std::to_string(simulation_duration) + "s";
+      err.suggestion = "Shorten the delay, or use stop_node for an outage that "
+                       "outlasts the run";
+      errors.push_back(err);
+    }
   }
   
   // Validate target node exists
@@ -821,12 +878,117 @@ void ConfigLoader::validateEvent(const EventConfig& config,
   
   // Validate network quality
   if (config.action == EventAction::SET_NETWORK_QUALITY) {
-    if (config.quality < 0.0f || config.quality > 1.0f) {
+    if (!std::isfinite(config.quality) ||
+        config.quality < 0.0f || config.quality > 1.0f) {
       ValidationError err;
       err.field = "event.quality";
       err.message = "Network quality must be between 0.0 and 1.0";
       err.suggestion = "Use 0.0 for worst, 1.0 for best quality";
       errors.push_back(err);
+    }
+  }
+
+  // connection_degrade's packet_loss reaches NetworkSimulator::setPacketLoss(),
+  // which throws on a value outside [0, 1]. Caught up front here, that is a
+  // clear validation error; left to runtime it fails the timeline only once the
+  // event fires, mid-run. (latency is a uint and needs no bound.)
+  if (config.action == EventAction::CONNECTION_DEGRADE) {
+    if (!std::isfinite(config.packet_loss) ||
+        config.packet_loss < 0.0f || config.packet_loss > 1.0f) {
+      ValidationError err;
+      err.field = "event.packet_loss";
+      err.message = "Packet loss must be a finite value between 0.0 and 1.0";
+      err.suggestion = "Use 0.0 for no loss, 1.0 to drop everything";
+      errors.push_back(err);
+    }
+    // ConnectionDegradeEvent sets max latency to latency * 2. A value above
+    // UINT32_MAX/2 wraps below the minimum and setLatency() throws only when the
+    // event fires. Reject it up front.
+    if (config.latency > UINT32_MAX / 2) {
+      ValidationError err;
+      err.field = "event.latency";
+      err.message = "Latency " + std::to_string(config.latency) +
+                    "ms is too large; it is doubled for the max and must not "
+                    "exceed " + std::to_string(UINT32_MAX / 2) + "ms";
+      err.suggestion = "Use a smaller latency";
+      errors.push_back(err);
+    }
+  }
+
+  // Reject a link event whose two endpoints are the same node. resolveLink()
+  // would still schedule it, dropLink() would record a phantom self-pair and
+  // close zero endpoints, and the run would exit 0 -- a no-op masquerading as a
+  // link event.
+  if (config.action == EventAction::CONNECTION_DROP ||
+      config.action == EventAction::CONNECTION_RESTORE ||
+      config.action == EventAction::CONNECTION_DEGRADE ||
+      config.action == EventAction::BREAK_LINK ||
+      config.action == EventAction::RESTORE_LINK) {
+    std::string a;
+    std::string b;
+    if (config.targets.size() >= 2) {
+      a = config.targets[0];
+      b = config.targets[1];
+    } else {
+      a = config.from;
+      b = config.to;
+    }
+    if (!a.empty() && a == b) {
+      ValidationError err;
+      err.field = "event";
+      err.message = "Link event connects a node to itself: " + a;
+      err.suggestion = "A link event must name two different nodes";
+      errors.push_back(err);
+    }
+  }
+
+  // Validate partition groups partition the WHOLE mesh. partitionNetwork() only
+  // cuts pairs that cross group boundaries, so a node left out of every group
+  // keeps bridging the two sides -- e.g. A--X--B with groups [[A],[B]] cuts no
+  // live edge, yet the event reports a split. Require every node in exactly one
+  // group, and no node named twice.
+  if (config.action == EventAction::PARTITION_NETWORK) {
+    std::set<std::string> seen;
+    for (const auto& group : config.groups) {
+      if (group.empty()) {
+        // An empty group cuts nothing -- partitionNetwork() only severs pairs
+        // that cross a boundary, and an empty side has no members to cross to.
+        // The event would report a split it did not make.
+        ValidationError err;
+        err.field = "event.groups";
+        err.message = "Partition contains an empty group";
+        err.suggestion = "Every partition group needs at least one node";
+        errors.push_back(err);
+      }
+      for (const auto& id : group) {
+        bool exists = false;
+        for (const auto& node : all_nodes) {
+          if (node.id == id) { exists = true; break; }
+        }
+        if (!exists) {
+          ValidationError err;
+          err.field = "event.groups";
+          err.message = "Partition group references non-existent node: " + id;
+          err.suggestion = "Ensure every group node exists";
+          errors.push_back(err);
+        } else if (!seen.insert(id).second) {
+          ValidationError err;
+          err.field = "event.groups";
+          err.message = "Node appears in more than one partition group: " + id;
+          err.suggestion = "Each node belongs to exactly one group";
+          errors.push_back(err);
+        }
+      }
+    }
+    for (const auto& node : all_nodes) {
+      if (!seen.count(node.id)) {
+        ValidationError err;
+        err.field = "event.groups";
+        err.message = "Partition omits node '" + node.id +
+                      "', which would keep bridging the split";
+        err.suggestion = "Place every node in exactly one partition group";
+        errors.push_back(err);
+      }
     }
   }
 }
@@ -856,7 +1018,9 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "remove_node") return EventAction::REMOVE_NODE;
   if (lower == "add_nodes") return EventAction::ADD_NODES;
   if (lower == "partition_network") return EventAction::PARTITION_NETWORK;
+  if (lower == "network_partition") return EventAction::PARTITION_NETWORK;  // Alternative name
   if (lower == "heal_partition") return EventAction::HEAL_PARTITION;
+  if (lower == "network_heal") return EventAction::HEAL_PARTITION;  // Alternative name
   if (lower == "break_link") return EventAction::BREAK_LINK;
   if (lower == "restore_link") return EventAction::RESTORE_LINK;
   if (lower == "inject_message") return EventAction::INJECT_MESSAGE;
@@ -865,7 +1029,10 @@ EventAction ConfigLoader::stringToEventAction(const std::string& action_str) {
   if (lower == "connection_restore") return EventAction::CONNECTION_RESTORE;
   if (lower == "connection_degrade") return EventAction::CONNECTION_DEGRADE;
   
-  throw std::runtime_error("Unknown event action: " + action_str);
+  // An unknown action is a validation error, not a fail-fast parse throw:
+  // throwing here aborts the whole load before the rest of the config can be
+  // validated, which would let an unrelated regression hide behind it.
+  return EventAction::UNKNOWN;
 }
 
 uint32_t ConfigLoader::generateNodeId(const std::string& id_str) {

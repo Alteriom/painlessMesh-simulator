@@ -8,31 +8,36 @@ simulation:
   description: "Test connection drop, restore, and degradation"
   duration: 90  # 1.5 minutes
   time_scale: 1.0
+  seed: 20260821  # pinned so the CI gate is reproducible
 
 nodes:
   - id: "node-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "connection123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "connection123"
+      mesh_port: 5555
   
   - id: "node-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "connection123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "connection123"
+      mesh_port: 5555
   
   - id: "node-3"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "connection123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "connection123"
+      mesh_port: 5555
   
   - id: "node-4"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "connection123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "connection123"
+      mesh_port: 5555
 
 topology:
   type: "mesh"  # All nodes connected

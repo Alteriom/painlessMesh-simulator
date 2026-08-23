@@ -17,9 +17,12 @@
 #include <list>
 #include <cstdint>
 #include <memory>
+#include <functional>
+#include <vector>
 
 // Forward declarations
 class Scheduler;
+class Task;
 
 namespace painlessmesh {
 template <typename T>
@@ -48,9 +51,9 @@ namespace firmware {
  *   
  *   void setup() override {
  *     // Initialize sensor, set up periodic tasks
- *     scheduler_->addTask(Task(1000, TASK_FOREVER, [this]() {
- *       readAndBroadcastSensorData();
- *     }));
+ *     // registerTask(), not scheduler_->addTask(): the base disables
+ *     // registered tasks while the node is stopped or crashed.
+ *     registerTask(sensor_task_);
  *   }
  *   
  *   void loop() override {
@@ -60,6 +63,10 @@ namespace firmware {
  *   void onReceive(uint32_t from, String& msg) override {
  *     // Handle received messages
  *   }
+ *
+ * private:
+ *   Task sensor_task_{TASK_SECOND, TASK_FOREVER,
+ *                     std::bind(&SensorFirmware::readAndBroadcast, this)};
  * };
  * @endcode
  */
@@ -99,6 +106,52 @@ public:
     initialized_ = true;
   }
   
+  /**
+   * @brief Re-point this firmware at a rebuilt mesh instance
+   *
+   * A node that stops and starts again gets a fresh painlessMesh object (see
+   * VirtualNode::start()). The firmware's cached pointer would otherwise dangle
+   * on the destroyed one. Deliberately does not re-run setup(): the firmware's
+   * scheduler tasks are still registered -- disabled by suspend() and put back
+   * by resume() -- and adding them twice corrupts the scheduler's task list.
+   *
+   * @param mesh The new mesh instance
+   */
+  void rebindMesh(painlessmesh::Mesh<painlessmesh::Connection>* mesh) {
+    mesh_ = mesh;
+  }
+
+  /**
+   * @brief Halt this firmware's periodic work while its node is down
+   *
+   * Every node shares one Scheduler (NodeManager owns it) and
+   * NodeManager::updateAll() executes it wholesale, so a task registered by a
+   * stopped node's firmware keeps running: it sends through torn-down routing
+   * state and books transmissions that never happened. VirtualNode::stop() and
+   * crash() call this; start() calls resume().
+   *
+   * Disables every task registered through registerTask() and blocks the
+   * sendBroadcast()/sendSingle() helpers. Tasks a firmware added to the
+   * scheduler directly are not covered -- register them through
+   * registerTask() instead.
+   */
+  void suspend();
+
+  /**
+   * @brief Resume periodic work after the node starts again
+   *
+   * Restores each registered task to the enabled state it held at suspend()
+   * rather than enabling all of them: a firmware that had already disabled a
+   * task of its own accord (LibraryValidation does this once its tests finish)
+   * must not find it running again after a restart.
+   */
+  void resume();
+
+  /**
+   * @brief Whether this firmware is currently suspended
+   */
+  bool isSuspended() const { return suspended_; }
+
   /**
    * @brief Check if firmware has been initialized
    * 
@@ -200,6 +253,19 @@ public:
    * @return Node ID assigned during initialization
    */
   uint32_t getNodeId() const { return node_id_; }
+
+  /**
+   * @brief Installs a hook invoked for every message this firmware sends
+   *
+   * Firmware sends straight through mesh_, so the owning VirtualNode has no way
+   * to observe a send and its messages_sent metric was permanently zero. The
+   * node installs this hook when it loads the firmware.
+   *
+   * @param cb Receives the payload size in bytes
+   */
+  void setMessageSentCallback(std::function<void(size_t)> cb) {
+    on_message_sent_ = std::move(cb);
+  }
   
   /**
    * @brief Gets a configuration value
@@ -228,23 +294,42 @@ public:
 
 protected:
   /**
-   * @brief Send a broadcast message to all nodes in the mesh
-   * 
-   * Helper method that wraps mesh_->sendBroadcast() with null check.
-   * 
-   * @param msg Message to broadcast
+   * @brief Register a periodic task with the shared scheduler
+   *
+   * Use this instead of scheduler_->addTask() directly. Tasks registered here
+   * are tracked, so suspend() can stop them for the duration of a node's
+   * downtime and resume() can put them back exactly as they were.
+   *
+   * @param task Task owned by the firmware (must outlive the scheduler run)
+   * @param enable_now Enable the task immediately, as setup() normally wants
+   * @return true if the task was registered, false if there is no scheduler
    */
-  void sendBroadcast(const String& msg);
+  bool registerTask(Task& task, bool enable_now = true);
+
+  /**
+   * @brief Send a broadcast message to all nodes in the mesh
+   *
+   * painlessMesh returns false when the broadcast reached nobody -- a node with
+   * no live connections, for instance. The send accounting only fires on a
+   * true return, so a rejected attempt is not booked as a transmission.
+   * Callers keeping their own counters should test the result the same way.
+   *
+   * @param msg Message to broadcast
+   * @return true if the mesh accepted the message for delivery
+   */
+  bool sendBroadcast(const String& msg);
   
   /**
    * @brief Send a message to a specific node
-   * 
-   * Helper method that wraps mesh_->sendSingle() with null check.
-   * 
+   *
+   * As sendBroadcast(): false when the mesh has no route to @p dest, and a
+   * false return is not counted.
+   *
    * @param dest Destination node ID
    * @param msg Message to send
+   * @return true if the mesh accepted the message for delivery
    */
-  void sendSingle(uint32_t dest, const String& msg);
+  bool sendSingle(uint32_t dest, const String& msg);
   
   /**
    * @brief Get the current mesh time
@@ -270,6 +355,10 @@ protected:
   uint32_t node_id_{0};                                   ///< Node ID
   std::map<String, String> config_;                       ///< Configuration map
   bool initialized_{false};                               ///< Initialization flag
+  bool suspended_{false};                                 ///< Node is down: no tasks, no sends
+  std::vector<Task*> tasks_;                              ///< Tasks registered via registerTask()
+  std::vector<bool> enabled_before_suspend_;              ///< Per-task enable state at suspend()
+  std::function<void(size_t)> on_message_sent_;           ///< Send accounting hook
 };
 
 } // namespace firmware

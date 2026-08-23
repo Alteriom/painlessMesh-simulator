@@ -1,0 +1,115 @@
+name: Upstream Drift
+
+# The simulator pins painlessMesh as a submodule and nothing ever built against
+# anything newer, so 680 commits of upstream change accumulated unnoticed -- the
+# pinned build stayed green the whole time. This job builds against live upstream
+# branches, independently of the pin, and files an issue the day that breaks.
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  # Also run when the pin itself moves, so a bump is validated on the spot.
+  pull_request:
+    paths:
+      - 'external/painlessMesh'
+      - '.github/workflows/upstream-drift.yml'
+
+jobs:
+  build-against-upstream:
+    name: Build against painlessMesh ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, 'Feat/next-release']
+
+    steps:
+      - name: Checkout simulator
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Move painlessMesh submodule to ${{ matrix.branch }}
+        id: bump
+        run: |
+          cd external/painlessMesh
+          git fetch origin "${{ matrix.branch }}" --depth=1
+          git checkout FETCH_HEAD
+          git submodule update --init --recursive
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Build in the project's own Docker image, exactly as every other build job
+      # here does. A bare ubuntu-latest runner fails 6 partition tests with
+      # "bind: Permission denied" from boost::asio -- an environment difference
+      # that has nothing to do with upstream drift, and would make this job cry
+      # wolf every night.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: docker build --target builder -t painlessmesh-simulator:builder .
+
+      - name: Build against ${{ matrix.branch }}
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "mkdir -p build-drift && cd build-drift && \
+              cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON .. && \
+              ninja"
+
+      - name: Unit tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "./build-drift/bin/simulator_tests"
+
+      - name: Behavioural integration checks
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            painlessmesh-simulator:builder \
+            bash -c "./scripts/ci_integration_check.sh ./build-drift/bin/painlessmesh-simulator"
+
+  report:
+    name: Report drift
+    runs-on: ubuntu-latest
+    needs: build-against-upstream
+    # Only on the scheduled sweep -- a PR that moves the pin reports through the
+    # normal check status, and should not also open an issue.
+    if: failure() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Open or update the drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job runs in a fresh workspace with no checkout, so gh has no
+          # local repository to infer context from. Without GH_REPO the gh
+          # issue commands fail with "not a git repository" -- exactly when the
+          # drift issue needs opening.
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="Simulator no longer builds against painlessMesh upstream"
+          BODY="The nightly upstream build failed. The simulator's pinned submodule may still build, but painlessMesh HEAD has moved somewhere the simulator cannot follow.
+
+          Run: $RUN_URL
+
+          Fix the break and move the pin, or record here why the drift is accepted."
+          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi

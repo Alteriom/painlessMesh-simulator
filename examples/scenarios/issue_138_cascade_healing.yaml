@@ -13,77 +13,89 @@ nodes:
   # Group A: 4 nodes
   - id: "bridge-a"
     type: "bridge"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-a1"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-a2"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-a3"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   # Group B: 4 nodes
   - id: "bridge-b"
     type: "bridge"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-b1"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-b2"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-b3"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   # Group C: 4 nodes
   - id: "bridge-c"
     type: "bridge"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-c1"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-c2"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
   
   - id: "sensor-c3"
     type: "sensor"
-    mesh_prefix: "CascadeMesh"
-    mesh_password: "cascade138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "CascadeMesh"
+      mesh_password: "cascade138"
+      mesh_port: 5555
 
 topology:
   type: "mesh"

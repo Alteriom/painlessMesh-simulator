@@ -8,25 +8,29 @@ simulation:
   description: "Test node lifecycle events and mesh recovery"
   duration: 120  # 2 minutes
   time_scale: 1.0
+  seed: 20260821  # pinned so the CI gate is reproducible
 
 nodes:
   - id: "node-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "lifecycle123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "lifecycle123"
+      mesh_port: 5555
   
   - id: "node-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "lifecycle123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "lifecycle123"
+      mesh_port: 5555
   
   - id: "node-3"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "lifecycle123"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "lifecycle123"
+      mesh_port: 5555
 
 topology:
   type: "mesh"  # All nodes connected

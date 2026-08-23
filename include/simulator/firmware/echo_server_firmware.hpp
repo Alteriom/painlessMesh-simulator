@@ -59,9 +59,9 @@ public:
     // Create echo response
     String response = "ECHO: " + msg;
     
-    // Send response back to sender
-    if (mesh_) {
-      mesh_->sendSingle(from, response);
+    // Send response back to sender. Counted only if the mesh took it: an echo
+    // with no route back is not an echo.
+    if (sendSingle(from, response)) {
       echo_count_++;
       
       std::cout << "[INFO] Node " << node_id_ << " echoed to " << from 

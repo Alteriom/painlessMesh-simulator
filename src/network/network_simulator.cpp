@@ -528,18 +528,32 @@ void NetworkSimulator::dropConnection(uint32_t from, uint32_t to) {
   dropped_connections_.insert(key);
 }
 
+void NetworkSimulator::partitionConnection(uint32_t from, uint32_t to) {
+  ConnectionKey key = std::make_pair(from, to);
+  partitioned_connections_.insert(key);
+}
+
 void NetworkSimulator::restoreConnection(uint32_t from, uint32_t to) {
+  // Clear the explicit drop only; a partition cut on the same pair, if any,
+  // stays in force until healPartitions() -- mirroring NodeManager.
   ConnectionKey key = std::make_pair(from, to);
   dropped_connections_.erase(key);
 }
 
+void NetworkSimulator::healPartitions() {
+  // Clear partition cuts only; explicit connection_drops remain in force.
+  partitioned_connections_.clear();
+}
+
 void NetworkSimulator::restoreAllConnections() {
   dropped_connections_.clear();
+  partitioned_connections_.clear();
 }
 
 bool NetworkSimulator::isConnectionActive(uint32_t from, uint32_t to) const {
   ConnectionKey key = std::make_pair(from, to);
-  return dropped_connections_.find(key) == dropped_connections_.end();
+  return dropped_connections_.find(key) == dropped_connections_.end() &&
+         partitioned_connections_.find(key) == partitioned_connections_.end();
 }
 
 } // namespace simulator

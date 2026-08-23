@@ -1,0 +1,92 @@
+---
+# Partition delivery test
+#
+# Exists to be asserted on, not admired: scripts/ci_integration_check.sh runs
+# this against a control run with the timeline stripped and requires that the
+# partition actually costs deliveries. Until the link events reached the live
+# painlessMesh transport, a "partitioned" mesh carried exactly as much traffic
+# as an intact one, and nothing in CI noticed.
+#
+# The two groups are contiguous halves of the node list so they line up with
+# the tree NodeManager::establishConnectivity() builds.
+
+simulation:
+  name: "Partition Delivery Test"
+  description: "Broadcast traffic must drop across a partition and recover after the heal"
+  duration: 40
+  time_scale: 1.0
+  seed: 20260821
+
+nodes:
+  - id: "n1"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n2"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n3"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n4"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n5"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+  - id: "n6"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "CIMesh"
+      mesh_password: "cimesh123"
+      mesh_port: 5555
+      broadcast_interval: "2000"
+      broadcast_message: "ci"
+
+events:
+  - time: 12
+    action: network_partition
+    groups:
+      - ["n1", "n2", "n3"]
+      - ["n4", "n5", "n6"]
+    description: "Split the mesh in half"
+
+  - time: 26
+    action: network_heal
+    description: "Reunite both halves"
+
+  - time: 30
+    action: inject_message
+    from: "n1"
+    payload: "post-heal probe"
+    description: "Broadcast across the healed mesh"

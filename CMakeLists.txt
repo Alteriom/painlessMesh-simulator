@@ -154,16 +154,33 @@ else()
   message(FATAL_ERROR "painlessMesh sources not found at ${PAINLESSMESH_PATH}")
 endif()
 
+# painlessMesh compiled translation units.
+# painlessMesh v2.0.0 moved the tcp::shared_buffer and tcp::lastScheduledDeletionTime
+# globals out of connection.hpp (where they were inline) into src/connection.cpp. Because
+# we consume painlessMesh as a header-only INTERFACE target, that file is not compiled for
+# us and BufferedConnection fails to link. Compile it in when it exists; older pins that
+# still define the globals in the header have no such file and need nothing.
+set(PAINLESSMESH_COMPILED_SOURCES "")
+foreach(_pm_src connection.cpp)
+  if(EXISTS "${PAINLESSMESH_PATH}/src/${_pm_src}")
+    list(APPEND PAINLESSMESH_COMPILED_SOURCES "${PAINLESSMESH_PATH}/src/${_pm_src}")
+    message(STATUS "painlessMesh: compiling src/${_pm_src}")
+  endif()
+endforeach()
+
 # Simulator library (core components)
 set(SIMULATOR_SOURCES
   # Core components
   ${PAINLESSMESH_PATH}/test/catch/fake_serial.cpp
+  ${PAINLESSMESH_COMPILED_SOURCES}
   src/core/painlessmesh_support.cpp
   src/core/virtual_node.cpp
   src/core/node_manager.cpp
   src/config/config_loader.cpp
+  src/config/topology_planner.cpp
   src/network/network_simulator.cpp
   src/scenario/event_scheduler.cpp
+  src/scenario/event_factory.cpp
   src/scenario/events/node_crash_event.cpp
   src/scenario/events/node_start_event.cpp
   src/scenario/events/node_stop_event.cpp
@@ -173,6 +190,7 @@ set(SIMULATOR_SOURCES
   src/scenario/events/connection_degrade_event.cpp
   src/scenario/events/network_partition_event.cpp
   src/scenario/events/network_heal_event.cpp
+  src/scenario/events/message_inject_event.cpp
   # Firmware framework
   src/firmware/firmware_base.cpp
   src/firmware/simple_broadcast_firmware.cpp
@@ -193,6 +211,7 @@ set(SIMULATOR_HEADERS
   include/simulator/config_loader.hpp
   include/simulator/event.hpp
   include/simulator/event_scheduler.hpp
+  include/simulator/event_factory.hpp
   include/simulator/events/node_crash_event.hpp
   include/simulator/events/node_start_event.hpp
   include/simulator/events/node_stop_event.hpp
@@ -202,6 +221,7 @@ set(SIMULATOR_HEADERS
   include/simulator/events/connection_degrade_event.hpp
   include/simulator/events/network_partition_event.hpp
   include/simulator/events/network_heal_event.hpp
+  include/simulator/events/message_inject_event.hpp
   # Firmware framework
   include/simulator/firmware/firmware_base.hpp
   include/simulator/firmware/firmware_factory.hpp
@@ -249,11 +269,28 @@ add_executable(painlessmesh-simulator
   src/main.cpp
   src/cli/cli_parser.cpp
 )
+# simulator_lib is a static archive and the firmware classes register themselves via
+# REGISTER_FIRMWARE(), a file-scope static in each firmware .cpp. The linker only pulls an
+# archive member in when some symbol in it is already referenced, and nothing references
+# these -- so every self-registered firmware was silently dropped and only the two
+# hand-registered in main.cpp were ever reachable. Link the archive whole so the macro
+# does what it claims.
+if(MSVC)
+  set(SIMULATOR_LIB_WHOLE "/WHOLEARCHIVE:$<TARGET_FILE:simulator_lib>")
+elseif(APPLE)
+  set(SIMULATOR_LIB_WHOLE "-Wl,-force_load,$<TARGET_FILE:simulator_lib>")
+else()
+  set(SIMULATOR_LIB_WHOLE "-Wl,--whole-archive" "$<TARGET_FILE:simulator_lib>" "-Wl,--no-whole-archive")
+endif()
+
 target_link_libraries(painlessmesh-simulator
   PRIVATE
+    ${SIMULATOR_LIB_WHOLE}
     simulator_lib
     Boost::program_options
 )
+# The generator expression above does not imply a build dependency; state it explicitly.
+add_dependencies(painlessmesh-simulator simulator_lib)
 
 # Testing
 if(ENABLE_TESTING)
@@ -277,6 +314,8 @@ if(ENABLE_TESTING)
     test/test_network_simulator.cpp
     test/test_network_integration.cpp
     test/test_event_scheduler.cpp
+    test/test_topology_planner.cpp
+    test/test_event_factory.cpp
     test/test_node_lifecycle.cpp
     test/test_connection_events.cpp
     test/test_partition_events.cpp

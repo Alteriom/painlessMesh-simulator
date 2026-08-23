@@ -1,0 +1,84 @@
+---
+# Heal then inject, at the same second
+#
+# scripts/ci_integration_check.sh asserts that the injection at t=20 is
+# delivered. NodeManager::connectNodes() only *starts* an asynchronous TCP
+# connect, and EventScheduler runs same-time events back to back, so the heal
+# used to report "1 mesh link(s) restored" while the injection that followed it
+# in the same second was REFUSED -- the route did not exist yet, and the link
+# only showed live five seconds later.
+#
+# The line topology matters: n1 -> n4 is three hops, so the injection needs the
+# healed n2 <-> n3 link to be carrying traffic, not merely to have been asked
+# for.
+
+simulation:
+  name: "Heal Then Inject Test"
+  description: "A dependent event in the same second as a heal must find the link live"
+  duration: 30
+  time_scale: 1.0
+  seed: 20260821
+
+nodes:
+  - id: "n1"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "HealMesh"
+      mesh_password: "heal1234"
+      mesh_port: 5755
+      broadcast_interval: "2000"
+      broadcast_message: "h"
+  - id: "n2"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "HealMesh"
+      mesh_password: "heal1234"
+      mesh_port: 5755
+      broadcast_interval: "2000"
+      broadcast_message: "h"
+  - id: "n3"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "HealMesh"
+      mesh_password: "heal1234"
+      mesh_port: 5755
+      broadcast_interval: "2000"
+      broadcast_message: "h"
+  - id: "n4"
+    type: "broadcaster"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "HealMesh"
+      mesh_password: "heal1234"
+      mesh_port: 5755
+      broadcast_interval: "2000"
+      broadcast_message: "h"
+
+topology:
+  type: "custom"
+  connections:
+    - ["n1", "n2"]
+    - ["n2", "n3"]
+    - ["n3", "n4"]
+
+events:
+  - time: 10
+    action: network_partition
+    groups:
+      - [n1, n2]
+      - [n3, n4]
+    description: "split the line in half"
+
+  - time: 20
+    action: heal_partition
+    description: "heal the split"
+
+  - time: 20
+    action: inject_message
+    from: "n1"
+    to: "n4"
+    payload: "the route must exist by now"
+    description: "same-second dependent injection, three hops over the healed link"

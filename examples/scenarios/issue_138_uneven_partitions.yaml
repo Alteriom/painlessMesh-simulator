@@ -13,65 +13,75 @@ nodes:
   # Large partition (will have 7 nodes)
   - id: "bridge-main"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-1"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-2"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-3"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-4"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-5"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-6"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   # Small partition (will have 2 nodes)
   - id: "bridge-small"
     type: "bridge"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   - id: "sensor-7"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
   
   # Isolated single node
   - id: "sensor-isolated"
     type: "sensor"
-    mesh_prefix: "TestMesh"
-    mesh_password: "uneven138"
-    mesh_port: 5555
+    config:
+      mesh_prefix: "TestMesh"
+      mesh_password: "uneven138"
+      mesh_port: 5555
 
 topology:
   type: "mesh"

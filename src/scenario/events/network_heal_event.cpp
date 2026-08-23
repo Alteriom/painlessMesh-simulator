@@ -10,19 +10,38 @@
 #include "simulator/node_manager.hpp"
 #include "simulator/network_simulator.hpp"
 #include <iostream>
+#include <stdexcept>
 
 namespace simulator {
 
 void NetworkHealEvent::execute(NodeManager& manager, NetworkSimulator& network) {
-  // Restore all previously dropped connections
-  network.restoreAllConnections();
-  
+  // Clear the model's partition cuts only. An explicit connection_drop still in
+  // force must keep its pair severed in the model, exactly as the mesh keeps it
+  // severed below -- restoreAllConnections() would wrongly mark it live and the
+  // two network views would diverge.
+  network.healPartitions();
+
+  // Rebuild the mesh links the partition severed.
+  const auto heal = manager.healNetwork();
+
   // Clear partition IDs for all nodes
   for (auto& node : manager.getAllNodes()) {
     node->setPartitionId(0);  // Single partition
   }
-  
-  std::cout << "[EVENT] Network partitions healed" << std::endl;
+
+  std::cout << "[EVENT] Network partitions healed (" << heal.restored
+            << " mesh link(s) restored)" << std::endl;
+
+  // A cut that both endpoints were up for but the handshake did not settle is a
+  // genuine failure -- the partition the scenario asked to heal is still in
+  // place. Surface it rather than logging a clean heal. (A cut pending only
+  // because a node is down is not counted here; reconnectNode() restores it
+  // when the node returns.)
+  if (heal.failed > 0) {
+    throw std::runtime_error(
+        "heal_partition left " + std::to_string(heal.failed) +
+        " cut(s) unrestored; the partition did not fully heal");
+  }
 }
 
 std::string NetworkHealEvent::getDescription() const {

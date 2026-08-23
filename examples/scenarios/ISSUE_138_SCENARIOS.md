@@ -48,8 +48,8 @@ Issue #138 likely relates to split-brain scenarios in mesh networks where:
 **Purpose**: Explicitly tests message delivery before, during, and after partition
 
 **Key Features**:
-- Injects test messages at each phase
-- Validates intra-partition vs cross-partition routing
+- Injects test messages before, during and after the partition
+- Validates intra-partition routing while the mesh is split
 - Tests message delivery across previously partitioned groups
 - Comprehensive routing validation
 
@@ -65,8 +65,12 @@ Issue #138 likely relates to split-brain scenarios in mesh networks where:
 **Expected Results**:
 - ✓ 100% delivery rate in unified mesh (phase 1 and 6)
 - ✓ Intra-partition messages succeed during partition
-- ✓ Cross-partition messages properly blocked during partition
 - ✓ All cross-partition messages work after healing
+
+A cross-partition probe is deliberately *not* injected while the mesh is split:
+a refused injection throws out of `MessageInjectEvent` and aborts the run, so it
+would take phases 5 and 6 -- the ones that actually test issue #138 -- with it.
+`partition_delivery_test.yaml` measures isolation by delivery counts instead.
 
 **Failure Indicators**:
 - ✗ Messages fail between previously partitioned nodes after healing

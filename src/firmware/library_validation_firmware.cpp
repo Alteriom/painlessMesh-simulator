@@ -52,15 +52,12 @@ void LibraryValidationFirmware::setup() {
   // Schedule validation tasks
   if (scheduler_) {
     if (is_coordinator_) {
-      scheduler_->addTask(test_progress_task_);
-      test_progress_task_.enable();
+      registerTask(test_progress_task_);
       
-      scheduler_->addTask(message_test_task_);
-      message_test_task_.enable();
+      registerTask(message_test_task_);
     }
     
-    scheduler_->addTask(status_report_task_);
-    status_report_task_.enable();
+    registerTask(status_report_task_);
   }
   
   // Start with lifecycle tests
@@ -87,8 +84,11 @@ void LibraryValidationFirmware::onReceive(uint32_t from, String& msg) {
   if (msg.find("PING:") == 0) {
     // Respond to ping
     String response = "PONG:" + std::to_string(node_id_);
-    sendSingle(from, response);
-    recordMessage(true);
+    // recordMessage()'s argument is the direction, not the verdict -- only
+    // count the send if the mesh took it.
+    if (sendSingle(from, response)) {
+      recordMessage(true);
+    }
   }
 }
 
@@ -230,9 +230,14 @@ void LibraryValidationFirmware::testMessageSending() {
   // Test: sendBroadcast without priority
   auto result = testAPI("sendBroadcast(String)", [this]() {
     String msg = "VALIDATION_BROADCAST:" + std::to_string(node_id_);
-    sendBroadcast(msg);
-    recordMessage(true);
-    return true;  // If we got here without exception, it worked
+    // "No exception thrown" is not the same as "the mesh sent it". This
+    // firmware exists to report on the library's API, so report what it
+    // returned.
+    const bool sent = sendBroadcast(msg);
+    if (sent) {
+      recordMessage(true);
+    }
+    return sent;
   });
   report_.addResult(result);
   report_.coverage.recordTest("sendBroadcast()", result.passed);
@@ -241,9 +246,11 @@ void LibraryValidationFirmware::testMessageSending() {
   uint32_t target = *node_list.begin();
   result = testAPI("sendSingle(uint32_t, String)", [this, target]() {
     String msg = "VALIDATION_SINGLE:" + std::to_string(node_id_);
-    sendSingle(target, msg);
-    recordMessage(true);
-    return true;  // If we got here without exception, it worked
+    const bool sent = sendSingle(target, msg);
+    if (sent) {
+      recordMessage(true);
+    }
+    return sent;
   });
   report_.addResult(result);
   report_.coverage.recordTest("sendSingle()", result.passed);

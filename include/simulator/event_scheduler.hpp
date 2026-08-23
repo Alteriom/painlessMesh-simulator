@@ -95,12 +95,24 @@ public:
    * @param manager Node manager for event execution
    * @param network Network simulator for event execution
    * 
-   * @return Number of events executed
+   * @return Number of events executed successfully
    * 
-   * @note If an event throws an exception during execution, the exception
-   *       is logged and the scheduler continues processing remaining events.
+   * @note If an event throws during execution, the exception is logged, the
+   *       scheduler continues with the remaining events, and the throw is
+   *       counted -- see getFailedCount(). Callers running a timeline as a
+   *       gate must check that count: a start/restart event that cannot rebuild
+   *       its transport otherwise leaves the run printing "completed
+   *       successfully" and exiting 0 over a timeline that did not execute.
    */
   uint32_t processEvents(uint32_t currentTime, NodeManager& manager, NetworkSimulator& network);
+
+  /**
+   * @brief Number of events that threw during execution across this run
+   *
+   * Accumulates across every processEvents() call; never reset except by
+   * clear(). Non-zero means the timeline did not fully execute.
+   */
+  size_t getFailedCount() const { return failedCount_; }
   
   /**
    * @brief Check if there are pending events
@@ -133,14 +145,24 @@ public:
 private:
   /**
    * @brief Comparator for event priority queue
-   * 
-   * Orders events by scheduled time (earliest first).
-   * For events with the same time, maintains insertion order (FIFO).
+   *
+   * Orders events by scheduled time (earliest first), then by insertion
+   * sequence so equal-time events keep the order the scenario declared.
+   *
+   * std::priority_queue is a binary heap and is not stable, so the FIFO
+   * contract documented here was not actually held: comparing only the
+   * timestamp let a same-second `heal` run after the `inject` that depended on
+   * it, or a `start` run before the `stop` written above it. Harmless while
+   * nothing built a timeline from the YAML; a real ordering bug once something
+   * did.
    */
   struct EventComparator {
     bool operator()(const std::unique_ptr<Event>& a, const std::unique_ptr<Event>& b) const {
       // Return true if a should come after b (min-heap)
-      return a->getScheduledTime() > b->getScheduledTime();
+      if (a->getScheduledTime() != b->getScheduledTime()) {
+        return a->getScheduledTime() > b->getScheduledTime();
+      }
+      return a->getSequence() > b->getSequence();
     }
   };
   
@@ -148,6 +170,13 @@ private:
   std::priority_queue<std::unique_ptr<Event>, 
                       std::vector<std::unique_ptr<Event>>, 
                       EventComparator> eventQueue_;
+
+  /// Stamped onto each event as it is queued; never reset, so ordering holds
+  /// across a clear() and re-fill too.
+  uint64_t nextSequence_ = 0;
+
+  /// Events that threw during execution; read by the run's exit path.
+  size_t failedCount_ = 0;
 };
 
 } // namespace simulator
