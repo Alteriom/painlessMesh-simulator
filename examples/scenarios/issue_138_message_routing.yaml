@@ -127,23 +127,20 @@ events:
     payload: '{"test": "phase3-broadcast-p2", "from": "node-5", "phase": "partition"}'
     description: "Phase 3: Test broadcast within partition 2"
   
-  # === Phase 4: Test cross-partition messaging (should fail) (60-70s) ===
-  
-  # Message from partition 1 to partition 2 (should fail/drop)
-  - time: 60
-    action: inject_message
-    from: "node-1"
-    to: "node-6"
-    payload: '{"test": "phase4-cross-p1-to-p2", "from": "node-1", "to": "node-6", "phase": "partition"}'
-    description: "Phase 4: Test cross-partition message (should fail)"
-  
-  # Message from partition 2 to partition 1 (should fail/drop)
-  - time: 65
-    action: inject_message
-    from: "node-6"
-    to: "node-1"
-    payload: '{"test": "phase4-cross-p2-to-p1", "from": "node-6", "to": "node-1", "phase": "partition"}'
-    description: "Phase 4: Test reverse cross-partition message (should fail)"
+  # === Phase 4: Cross-partition messaging — deliberately absent ===
+  #
+  # This phase used to inject node-1 -> node-6 and node-6 -> node-1 while the
+  # partition was up, annotated "should fail/drop". It cannot be expressed that
+  # way: inject_message has no "expected to be refused" form. sendSingle() finds
+  # no route across the cut, VirtualNode::injectMessage() returns false, and
+  # MessageInjectEvent throws -- so the run aborted at t=60 and phases 5 and 6,
+  # the ones that actually test issue #138's post-heal routing, never ran.
+  #
+  # validateEventTimeline() now rejects an injection whose destination earlier
+  # events put out of reach, so the scenario would fail --validate-only too.
+  # Partition isolation is asserted instead by partition_delivery_test.yaml,
+  # which compares delivery counts against a control run rather than asking a
+  # single probe to fail.
   
   # === Phase 5: Heal partition (90s) ===
   
@@ -237,11 +234,9 @@ metrics:
 #   - time=55: Broadcast from node-5 → reaches node-4,5,6 only ✓
 #   - message_delivery_rate = 100% within partitions
 #
-# Phase 4 (60-70s): Cross-partition - MUST FAIL
-#   - time=60: node-1 → node-6 (P1 to P2) → DROPPED ✗
-#   - time=65: node-6 → node-1 (P2 to P1) → DROPPED ✗
-#   - dropped_message_count = 2
-#   - This validates partition isolation
+# Phase 4: not injected here -- see the note in the events list. A refused
+#   injection aborts the run, so partition isolation is measured by
+#   partition_delivery_test.yaml's control-vs-split delivery counts instead.
 #
 # Phase 6 (100-145s): After healing - ALL MESSAGES SUCCEED AGAIN
 #   - time=100: node-1 → node-6 → SUCCESS ✓ CRITICAL!

@@ -642,18 +642,6 @@ std::vector<std::string> validateEventTimeline(
     const std::vector<NodeConfigExtended>& nodes) {
   std::vector<std::string> problems;
 
-  // If the timeline contains an action whose lifecycle effect this walker does
-  // not model, its running-state view would be unreliable and could flag a
-  // false positive. Skip rather than guess: an UNKNOWN action already fails
-  // validation on its own, and add/remove change the node set out from under us.
-  for (const auto& e : events) {
-    if (e.action == EventAction::UNKNOWN ||
-        e.action == EventAction::ADD_NODES ||
-        e.action == EventAction::REMOVE_NODE) {
-      return problems;
-    }
-  }
-
   auto key = [](uint32_t a, uint32_t b) {
     return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
   };
@@ -676,6 +664,19 @@ std::vector<std::string> validateEventTimeline(
   std::set<uint32_t> running = allNodes;
   std::set<std::pair<uint32_t, uint32_t>> dropped;      // connection_drop / break_link
   std::set<std::pair<uint32_t, uint32_t>> partitionCut; // active partition, until heal
+
+  // An action whose lifecycle effect this walker does not model (UNKNOWN, or
+  // add/remove, which move the node set) makes the state it could have touched
+  // unreliable. The walker used to give up on the whole timeline the moment one
+  // appeared anywhere in the list, which discarded the deterministic failures
+  // among the supported events too -- including steps that ran *before* it with
+  // fully known state. Instead, mark what such a step could have changed as
+  // unknown and keep walking: a check is suppressed only while the state it
+  // reads is unknown, and a later event naming a node or link outright makes
+  // that piece known again. (issue 63)
+  std::set<uint32_t> unknownNodes;
+  std::set<std::pair<uint32_t, uint32_t>> unknownEdges;
+  bool unknownNodeSet = false;
 
   auto edgeLive = [&](uint32_t a, uint32_t b) {
     const auto k = key(a, b);
@@ -703,6 +704,44 @@ std::vector<std::string> validateEventTimeline(
       }
     }
     return comps;
+  };
+  // Every node reachable from `src` over live edges. sendSingle() hands the
+  // destination to findRoute(), which walks the sender's own layout, so a
+  // destination outside the sender's live component has no route at all and
+  // the send is refused rather than merely delayed. (issue 62)
+  auto reachableFrom = [&](uint32_t src) {
+    std::set<uint32_t> seen{src};
+    std::vector<uint32_t> frontier{src};
+    while (!frontier.empty()) {
+      const uint32_t cur = frontier.back();
+      frontier.pop_back();
+      auto it = adj.find(cur);
+      if (it == adj.end()) continue;
+      for (uint32_t peer : it->second) {
+        if (seen.count(peer)) continue;
+        if (!edgeLive(cur, peer)) continue;
+        seen.insert(peer);
+        frontier.push_back(peer);
+      }
+    }
+    return seen;
+  };
+  // sendBroadcast() enqueues to the sender's direct connections and reports
+  // how many took the message; with none live it returns false. Reachability
+  // further out does not save it -- there is no first hop to hand it to.
+  auto hasLivePeer = [&](uint32_t src) {
+    auto it = adj.find(src);
+    if (it == adj.end()) return false;
+    return std::any_of(it->second.begin(), it->second.end(),
+                       [&](uint32_t peer) { return edgeLive(src, peer); });
+  };
+  // Whole-graph questions -- the component count, and reachability -- read
+  // every node's running state, every declared edge and the node set itself.
+  // An earlier unmodelled step leaves at least one of those open, and an
+  // answer guessed from it would fail a scenario that is merely not
+  // implemented yet.
+  auto stateKnown = [&]() {
+    return !unknownNodeSet && unknownNodes.empty() && unknownEdges.empty();
   };
 
   // One or two ordered steps per event; a delayed restart is a stop now and a
@@ -734,15 +773,22 @@ std::vector<std::string> validateEventTimeline(
     switch (e.action) {
       case EventAction::STOP_NODE:
       case EventAction::CRASH_NODE:
-        if (resolveId(nodes, e.target, a)) running.erase(a);
+        if (resolveId(nodes, e.target, a)) {
+          running.erase(a);
+          unknownNodes.erase(a);  // this event settles the node's state
+        }
         break;
       case EventAction::START_NODE:
-        if (resolveId(nodes, e.target, a)) running.insert(a);
+        if (resolveId(nodes, e.target, a)) {
+          running.insert(a);
+          unknownNodes.erase(a);
+        }
         break;
       case EventAction::RESTART_NODE:
         if (resolveId(nodes, e.target, a)) {
           if (step.isDelayedStart) running.insert(a);   // start half
           else running.erase(a);                        // stop half
+          unknownNodes.erase(a);
         }
         break;
       case EventAction::CONNECTION_DROP:
@@ -750,7 +796,10 @@ std::vector<std::string> validateEventTimeline(
         uint32_t x = 0, y = 0;
         const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
         const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
-        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.insert(key(x, y));
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) {
+          dropped.insert(key(x, y));
+          unknownEdges.erase(key(x, y));
+        }
         break;
       }
       case EventAction::CONNECTION_RESTORE:
@@ -758,7 +807,10 @@ std::vector<std::string> validateEventTimeline(
         uint32_t x = 0, y = 0;
         const std::string& s = e.targets.size() >= 2 ? e.targets[0] : e.from;
         const std::string& t = e.targets.size() >= 2 ? e.targets[1] : e.to;
-        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) dropped.erase(key(x, y));
+        if (resolveId(nodes, s, x) && resolveId(nodes, t, y)) {
+          dropped.erase(key(x, y));
+          unknownEdges.erase(key(x, y));
+        }
         break;
       }
       case EventAction::PARTITION_NETWORK: {
@@ -770,10 +822,13 @@ std::vector<std::string> validateEventTimeline(
           for (size_t j = i + 1; j < groups.size(); ++j) {
             for (uint32_t x : groups[i])
               for (uint32_t y : groups[j])
-                if (declared.count(key(x, y))) partitionCut.insert(key(x, y));
+                if (declared.count(key(x, y))) {
+                  partitionCut.insert(key(x, y));
+                  unknownEdges.erase(key(x, y));  // this cut settles the edge
+                }
           }
         }
-        if (topologyWired && componentCount() != groups.size()) {
+        if (topologyWired && stateKnown() && componentCount() != groups.size()) {
           problems.push_back(
               "network_partition " + describe(e) + " requests " +
               std::to_string(groups.size()) +
@@ -787,14 +842,58 @@ std::vector<std::string> validateEventTimeline(
       case EventAction::HEAL_PARTITION:
         partitionCut.clear();
         break;
-      case EventAction::INJECT_MESSAGE:
-        if (resolveId(nodes, e.from, a) && !running.count(a)) {
+      case EventAction::UNKNOWN:
+      case EventAction::ADD_NODES:
+      case EventAction::REMOVE_NODE:
+        // No lifecycle model exists for these. An UNKNOWN action is an
+        // arbitrary string -- it could start, stop or relink anything -- and
+        // add/remove change the node set. Treat every node and declared edge as
+        // unknown from here on rather than guessing, and keep walking so the
+        // remaining supported events are still checked against whatever the
+        // timeline settles afterwards.
+        unknownNodes = allNodes;
+        unknownEdges = declared;
+        unknownNodeSet = true;
+        break;
+      case EventAction::INJECT_MESSAGE: {
+        // EventFactory reads the sender from `from`, falling back to `target`;
+        // resolve it the same way or the two disagree about what is checked.
+        const std::string& sender = e.from.empty() ? e.target : e.from;
+        if (!resolveId(nodes, sender, a) || unknownNodes.count(a)) break;
+        if (!running.count(a)) {
           problems.push_back(
-              "inject_message " + describe(e) + " sends from node '" + e.from +
+              "inject_message " + describe(e) + " sends from node '" + sender +
               "', which is stopped at that point in the timeline; the runtime "
               "refuses the injection and fails the run");
+          break;  // the send never happens, so where it was aimed is moot
+        }
+        // A running sender is only half of it: the destination has to still be
+        // reachable through whatever earlier events left of the mesh, or the
+        // send is refused and MessageInjectEvent throws. (issue 62)
+        if (!topologyWired || !stateKnown()) break;
+        // EventFactory maps an absent `to`, "broadcast" and "all" to node 0.
+        if (e.to.empty() || e.to == "broadcast" || e.to == "all") {
+          if (!hasLivePeer(a)) {
+            problems.push_back(
+                "inject_message " + describe(e) + " broadcasts from node '" +
+                sender + "', which has no live peer at that point in the "
+                "timeline; the runtime refuses the broadcast and fails the run");
+          }
+          break;
+        }
+        uint32_t dest = 0;
+        // An unresolvable destination is already a config error of its own, and
+        // a self-addressed send is not a topology question.
+        if (!resolveId(nodes, e.to, dest) || dest == a) break;
+        if (!reachableFrom(a).count(dest)) {
+          problems.push_back(
+              "inject_message " + describe(e) + " sends to node '" + e.to +
+              "', which earlier events leave unreachable from '" + sender +
+              "' (a stopped node, a dropped link or an active partition lies "
+              "between them); the runtime finds no route and fails the run");
         }
         break;
+      }
       default:
         break;
     }
