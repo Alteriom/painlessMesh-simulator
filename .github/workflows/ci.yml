@@ -7,9 +7,6 @@ on:
     branches: [ master, main, develop, 'feature/**' ]
   pull_request:
     branches: [ master, main, develop ]
-  schedule:
-    # Nightly: upstream drift check against painlessMesh HEAD, plus benchmarks.
-    - cron: '0 2 * * *'
   workflow_dispatch:
 
 env:
