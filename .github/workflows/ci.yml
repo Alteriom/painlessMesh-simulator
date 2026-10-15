@@ -320,9 +320,10 @@ jobs:
   #     - name: Perform CodeQL Analysis
   #       uses: github/codeql-action/analyze@v3
 
-  # Review-loop governor — caps bot review rounds per PR (AGENTS.md § Review
-  # round budget). The budget mirrors MAX_REVIEW_ITERATIONS = 3 in the
-  # Command Center's pr_review_handler.py; change both together or neither.
+  # Review-loop governor — caps bot review rounds per PR (AGENTS.md "Review
+  # guidelines"; .github/icm/_shared/review.md "Review round budget"). The
+  # budget mirrors MAX_REVIEW_ITERATIONS = 3 in the Command Center's
+  # pr_review_handler.py; change both together or neither.
   # Past the budget this fails until a human review approves the PR, so the
   # terminal state is a human decision instead of a 39th bot round (PR #59).
   review-budget:

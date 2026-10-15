@@ -222,7 +222,7 @@ jobs:
 - **[MCP Configuration](.github/MCP_CONFIGURATION.md)**: GitHub MCP server setup and capabilities
 - **[MCP Quick Reference](.github/MCP_QUICK_REFERENCE.md)**: Essential commands for AI agents
 - **[Agent Session Template](.github/AGENT_SESSION_TEMPLATE.md)**: Workflow template for coding sessions
-- **[Copilot Instructions](.github/copilot-instructions.md)**: Coding standards and best practices
+- **[AGENTS.md](AGENTS.md)**: the entry for every agent (Claude Code, Codex, Copilot): routes, review guidelines, and `.github/icm/` for the facts
 
 ### Library Validation & Firmware Development
 
@@ -541,7 +541,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 - Follow C++14 standards
 - Use 2-space indentation
-- Follow naming conventions in `.github/copilot-instructions.md`
+- Follow the conventions in `.github/icm/_shared/conventions.md`
 - Document all public APIs
 - Write tests for new features
 

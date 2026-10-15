@@ -1,0 +1,1472 @@
+{
+  "workspace_root": "",
+  "schema_version": 2,
+  "access": "workspace",
+  "entrypoint": "AGENTS.md",
+  "runtimes": [
+    "claude_code",
+    "codex_cli"
+  ],
+  "projects": [
+    "painlessmesh-simulator"
+  ],
+  "nodes": [
+    {
+      "id": "AGENTS.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L0",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L0",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "CLAUDE.md"
+      ]
+    },
+    {
+      "id": "doc-.github-agents-cpp-simulator-agent.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/agents/cpp-simulator-agent.md"
+      ]
+    },
+    {
+      "id": "doc-.github-agents-documentation-agent.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/agents/documentation-agent.md"
+      ]
+    },
+    {
+      "id": "doc-.github-agents-firmware-integration-agent.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/agents/firmware-integration-agent.md"
+      ]
+    },
+    {
+      "id": "doc-.github-agents-scenario-config-agent.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/agents/scenario-config-agent.md"
+      ]
+    },
+    {
+      "id": "doc-.github-copilot-instructions.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/copilot-instructions.md"
+      ]
+    },
+    {
+      "id": "doc-CONTRIBUTING.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "CONTRIBUTING.md"
+      ]
+    },
+    {
+      "id": "doc-DEVELOPMENT_STATUS.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "DEVELOPMENT_STATUS.md"
+      ]
+    },
+    {
+      "id": "doc-GETTING_STARTED.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "GETTING_STARTED.md"
+      ]
+    },
+    {
+      "id": "doc-README.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "doc-docs-BANDWIDTH_LIMITING.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/BANDWIDTH_LIMITING.md"
+      ]
+    },
+    {
+      "id": "doc-docs-BRIDGE_TESTING_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/BRIDGE_TESTING_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-docs-CONFIGURATION_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/CONFIGURATION_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-docs-CONNECTION_EVENTS.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/CONNECTION_EVENTS.md"
+      ]
+    },
+    {
+      "id": "doc-docs-CUSTOM_EVENTS.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/CUSTOM_EVENTS.md"
+      ]
+    },
+    {
+      "id": "doc-docs-DOCKER_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/DOCKER_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-docs-FIRMWARE_DEVELOPMENT_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/FIRMWARE_DEVELOPMENT_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-docs-FIRMWARE_INTEGRATION.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/FIRMWARE_INTEGRATION.md"
+      ]
+    },
+    {
+      "id": "doc-docs-FIRMWARE_TESTING_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/FIRMWARE_TESTING_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-docs-INTEGRATING_INTO_YOUR_PROJECT.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/INTEGRATING_INTO_YOUR_PROJECT.md"
+      ]
+    },
+    {
+      "id": "doc-docs-LIBRARY_VALIDATION_SUMMARY.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/LIBRARY_VALIDATION_SUMMARY.md"
+      ]
+    },
+    {
+      "id": "doc-docs-NETWORK_LATENCY.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/NETWORK_LATENCY.md"
+      ]
+    },
+    {
+      "id": "doc-docs-PACKET_LOSS.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/PACKET_LOSS.md"
+      ]
+    },
+    {
+      "id": "doc-docs-PARTITION_EVENTS.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/PARTITION_EVENTS.md"
+      ]
+    },
+    {
+      "id": "doc-docs-SIMULATOR_QUICKSTART.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/SIMULATOR_QUICKSTART.md"
+      ]
+    },
+    {
+      "id": "doc-docs-V2_RELEASE_REVIEW.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/V2_RELEASE_REVIEW.md"
+      ]
+    },
+    {
+      "id": "doc-docs-WSL2_SETUP_GUIDE.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "docs/WSL2_SETUP_GUIDE.md"
+      ]
+    },
+    {
+      "id": "doc-examples-README.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "examples/README.md"
+      ]
+    },
+    {
+      "id": "doc-examples-firmware-README.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "examples/firmware/README.md"
+      ]
+    },
+    {
+      "id": "doc-examples-integration-README.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "examples/integration/README.md"
+      ]
+    },
+    {
+      "id": "doc-scripts-README.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        "scripts/README.md"
+      ]
+    },
+    {
+      "id": "01-fix-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/01-fix/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "01-fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/01-fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-01_reproduce-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/01-fix/stages/01_reproduce/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-02_fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/01-fix/stages/02_fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-03_verify-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/01-fix/stages/03_verify/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/02-feature/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "02-feature-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/02-feature/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-01_spec-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/02-feature/stages/01_spec/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-02_implement-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/02-feature/stages/02_implement/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-03_verify-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/02-feature/stages/03_verify/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-deps-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/03-deps/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "03-deps-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/03-deps/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-deps-stages-01_review-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/03-deps/stages/01_review/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "shared-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "shared-architecture.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/architecture.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CMakeLists.txt",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "DEVELOPMENT_STATUS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/V2_RELEASE_REVIEW.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/cli_options.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/config_loader.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/firmware/firmware_base.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/firmware/firmware_factory.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/network_simulator.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/node_manager.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/platform_compat.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/topology_planner.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/virtual_node.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "scripts/ci_integration_check.sh",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/cli/cli_parser.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/config/config_loader.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/config/topology_planner.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/core/node_manager.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/core/painlessmesh_support.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/core/virtual_node.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/main.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/network/network_simulator.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/scenario/event_factory.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/scenario/event_scheduler.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    },
+    {
+      "id": "shared-build-and-test.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/build-and-test.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/ci.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/icm-check.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/upstream-drift.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CMakeLists.txt",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "DEVELOPMENT_STATUS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "Dockerfile",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docker-quickstart.ps1",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/DOCKER_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/WINDOWS_BUILD_DECISION.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/WSL2_SETUP_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/scenarios/stress_test.yaml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "scripts/ci_integration_check.sh",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    },
+    {
+      "id": "shared-conventions.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/conventions.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/PULL_REQUEST_TEMPLATE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/ci.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".gitignore",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CMakeLists.txt",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CONTRIBUTING.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/cli_options.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/config_loader.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/node_manager.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/virtual_node.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "scripts/ci_integration_check.sh",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/core/virtual_node.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/main.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    },
+    {
+      "id": "shared-dependencies.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/dependencies.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/dependabot.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/ci.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/icm-check.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/upstream-drift.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".gitmodules",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CMakeLists.txt",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "DEVELOPMENT_STATUS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "Dockerfile",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/V2_RELEASE_REVIEW.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    },
+    {
+      "id": "shared-documents.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/documents.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/copilot-instructions.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/copilot-mcp.json",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/ci.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/upstream-drift.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".gitmodules",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CHANGELOG.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CMakeLists.txt",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "CONTRIBUTING.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "DEVELOPMENT_STATUS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "Dockerfile",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "GETTING_STARTED.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "SECURITY.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docker-quickstart.ps1",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docker-quickstart.sh",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/BANDWIDTH_LIMITING.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/BRIDGE_TESTING_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/CONFIGURATION_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/CONNECTION_EVENTS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/CUSTOM_EVENTS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/DOCKER_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/FIRMWARE_DEVELOPMENT_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/FIRMWARE_INTEGRATION.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/FIRMWARE_TESTING_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/INTEGRATING_INTO_YOUR_PROJECT.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/LIBRARY_VALIDATION_SUMMARY.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/NETWORK_LATENCY.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/PACKET_LOSS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/PARTITION_EVENTS.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/SIMULATOR_QUICKSTART.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/V2_RELEASE_REVIEW.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/WSL2_SETUP_GUIDE.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/firmware/README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/integration/README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/scenarios/bridge_failover_test.yaml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/scenarios/ino_firmware_test.yaml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "examples/scenarios/library_validation.yaml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/firmware/firmware_base.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/firmware/firmware_factory.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "include/simulator/firmware/ino_firmware_wrapper.hpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "scripts/README.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "scripts/ci_integration_check.sh",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/cli/cli_parser.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/config/config_loader.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/config/topology_planner.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/firmware/bridge_ino_firmware.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/firmware/library_validation_firmware.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/network/network_simulator.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "src/scenario/event_factory.cpp",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    },
+    {
+      "id": "shared-review.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh-simulator",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
+      "files": [
+        ".github/icm/_shared/review.md"
+      ],
+      "evidence": [
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".github/workflows/ci.yml",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": ".gitignore",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        },
+        {
+          "repo": "Alteriom/painlessMesh-simulator",
+          "path": "docs/V2_RELEASE_REVIEW.md",
+          "commit": "b28ff129d49b7a79cae81e69b205c1bf3821234b"
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "form": "umbrella",
+      "root": "",
+      "pipelines": [
+        ".github/icm/01-fix",
+        ".github/icm/02-feature",
+        ".github/icm/03-deps"
+      ],
+      "unit": "run"
+    },
+    {
+      "form": "pipeline",
+      "root": ".github/icm/01-fix",
+      "unit": "run"
+    },
+    {
+      "form": "pipeline",
+      "root": ".github/icm/02-feature",
+      "unit": "run"
+    },
+    {
+      "form": "pipeline",
+      "root": ".github/icm/03-deps",
+      "unit": "run"
+    }
+  ],
+  "stages": {
+    "fix-reproduce": {
+      "order": 1,
+      "contract": ".github/icm/01-fix/stages/01_reproduce/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          ".github/icm/_shared/architecture.md",
+          ".github/icm/_shared/build-and-test.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/02-feature/",
+        ".github/icm/03-deps/",
+        ".github/icm/_shared/review.md"
+      ],
+      "outputs": [
+        ".github/icm/01-fix/stages/01_reproduce/output/reproduction.md"
+      ],
+      "human_check": "A person runs the command, or reads the output, and confirms it fails for the reported reason and not a neighbouring one.",
+      "required": [
+        "01-fix-stages-01_reproduce-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-dependencies.md"
+      ]
+    },
+    "fix-fix": {
+      "order": 2,
+      "contract": ".github/icm/01-fix/stages/02_fix/CONTEXT.md",
+      "inputs": {
+        "working": [
+          ".github/icm/01-fix/stages/01_reproduce/output/reproduction.md"
+        ],
+        "reference": [
+          ".github/icm/_shared/conventions.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/02-feature/",
+        ".github/icm/03-deps/",
+        ".github/icm/_shared/documents.md"
+      ],
+      "outputs": [
+        ".github/icm/01-fix/stages/02_fix/output/change.md"
+      ],
+      "human_check": "A person reads the diff beside the reproduction: it removes the cause, not only what the test sees, and nothing was loosened to get green. Edit `change.md` if the explanation is wrong; stage 03 reads it.",
+      "required": [
+        "01-fix-stages-02_fix-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-architecture.md",
+        "shared-dependencies.md"
+      ]
+    },
+    "fix-verify": {
+      "order": 3,
+      "contract": ".github/icm/01-fix/stages/03_verify/CONTEXT.md",
+      "inputs": {
+        "working": [
+          ".github/icm/01-fix/stages/02_fix/output/change.md"
+        ],
+        "reference": [
+          ".github/icm/_shared/build-and-test.md",
+          ".github/icm/_shared/review.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/02-feature/",
+        ".github/icm/03-deps/"
+      ],
+      "outputs": [
+        ".github/icm/01-fix/stages/03_verify/output/pull-request.md"
+      ],
+      "human_check": "A person reads `pull-request.md` and its evidence and says whether to open it; the reviewer, not the author, merges.",
+      "required": [
+        "01-fix-stages-03_verify-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-documents.md"
+      ]
+    },
+    "feature-spec": {
+      "order": 1,
+      "contract": ".github/icm/02-feature/stages/01_spec/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          ".github/icm/_shared/architecture.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/01-fix/",
+        ".github/icm/03-deps/",
+        ".github/icm/_shared/review.md"
+      ],
+      "outputs": [
+        ".github/icm/02-feature/stages/01_spec/output/spec.md"
+      ],
+      "human_check": "A person approves the spec, or edits it: the scope matches the issue and the proof would fail without the capability.",
+      "required": [
+        "02-feature-stages-01_spec-CONTEXT.md"
+      ],
+      "optional": [
+        "doc-docs-CONFIGURATION_GUIDE.md",
+        "doc-docs-FIRMWARE_DEVELOPMENT_GUIDE.md"
+      ]
+    },
+    "feature-implement": {
+      "order": 2,
+      "contract": ".github/icm/02-feature/stages/02_implement/CONTEXT.md",
+      "inputs": {
+        "working": [
+          ".github/icm/02-feature/stages/01_spec/output/spec.md"
+        ],
+        "reference": [
+          ".github/icm/_shared/conventions.md",
+          ".github/icm/_shared/build-and-test.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/01-fix/",
+        ".github/icm/03-deps/",
+        ".github/icm/_shared/documents.md"
+      ],
+      "outputs": [
+        ".github/icm/02-feature/stages/02_implement/output/change.md"
+      ],
+      "human_check": "A person reads the diff beside the spec: it does what the spec says and no more, and the tests would fail without it.",
+      "required": [
+        "02-feature-stages-02_implement-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-architecture.md"
+      ]
+    },
+    "feature-verify": {
+      "order": 3,
+      "contract": ".github/icm/02-feature/stages/03_verify/CONTEXT.md",
+      "inputs": {
+        "working": [
+          ".github/icm/02-feature/stages/02_implement/output/change.md"
+        ],
+        "reference": [
+          ".github/icm/_shared/documents.md",
+          ".github/icm/_shared/review.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/01-fix/",
+        ".github/icm/03-deps/"
+      ],
+      "outputs": [
+        ".github/icm/02-feature/stages/03_verify/output/pull-request.md"
+      ],
+      "human_check": "A person reads `pull-request.md` and the documents changed and says whether to open it; the reviewer, not the author, merges.",
+      "required": [
+        "02-feature-stages-03_verify-CONTEXT.md"
+      ]
+    },
+    "deps-review": {
+      "order": 1,
+      "contract": ".github/icm/03-deps/stages/01_review/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          ".github/icm/_shared/dependencies.md"
+        ]
+      },
+      "do_not_load": [
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/_shared/review.md",
+        ".github/icm/_shared/documents.md"
+      ],
+      "outputs": [
+        ".github/icm/03-deps/stages/01_review/output/review.md"
+      ],
+      "human_check": "A person reads `review.md` and the pull request's checks, then merges, holds or closes it themselves.",
+      "required": [
+        "03-deps-stages-01_review-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-build-and-test.md"
+      ]
+    }
+  }
+}
