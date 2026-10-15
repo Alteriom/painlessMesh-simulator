@@ -4,7 +4,7 @@
 # the painlessMesh simulator with all dependencies included.
 
 # Build stage
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:25.10 AS builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -41,7 +41,7 @@ RUN mkdir -p build && cd build && \
     ninja test || true
 
 # Runtime stage - minimal image with only runtime dependencies
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:25.10 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 
