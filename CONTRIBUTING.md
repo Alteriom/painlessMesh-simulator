@@ -74,8 +74,7 @@ Before you begin, ensure you have:
 
 ### Branch Strategy
 
-- `master` or `main`: Stable release branch
-- `develop`: Development branch (default for PRs)
+- `main`: the only long-lived branch; every pull request targets it, and CI runs on it
 - `feature/*`: Feature branches
 - `fix/*`: Bug fix branches
 - `docs/*`: Documentation branches
@@ -84,8 +83,8 @@ Before you begin, ensure you have:
 
 1. **Create a feature branch**:
    ```bash
-   git checkout develop
-   git pull upstream develop
+   git checkout main
+   git pull upstream main
    git checkout -b feature/my-feature
    ```
 
@@ -486,10 +485,10 @@ ninja coverage
 
 1. **Update from upstream**:
    ```bash
-   git checkout develop
-   git pull upstream develop
+   git checkout main
+   git pull upstream main
    git checkout feature/my-feature
-   git rebase develop
+   git rebase main
    ```
 
 2. **Run tests**:
@@ -560,7 +559,7 @@ Fixes #456
    ```
 
 2. **Open PR on GitHub**:
-   - Target `develop` branch (not master)
+   - Target the `main` branch
    - Use descriptive title
    - Fill out PR template
    - Link related issues
