@@ -264,7 +264,7 @@ Enhancement suggestions are welcome! Please include:
 
 ### C++ Style Guide
 
-Follow the guidelines in `.github/copilot-instructions.md`:
+The house style is summarised, with its evidence, in `.github/icm/_shared/conventions.md`:
 
 #### Naming Conventions
 ```cpp
